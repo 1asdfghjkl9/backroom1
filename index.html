@@ -207,6 +207,25 @@ html,body{
 }
 .pubg-title-block .title{font-size:28px;}
 .pubg-title-block .title-cn{font-size:14px;}
+.menu-level-cards{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+  gap:6px;margin-top:14px;max-width:520px;max-height:220px;
+  overflow-y:auto;pointer-events:auto;padding:4px;
+}
+.menu-level-cards::-webkit-scrollbar{width:3px;}
+.menu-level-cards::-webkit-scrollbar-thumb{background:rgba(180,140,60,.3);}
+.ml-card{
+  background:rgba(14,12,8,.5);border:1px solid rgba(180,140,60,.1);
+  border-radius:4px;padding:6px 8px;text-align:left;font-size:10px;
+  color:var(--tc-sm);transition:border-color .2s;
+}
+.ml-card.cleared{border-color:rgba(142,230,176,.15);}
+.ml-card.locked{opacity:.35;}
+.ml-card .ml-code{font-size:9px;color:var(--amber);letter-spacing:1px;}
+.ml-card .ml-name{font-size:11px;color:var(--tc);margin:1px 0;}
+.ml-card .ml-intro{font-size:9px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.ml-card .ml-status{font-size:8px;margin-top:2px;color:var(--amber);}
+.ml-card.cleared .ml-status{color:rgba(142,230,176,.5);}
 .pubg-side-menu{
   position:absolute;bottom:48px;left:32px;z-index:5;
   display:flex;flex-direction:column;gap:4px;
@@ -374,6 +393,24 @@ html,body{
   position:fixed;inset:0;background:#000;z-index:20;
   pointer-events:none;opacity:0;transition:opacity .4s;
 }
+/* 新手引导 */
+.tutorial-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:30;
+  display:flex;align-items:center;justify-content:center;
+}
+.tutorial-box{
+  background:rgba(20,18,12,.95);border:1px solid rgba(180,140,60,.3);
+  border-radius:6px;padding:24px;max-width:380px;width:90%;text-align:center;
+  box-shadow:0 0 30px rgba(180,140,60,.1);
+}
+.tutorial-icon{font-size:36px;margin-bottom:8px;}
+.tutorial-box h3{font-size:16px;color:var(--amber);margin-bottom:8px;}
+.tutorial-box p{font-size:12px;color:var(--tc);line-height:1.6;margin-bottom:8px;}
+.tutorial-hint{font-size:11px;color:var(--tc-sm);padding:6px 10px;background:rgba(180,140,60,.08);border-radius:3px;margin-bottom:12px;}
+.tutorial-controls{display:flex;gap:8px;justify-content:center;margin-bottom:10px;}
+.tutorial-dots{display:flex;gap:4px;justify-content:center;}
+.tutorial-dot{width:6px;height:6px;border-radius:50%;background:rgba(180,140,60,.2);}
+.tutorial-dot.active{background:var(--amber);}
 /* Responsive */
 @media(max-width:480px){
   .bar{width:90px;}
@@ -955,6 +992,10 @@ input[type="range"]::-moz-range-thumb {
   .pubg-side-btn { width: 120px; padding: 6px 10px; }
   .pubg-title-block .title { font-size: 20px; }
   .pubg-title-block .title-cn { font-size: 11px; }
+  .menu-level-cards { max-width: 320px; max-height: 140px; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  .ml-card { padding: 4px 6px; }
+  .ml-card .ml-name { font-size: 10px; }
+  .ml-card .ml-intro { font-size: 8px; }
   .menu-wrap.pubg-style .menu-foot { bottom: 8px; right: 16px; }
   .menu-wrap.pubg-style .diag-input-wrap { bottom: 20px; right: 16px; }
 }
@@ -1063,6 +1104,13 @@ input[type="range"]::-moz-range-thumb {
 .sb-auth-btn:disabled{opacity:.5;cursor:not-allowed;}
 .sb-auth-err{color:#e66;font-size:11px;text-align:center;margin-top:8px;min-height:14px;}
 .sb-auth-info{font-size:10px;color:var(--tc-sm);text-align:center;margin-top:12px;line-height:1.5;}
+.sb-auth-select{width:100%;background:rgba(14,12,8,.6);border:1px solid var(--border);border-radius:3px;color:var(--tc);padding:10px 12px;font-family:var(--font);font-size:13px;box-sizing:border-box;}
+.sb-auth-code{border-color:rgba(180,140,60,.3);}
+.sb-auth-code:focus{border-color:var(--amber-d);}
+.sb-role-badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;margin-left:6px;}
+.sb-role-official{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;}
+.sb-role-cocreator{background:linear-gradient(135deg,#c0c0c0,#a0a0a0);color:#000;}
+.sb-role-player{background:rgba(100,100,100,.3);color:var(--tc-sm);}
 /* Profile area */
 .sb-user-badge{display:flex;align-items:center;gap:8px;cursor:pointer;}
 .sb-user-avatar{width:32px;height:32px;border-radius:50%;background:var(--amber-d);color:#000;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;}
@@ -1198,18 +1246,19 @@ input[type="range"]::-moz-range-thumb {
           </div>
         </div>
 
-        <!-- 中央标题（缩小，氛围用） -->
+        <!-- 中央标题 + 关卡简介 -->
         <div class="pubg-title-block">
           <div class="title-sub">FORM 0-A · SITE BRIEFING</div>
           <h1 class="title">THE BACKROOMS</h1>
           <div class="title-cn">逃离后室</div>
+          <div id="menu-level-cards" class="menu-level-cards"></div>
         </div>
 
         <!-- 左下角：功能入口 -->
         <div class="pubg-side-menu">
-          <button class="pubg-side-btn" data-action="levels">
+          <button class="pubg-side-btn" data-action="levelinfo">
             <span class="pubg-side-icon">📋</span>
-            <span class="pubg-side-text">关卡选择</span>
+            <span class="pubg-side-text">层级档案</span>
           </button>
           <button class="pubg-side-btn" data-action="achievements">
             <span class="pubg-side-icon">🏆</span>
@@ -1257,10 +1306,11 @@ input[type="range"]::-moz-range-thumb {
       </div>
     </section>
 
-    <!-- 关卡选择 -->
+    <!-- 关卡简介（不可选关，仅展示） -->
     <section class="screen" id="screen-levels">
-      <div class="panel">
-        <h2>关卡选择</h2>
+      <div class="panel panel-wide">
+        <h2>层级档案</h2>
+        <p style="font-size:11px;color:var(--tc-sm);margin-bottom:12px;">通关各层级，从中枢的门进入下一层。</p>
         <div id="level-grid" class="level-grid"></div>
         <div class="panel-foot">
           <button class="btn btn-ghost" data-action="menu">返回</button>
@@ -1304,12 +1354,34 @@ input[type="range"]::-moz-range-thumb {
     <section class="screen" id="screen-custom-levels">
       <div class="panel panel-wide">
         <h2>自制关卡</h2>
-        <p style="font-size:11px;color:var(--tc-sm);margin-bottom:12px;">浏览社区制作的关卡，或创建你自己的关卡。点赞你喜欢的关卡。</p>
-        <div style="display:flex;gap:8px;margin-bottom:12px;">
-          <button class="btn btn-primary" id="cl-new" style="padding:8px 16px;">新建关卡</button>
+        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="cl-toggle-create" style="padding:8px 16px;">文字创建</button>
           <button class="btn" id="cl-import" style="padding:8px 16px;">导入关卡</button>
+          <button class="btn btn-ghost" id="cl-export-all" style="padding:8px 16px;">导出全部</button>
         </div>
-        <div id="custom-level-list" class="ach-list" style="max-height:350px;overflow-y:auto;"></div>
+        <div id="cl-create-form" style="display:none;margin-bottom:12px;background:rgba(14,12,8,.5);border:1px solid var(--border);border-radius:4px;padding:12px;">
+          <p style="font-size:11px;color:var(--tc-sm);margin-bottom:8px;">每行一个参数，格式：参数名=值。支持：name, author, size, gen, wallTex, floorTex, ambient, fog, entities, objective_count, biscuits, waters, batteries, sanityDrain, hint</p>
+          <textarea id="cl-text-input" class="fb-textarea" style="width:100%;height:180px;font-size:11px;font-family:monospace;" placeholder="name=我的关卡
+author=猫猫
+size=33
+gen=pillars
+wallTex=wallpaper
+floorTex=carpet
+ambient=0.2
+fog=0.1
+entities=hound:1,crawler:1
+objective_count=3
+biscuits=3
+waters=2
+batteries=1
+sanityDrain=1.2
+hint=小心猎犬，找到3个目标物后逃出"></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn btn-primary" id="cl-create-submit" style="padding:8px 16px;">创建</button>
+            <button class="btn btn-ghost" id="cl-create-cancel" style="padding:8px 16px;">取消</button>
+          </div>
+        </div>
+        <div id="custom-level-list" class="ach-list" style="max-height:280px;overflow-y:auto;"></div>
         <div class="panel-foot">
           <button class="btn btn-ghost" data-action="menu">返回</button>
         </div>
@@ -1498,7 +1570,7 @@ input[type="range"]::-moz-range-thumb {
         <h2 class="danger">理智崩溃</h2>
         <p id="dead-text">你听见自己的呼吸变成了别人的。</p>
         <div class="menu-buttons">
-          <button class="btn btn-primary" data-action="restart">返回中枢</button>
+          <button class="btn btn-primary" data-action="restart" id="dead-restart-btn">返回中枢</button>
           <button class="btn btn-ghost" data-action="quit">返回主菜单</button>
         </div>
       </div>
@@ -1528,6 +1600,23 @@ input[type="range"]::-moz-range-thumb {
         </div>
       </div>
     </section>
+
+    <!-- 新手引导 -->
+    <div id="tutorial-overlay" class="tutorial-overlay" style="display:none;">
+      <div class="tutorial-box">
+        <div class="tutorial-step" id="tutorial-step-display">
+          <div class="tutorial-icon" id="tutorial-icon">🎮</div>
+          <h3 id="tutorial-title">欢迎来到后室</h3>
+          <p id="tutorial-text">这里是后室——一个无尽的黄色房间迷宫。你需要找到出口逃离。</p>
+          <div id="tutorial-hint" class="tutorial-hint"></div>
+        </div>
+        <div class="tutorial-controls">
+          <button class="btn btn-ghost" id="tutorial-skip">跳过教程</button>
+          <button class="btn btn-primary" id="tutorial-next">下一步</button>
+        </div>
+        <div class="tutorial-dots" id="tutorial-dots"></div>
+      </div>
+    </div>
 
   </div>
 
@@ -4038,6 +4127,70 @@ function spriteNavigator() {
   return c;
 }
 
+/* 中枢门精灵：发光的传送门 */
+function spriteHubDoor(frame) {
+  const S = 128, c = makeCanvas(S), g = c.getContext('2d');
+  const cx = S / 2;
+  const locked = frame === 1;
+
+  /* 门框（金色金属边框） */
+  g.fillStyle = locked ? '#2a2520' : '#5a4220';
+  g.fillRect(S * 0.18, S * 0.08, S * 0.64, S * 0.84);
+  /* 门框高光 */
+  g.fillStyle = locked ? '#3a3530' : '#7a6230';
+  g.fillRect(S * 0.18, S * 0.08, S * 0.64, S * 0.03);
+  g.fillRect(S * 0.18, S * 0.08, S * 0.03, S * 0.84);
+  /* 门框阴影 */
+  g.fillStyle = locked ? '#1a1510' : '#3a2810';
+  g.fillRect(S * 0.79, S * 0.08, S * 0.03, S * 0.84);
+  g.fillRect(S * 0.18, S * 0.89, S * 0.64, S * 0.03);
+
+  if (locked) {
+    /* 锁住的门：暗色 */
+    g.fillStyle = '#0a0805';
+    g.fillRect(S * 0.22, S * 0.12, S * 0.56, S * 0.76);
+    /* 锁标志 */
+    g.fillStyle = '#444';
+    g.font = 'bold 28px sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('🔒', cx, S * 0.5);
+    /* 链条 */
+    g.strokeStyle = '#333';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(S * 0.3, S * 0.3);
+    g.lineTo(S * 0.7, S * 0.3);
+    g.moveTo(S * 0.3, S * 0.7);
+    g.lineTo(S * 0.7, S * 0.7);
+    g.stroke();
+  } else {
+    /* 发光门户：金色光柱 */
+    const grd = g.createLinearGradient(S * 0.22, S * 0.12, S * 0.22, S * 0.88);
+    grd.addColorStop(0, 'rgba(255,230,140,0.95)');
+    grd.addColorStop(0.3, 'rgba(255,200,80,0.85)');
+    grd.addColorStop(0.6, 'rgba(255,170,40,0.7)');
+    grd.addColorStop(1, 'rgba(200,140,20,0.5)');
+    g.fillStyle = grd;
+    g.fillRect(S * 0.22, S * 0.12, S * 0.56, S * 0.76);
+    /* 中心光芒 */
+    const glow = g.createRadialGradient(cx, S * 0.5, 0, cx, S * 0.5, S * 0.3);
+    glow.addColorStop(0, 'rgba(255,255,200,0.6)');
+    glow.addColorStop(1, 'rgba(255,200,80,0)');
+    g.fillStyle = glow;
+    g.fillRect(S * 0.22, S * 0.12, S * 0.56, S * 0.76);
+    /* 边缘光效 */
+    g.strokeStyle = 'rgba(255,220,100,0.9)';
+    g.lineWidth = 2;
+    g.strokeRect(S * 0.22, S * 0.12, S * 0.56, S * 0.76);
+    /* 顶部光带 */
+    g.fillStyle = 'rgba(255,255,220,0.4)';
+    g.fillRect(S * 0.25, S * 0.14, S * 0.5, S * 0.03);
+  }
+
+  return c;
+}
+
 /* ---------------- 汇总 ---------------- */
 
 function buildTextures() {
@@ -4104,7 +4257,8 @@ function buildTextures() {
       extinguisher: spr(spriteBattery()),
       canteen: spr(spriteWater()),
       note: spr(spriteNote()),
-      car: [spr(spriteCar(0)), spr(spriteCar(1)), spr(spriteCar(2))]
+      car: [spr(spriteCar(0)), spr(spriteCar(1)), spr(spriteCar(2))],
+      hubDoor: [spr(spriteHubDoor(0)), spr(spriteHubDoor(1))]
     }
   };
 }
@@ -5675,7 +5829,7 @@ const LEVELS = [
     pipes: 1,
     vents: 2,
     entities: [],
-    objective: { name: '出口', count: 1 },
+    objective: { name: '出口', count: 0 },
     isHub: true,
     biscuits: 3,
     waters: 2,
@@ -5683,7 +5837,17 @@ const LEVELS = [
     navP: 0,
     sanityDrain: 0.0,
     sanityGain: 5.0,
-    hint: '这里是中枢——安全的锚点。走向发光的门即可进入下一层。死亡后会回到这里。'
+    hint: '这里是中枢——安全的锚点。走向发光的门即可进入已解锁的层级。死亡后会回到这里。',
+    hubDoors: [
+      { x: 16, y: 6,  target: 3, label: '电气管道层', icon: '⚡' },
+      { x: 26, y: 16, target: 4, label: '泳池洪水层', icon: '🌊' },
+      { x: 16, y: 26, target: 5, label: '办公层',     icon: '📂' },
+      { x: 6,  y: 16, target: 6, label: '仓库层',     icon: '📦' },
+      { x: 24, y: 8,  target: 7, label: '医院层',     icon: '🏥' },
+      { x: 8,  y: 8,  target: 8, label: '黑暗层',     icon: '🌑' },
+      { x: 24, y: 24, target: 9, label: '核心',       icon: '💎' },
+      { x: 8,  y: 24, target: 10,label: '终章',       icon: '🔑' }
+    ]
   },
 
   /* ---------------- LEVEL 3（电气管道层，合并旧2+3） ---------------- */
@@ -9092,6 +9256,19 @@ class HUD {
       }
     }
 
+    // 画中枢门（金色=解锁，灰色=锁定）
+    if (game.world.level && game.world.level.isHub && game.world.level.hubDoors) {
+      for (const hd of game.world.level.hubDoors) {
+        const dx = (hd.x + 0.5) - px, dy = (hd.y + 0.5) - py;
+        if (Math.abs(dx) <= range && Math.abs(dy) <= range) {
+          const sx = (dx + range) * scale;
+          const sy = (dy + range) * scale;
+          ctx.fillStyle = hd.target <= game.progress.maxUnlocked ? '#fc4' : '#555';
+          ctx.fillRect(sx - 3, sy - 3, 6, 6);
+        }
+      }
+    }
+
     // 画玩家（白色三角，指向朝向）
     const cx = range * scale, cy = range * scale;
     ctx.save();
@@ -9425,10 +9602,22 @@ class Game {
   openCustomLevels() {
     showScreen('custom-levels');
     this.refreshCustomLevelList();
-    const newBtn = document.getElementById('cl-new');
-    if (newBtn) newBtn.onclick = () => this.createNewCustomLevel();
+    const toggleBtn = document.getElementById('cl-toggle-create');
+    if (toggleBtn) toggleBtn.onclick = () => {
+      const form = document.getElementById('cl-create-form');
+      if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    };
+    const createBtn = document.getElementById('cl-create-submit');
+    if (createBtn) createBtn.onclick = () => this.createFromText();
+    const cancelBtn = document.getElementById('cl-create-cancel');
+    if (cancelBtn) cancelBtn.onclick = () => {
+      const form = document.getElementById('cl-create-form');
+      if (form) form.style.display = 'none';
+    };
     const importBtn = document.getElementById('cl-import');
     if (importBtn) importBtn.onclick = () => this.importCustomLevel();
+    const exportBtn = document.getElementById('cl-export-all');
+    if (exportBtn) exportBtn.onclick = () => this.exportAllCustomLevels();
   }
 
   refreshCustomLevelList() {
@@ -9436,7 +9625,7 @@ class Game {
     if (!list) return;
     const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
     if (customs.length === 0) {
-      list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--tc-sm);font-size:12px;">还没有自制关卡。点击「新建关卡」创建你的第一个。</div>';
+      list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--tc-sm);font-size:12px;">还没有自制关卡。点击「文字创建」或「导入关卡」。</div>';
       return;
     }
     list.innerHTML = customs.map((cl, i) => `
@@ -9448,40 +9637,123 @@ class Game {
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0;">
           <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px;" onclick="game.playCustomLevel(${i})">游玩</button>
+          <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px;" onclick="game.exportCustomLevel(${i})">导出</button>
           <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px;" onclick="game.likeCustomLevel(${i})">👍</button>
+          <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px;color:#a44;" onclick="game.deleteCustomLevel(${i})">✕</button>
         </div>
       </div>
     `).join('');
   }
 
-  createNewCustomLevel() {
-    const name = prompt('关卡名称：');
-    if (!name) return;
-    const author = prompt('你的昵称：') || '匿名';
-    const size = parseInt(prompt('地图大小（建议 20-50）：') || '33');
+  /* 从文字创建关卡 */
+  createFromText() {
+    const input = document.getElementById('cl-text-input');
+    if (!input || !input.value.trim()) {
+      this.hud && this.hud.toast('请输入关卡参数', 2);
+      return;
+    }
+    const params = {};
+    input.value.split('\n').forEach(line => {
+      const idx = line.indexOf('=');
+      if (idx < 0) return;
+      const key = line.slice(0, idx).trim();
+      const val = line.slice(idx + 1).trim();
+      params[key] = val;
+    });
+
+    if (!params.name) {
+      this.hud && this.hud.toast('请至少指定 name= 关卡名称', 2);
+      return;
+    }
+
+    /* 解析实体列表 */
+    let entities = [];
+    if (params.entities) {
+      params.entities.split(',').forEach(e => {
+        const parts = e.trim().split(':');
+        const type = parts[0].trim();
+        const count = parseInt(parts[1] || '1');
+        if (type && count > 0) entities.push({ type, count, minDist: 12 });
+      });
+    }
+    if (entities.length === 0) entities.push({ type: 'hound', count: 1, minDist: 15 });
+
     const custom = {
-      name, author, size,
-      gen: 'pillars',
-      wallTex: 'wallpaper',
-      floorTex: 'carpet',
-      ceilTex: 'panel',
-      ambient: 0.2, fog: 0.1,
+      name: params.name || '自制关卡',
+      author: params.author || '匿名',
+      size: Math.max(16, Math.min(60, parseInt(params.size || '33'))),
+      gen: params.gen || 'pillars',
+      wallTex: params.wallTex || 'wallpaper',
+      floorTex: params.floorTex || 'carpet',
+      ceilTex: params.ceilTex || 'panel',
+      ambient: parseFloat(params.ambient || '0.2'),
+      fog: parseFloat(params.fog || '0.1'),
       lampColor: 0xffe9b8, fogColor: 0x14110b,
       hemiSky: 0xffe9b8, hemiGround: 0x2a1a08,
       ceilingH: 1.36, lampStep: 5, lampSkip: 0.2,
-      flickerChance: 0.25,
-      entities: [{ type: 'hound', count: 1, minDist: 15 }],
-      objective: { name: '出口', count: 3 },
-      biscuits: 3, waters: 2, batteries: 1,
-      sanityDrain: 1.2, sanityGain: 2.0,
+      flickerChance: parseFloat(params.flicker || '0.25'),
+      entities,
+      objective: { name: '出口', count: Math.max(0, parseInt(params.objective_count || '3')) },
+      biscuits: parseInt(params.biscuits || '3'),
+      waters: parseInt(params.waters || '2'),
+      batteries: parseInt(params.batteries || '1'),
+      sanityDrain: parseFloat(params.sanityDrain || '1.2'),
+      sanityGain: 2.0,
+      hint: params.hint || '自制关卡 · 找到目标物品后前往出口',
       likes: 0,
       created: Date.now()
     };
+
     const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
     customs.push(custom);
     localStorage.setItem('backrooms_custom_levels_v1', JSON.stringify(customs));
     this.refreshCustomLevelList();
-    this.hud && this.hud.toast('关卡已创建！点击「游玩」试玩', 3);
+    this.hud && this.hud.toast('关卡「' + custom.name + '」已创建！', 3);
+    input.value = '';
+    const form = document.getElementById('cl-create-form');
+    if (form) form.style.display = 'none';
+  }
+
+  /* 导出单个关卡 */
+  exportCustomLevel(index) {
+    const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
+    const cl = customs[index];
+    if (!cl) return;
+    const blob = new Blob([JSON.stringify(cl, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (cl.name || 'custom-level') + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    this.hud && this.hud.toast('已导出 ' + (cl.name || '关卡'), 2);
+  }
+
+  /* 导出全部关卡 */
+  exportAllCustomLevels() {
+    const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
+    if (customs.length === 0) {
+      this.hud && this.hud.toast('没有可导出的关卡', 2);
+      return;
+    }
+    const blob = new Blob([JSON.stringify(customs, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'backrooms-levels-' + Date.now() + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    this.hud && this.hud.toast('已导出 ' + customs.length + ' 个关卡', 2);
+  }
+
+  /* 删除关卡 */
+  deleteCustomLevel(index) {
+    if (!confirm('确定删除这个关卡？')) return;
+    const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
+    customs.splice(index, 1);
+    localStorage.setItem('backrooms_custom_levels_v1', JSON.stringify(customs));
+    this.refreshCustomLevelList();
+    this.hud && this.hud.toast('已删除', 2);
   }
 
   importCustomLevel() {
@@ -9789,27 +10061,54 @@ class Game {
     if (mdRun) mdRun.textContent = run ? `${LEVELS[run.levelIndex].code}·${run.collected | 0}/${LEVELS[run.levelIndex].objective.count}` : '无';
 
     this.buildLevelGrid();
+
+    /* 主菜单中央关卡简介卡片 */
+    const cardsEl = document.getElementById('menu-level-cards');
+    if (cardsEl) {
+      cardsEl.innerHTML = '';
+      LEVELS.forEach((lv, i) => {
+        const cleared = this.progress.cleared.includes(i);
+        const unlocked = i <= this.progress.maxUnlocked || lv.isHub;
+        const card = document.createElement('div');
+        card.className = 'ml-card' + (cleared ? ' cleared' : '') + (!unlocked && !cleared ? ' locked' : '');
+        let status = '';
+        if (lv.isHub) status = '中枢';
+        else if (cleared) status = '✓ 已通过';
+        else if (unlocked) status = '已解锁';
+        else status = '🔒';
+        card.innerHTML =
+          `<div class="ml-code">${lv.code}</div>` +
+          `<div class="ml-name">${lv.name}</div>` +
+          `<div class="ml-intro">${lv.intro || ''}</div>` +
+          `<div class="ml-status">${status}</div>`;
+        cardsEl.appendChild(card);
+      });
+    }
   }
 
   buildLevelGrid() {
     const grid = document.getElementById('level-grid');
     if (!grid) return;
     grid.innerHTML = '';
-    if (!this.creativeMode) {
-      /* 非创造模式：关闭直接选关，只显示进度 */
-      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:#888;font-size:13px;">直接选关已关闭。从中枢进入各层级。</div>';
-      return;
-    }
     LEVELS.forEach((lv, i) => {
-      const locked = false;  /* 创造模式全部解锁 */
-      const b = document.createElement('button');
-      b.className = 'lv-btn';
-      b.innerHTML =
+      const cleared = this.progress.cleared.includes(i);
+      const unlocked = i <= this.progress.maxUnlocked;
+      const isHub = lv.isHub;
+      const card = document.createElement('div');
+      card.className = 'lv-btn' + (cleared ? ' cleared' : '');
+      card.style.cursor = 'default';
+      card.style.opacity = (unlocked || isHub || cleared) ? '1' : '0.4';
+      let statusLabel = '';
+      if (isHub) statusLabel = '<span class="lv-done">中枢</span>';
+      else if (cleared) statusLabel = '<span class="lv-done">已通过</span>';
+      else if (unlocked) statusLabel = '<span class="lv-done" style="color:rgba(180,140,60,.6)">已解锁</span>';
+      else statusLabel = '<span class="lv-done" style="color:#555">🔒</span>';
+      card.innerHTML =
         `<span class="lv-no">${lv.code}</span>` +
         `<span class="lv-name">${lv.name}</span>` +
-        (this.progress.cleared.includes(i) ? '<span class="lv-done">已通过</span>' : '');
-      b.addEventListener('click', () => this.startLevel(i));
-      grid.appendChild(b);
+        (lv.intro ? `<span style="font-size:10px;color:var(--tc-sm);display:block;margin-top:2px;">${lv.intro}</span>` : '') +
+        statusLabel;
+      grid.appendChild(card);
     });
   }
 
@@ -9830,7 +10129,7 @@ class Game {
         this.startLevel(run ? run.levelIndex : 0, run);
         break;
       }
-      case 'levels':
+      case 'levelinfo':
         this.buildLevelGrid();
         showScreen('levels');
         break;
@@ -9880,8 +10179,15 @@ class Game {
         break;
       }
       case 'next':
-        if (this.levelIndex + 1 < LEVELS.length) this.startLevel(this.levelIndex + 1);
-        else this.quitToMenu();
+        /* 通关后回到中枢（Level 0→1 直接连通，其他回到 Hub） */
+        if (this.levelIndex === 0 || this.levelIndex === 1) {
+          if (this.levelIndex + 1 < LEVELS.length) this.startLevel(this.levelIndex + 1);
+          else this.quitToMenu();
+        } else if (this.levelIndex === LEVELS.length - 1) {
+          this.quitToMenu();
+        } else {
+          this.startLevel(2);
+        }
         break;
       case 'quit':
         this.quitToMenu();
@@ -10020,9 +10326,79 @@ class Game {
     this.fadeIn();
     this.hud.toast(level.intro, 5);
     if (this.creativeMode) this.hud.toast('创作者模式 · 无敌/穿墙/飞行 · G刷怪器 · H除雾', 5);
+    /* 首次进入游戏时显示新手引导 */
+    if (index === 0 && !run && !localStorage.getItem('backrooms_tutorial_seen')) {
+      setTimeout(() => this.startTutorial(), 500);
+    }
     setTimeout(() => {
       if (this.state === 'playing') this.input.requestLock();
     }, 120);  }
+
+  /* ============ 新手引导 ============ */
+  startTutorial() {
+    this._tutorialStep = 0;
+    this._tutorialSteps = [
+      { icon: '🎮', title: '欢迎来到后室', text: '你被困在了后室——一个无尽的黄色房间迷宫。你的目标是找到出口逃离。', hint: '别慌，先看看怎么操作。' },
+      { icon: '🕹️', title: '移动与视角', text: 'PC：WASD 移动，鼠标控制视角方向。手机：左屏拖动移动，右屏拖动转视角。', hint: 'Shift 可以冲刺，Space 可以跳跃。' },
+      { icon: '🔦', title: '手电筒与理智', text: '按 Q 开关手电筒。手电筒消耗电池电量。在黑暗中待太久理智会下降。', hint: '理智低于 0 就会死亡。保持照明。' },
+      { icon: '📦', title: '拾取物品', text: '靠近物品时按 E（或点「拿」键）拾取。收集饼干和杏仁水补充体力和水分。', hint: '按 1 吃饼干，按 2 喝杏仁水。' },
+      { icon: '🎯', title: '完成目标', text: '每层都有目标物品（钥匙卡、保险丝等）。收集足够数量后，走到发光的出口逃离。', hint: '出口未解锁时会显示还差几个目标。' },
+      { icon: '👹', title: '小心实体', text: '后室中有各种危险实体（猎犬、微笑者等）。听到声音要躲起来。可以用武器反击。', hint: '蹲下（C）可以进入通风口躲避。' },
+      { icon: '🚪', title: '中枢与门', text: '通过 Level 0 和 1 后，你会到达中枢。中枢是安全区，有门通往各个层级。', hint: '发光的门=已解锁，锁住的需要先通关前一层。' },
+      { icon: '✅', title: '准备好了', text: '记住：死亡后会回到中枢重新开始。保持冷静，探索每个角落。祝你好运。', hint: '点击「下一步」开始游戏。' }
+    ];
+    this._showTutorialStep();
+    this.input.exitLock();
+  }
+
+  _showTutorialStep() {
+    const overlay = document.getElementById('tutorial-overlay');
+    if (!overlay || !this._tutorialSteps) return;
+    const step = this._tutorialSteps[this._tutorialStep];
+    if (!step) { this.endTutorial(); return; }
+    overlay.style.display = 'flex';
+    const iconEl = document.getElementById('tutorial-icon');
+    const titleEl = document.getElementById('tutorial-title');
+    const textEl = document.getElementById('tutorial-text');
+    const hintEl = document.getElementById('tutorial-hint');
+    if (iconEl) iconEl.textContent = step.icon;
+    if (titleEl) titleEl.textContent = step.title;
+    if (textEl) textEl.textContent = step.text;
+    if (hintEl) hintEl.textContent = step.hint || '';
+    /* 点 */
+    const dotsEl = document.getElementById('tutorial-dots');
+    if (dotsEl) {
+      dotsEl.innerHTML = this._tutorialSteps.map((_, i) =>
+        `<div class="tutorial-dot${i === this._tutorialStep ? ' active' : ''}"></div>`
+      ).join('');
+    }
+    /* 按钮文字 */
+    const nextBtn = document.getElementById('tutorial-next');
+    if (nextBtn) {
+      nextBtn.textContent = this._tutorialStep >= this._tutorialSteps.length - 1 ? '开始游戏' : '下一步';
+      nextBtn.onclick = () => {
+        this._tutorialStep++;
+        if (this._tutorialStep >= this._tutorialSteps.length) {
+          this.endTutorial();
+        } else {
+          this._showTutorialStep();
+        }
+      };
+    }
+    const skipBtn = document.getElementById('tutorial-skip');
+    if (skipBtn) {
+      skipBtn.onclick = () => this.endTutorial();
+    }
+  }
+
+  endTutorial() {
+    const overlay = document.getElementById('tutorial-overlay');
+    if (overlay) overlay.style.display = 'none';
+    localStorage.setItem('backrooms_tutorial_seen', '1');
+    if (this.state === 'playing') {
+      setTimeout(() => this.input.requestLock(), 100);
+    }
+  }
 
   fadeIn() {
     if (!this.fadeEl) return;
@@ -10102,17 +10478,23 @@ class Game {
     if (el) el.textContent = DEATH_LINES[(Math.random() * DEATH_LINES.length) | 0];
     showScreen('dead');
     this.hud.hide();
+    /* 更新死亡按钮文字 */
+    const drb = document.getElementById('dead-restart-btn');
+    if (drb) {
+      if (this.progress.maxUnlocked >= 2 && this.levelIndex > 2) {
+        drb.textContent = '返回中枢';
+      } else {
+        drb.textContent = '重新尝试';
+      }
+    }
   }
 
   completeLevel() {
     if (this.state !== 'playing') return;
     const isLast = this.levelIndex >= LEVELS.length - 1;
-    /* Hub 直接进入下一层，不显示结算 */
+    /* Hub 不自动进入下一层，需要通过门选择 */
     if (this.level.isHub) {
-      this.progress.maxUnlocked = Math.max(this.progress.maxUnlocked, Math.min(LEVELS.length - 1, this.levelIndex + 1));
-      this.saveProgress();
-      this.clearRun();
-      this.startLevel(this.levelIndex + 1);
+      this.hud.setPrompt('探索中枢，找到发光的门进入下一层');
       return;
     }
 
@@ -10184,7 +10566,14 @@ class Game {
       const el = document.getElementById('complete-stats');
       if (el) el.innerHTML = statsHtml;
       const ct = document.getElementById('complete-text');
-      if (ct) ct.textContent = this.level.isHub ? '你推开了中枢的门。前方是未知的层级。' : `你找到了通往 ${LEVELS[this.levelIndex + 1].code} 的楼梯。`;
+      const nb = document.querySelector('#screen-complete [data-action="next"]');
+      if (this.levelIndex === 0 || this.levelIndex === 1) {
+        if (ct) ct.textContent = `你找到了通往 ${LEVELS[this.levelIndex + 1].code} 的楼梯。`;
+        if (nb) nb.textContent = '进入下一层';
+      } else {
+        if (ct) ct.textContent = '你完成了这一层的探索。回到中枢，寻找下一扇门。';
+        if (nb) nb.textContent = '返回中枢';
+      }
       showScreen('complete');
     }
     this.refreshMenu();
@@ -10668,6 +11057,22 @@ class Game {
       best = { kind: 'item', it };
     }
 
+    // 中枢门检测（优先于出口）
+    if (w.level && w.level.isHub && w.level.hubDoors) {
+      for (const hd of w.level.hubDoors) {
+        const dxd = Math.hypot(hd.x + 0.5 - p.x, hd.y + 0.5 - p.y);
+        if (dxd < 2.0 && dxd < bestD + 0.5) {
+          const angD = Math.atan2(hd.y + 0.5 - p.y, hd.x + 0.5 - p.x);
+          const daD = Math.abs(((angD - p.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+          if (daD < 1.2) {
+            bestD = dxd;
+            best = { kind: 'hubDoor', door: hd };
+            break;
+          }
+        }
+      }
+    }
+
     // 出口只有在明显更近时才抢焦点，否则贴着出口的目标物会拿不起来
     const dEx = Math.hypot(w.exitStand.x - p.x, w.exitStand.y - p.y);
     if (dEx < 2.1 && (!best || dEx < bestD - 0.25)) best = { kind: 'exit' };
@@ -10703,14 +11108,21 @@ class Game {
       } else {
         this.hud.setPrompt(`${A} 拾取 ${nm}`);
       }
+    } else if (best.kind === 'hubDoor') {
+      const hd = best.door;
+      const unlocked = hd.target <= this.progress.maxUnlocked;
+      if (unlocked) {
+        this.hud.setPrompt(`${A} 推开门 · ${hd.icon} ${hd.label}`);
+      } else {
+        this.hud.setPrompt(`${hd.icon} ${hd.label} · 🔒 已锁住`);
+      }
     } else {
-      const need = this.objectiveCount;
       const name = this.level.objective.name;
       if (this.floodActive || this.level.isHub || this.player.collected >= need || this.altClearMet || this.creativeMode) {
         if (this.floodActive) {
           this.hud.setPrompt(`${A} 逃离！水还在涨！`);
         } else if (this.level.isHub) {
-          this.hud.setPrompt(`${A} 通往下一层 · 进入`);
+          this.hud.setPrompt('探索中枢 · 寻找发光的门');
         } else {
           this.hud.setPrompt(`${A} 推开门 · 进入下一关`);
         }
@@ -10780,8 +11192,28 @@ class Game {
       return;
     }
 
+    if (best.kind === 'hubDoor') {
+      const hd = best.door;
+      const unlocked = hd.target <= this.progress.maxUnlocked;
+      if (unlocked) {
+        this.audio.door();
+        this.hud.toast(`进入 ${hd.icon} ${hd.label}...`, 2);
+        this.clearRun();
+        this.startLevel(hd.target);
+      } else {
+        this.audio.clank();
+        this.hud.toast(`门被锁住了 · ${hd.label} 尚未解锁`, 3);
+      }
+      return;
+    }
+
     if (best.kind === 'exit') {
-      if (this.floodActive || this.level.isHub || p.collected >= this.objectiveCount || this.altClearMet || this.creativeMode) {
+      if (this.level.isHub) {
+        /* Hub 出口不再自动进入下一层 */
+        this.hud.toast('探索中枢，找到发光的门', 2);
+        return;
+      }
+      if (this.floodActive || p.collected >= this.objectiveCount || this.altClearMet || this.creativeMode) {
         this.audio.door();
         this.completeLevel();
       } else {
@@ -11612,6 +12044,29 @@ class Game {
       });
     }
 
+    /* 中枢门精灵 */
+    if (this.world.level && this.world.level.isHub && this.world.level.hubDoors) {
+      const doorTex = this.textures.sprites.hubDoor;
+      const pulse = 0.5 + Math.sin(t * 3) * 0.15;  /* 脉冲呼吸效果 */
+      for (const hd of this.world.level.hubDoors) {
+        const unlocked = hd.target <= this.progress.maxUnlocked;
+        this.sprites.push({
+          x: hd.x + 0.5,
+          y: hd.y + 0.5,
+          tex: Array.isArray(doorTex) ? (unlocked ? doorTex[0] : doorTex[1]) : doorTex,
+          texKey: 'hubDoor',
+          variant: unlocked ? 0 : 1,
+          worldH: 1.0 + (unlocked ? Math.sin(t * 3) * 0.04 : 0),  /* 解锁门轻微缩放 */
+          worldW: 0.8,
+          yOff: 0,
+          glow: unlocked ? pulse : 0.05,  /* 解锁门脉冲发光 */
+          label: hd.label,
+          icon: hd.icon,
+          locked: !unlocked
+        });
+      }
+    }
+
     r.render(this.world, this.player, this.sprites, t);
     r.post(this.world, this.player, {
       hurtFlash: this.player.hurtFlash,
@@ -11760,12 +12215,18 @@ const SBAuth = {
 
   async onAuth(user) {
     this.user = user;
+    const meta = user.user_metadata || {};
+    this.role = meta.role || 'player';
+    this.phone = meta.phone || '';
     /* Fetch profile */
     try {
       const { data } = await _sb.from('profiles').select('username').eq('id', user.id).single();
       this.profile = data;
+      if (this.role === 'official' && (!this.profile || this.profile.username !== '官方')) {
+        this.profile = { username: '官方' };
+      }
     } catch(e) {
-      this.profile = { username: '玩家' + user.id.slice(0, 6) };
+      this.profile = { username: meta.username || '玩家' + user.id.slice(0, 6) };
     }
     this.updateUI();
     SBChat.onAuthChange();
@@ -11776,48 +12237,119 @@ const SBAuth = {
     document.getElementById('sb-tab-login').classList.toggle('active', tab === 'login');
     document.getElementById('sb-tab-register').classList.toggle('active', tab === 'register');
     document.getElementById('sb-auth-nick').style.display = tab === 'register' ? '' : 'none';
-    document.getElementById('sb-auth-submit').textContent = tab === 'login' ? '登录' : '注册';
+    document.getElementById('sb-auth-code-field').style.display = tab === 'register' ? '' : 'none';
+    document.getElementById('sb-auth-submit').textContent = tab === 'login' ? '验证登录' : '验证注册';
     document.getElementById('sb-auth-err').textContent = '';
+    document.getElementById('sb-auth-otp').value = '';
+  },
+
+  _otpCountdown: 0,
+  async sendOtp() {
+    const errEl = document.getElementById('sb-auth-err');
+    const btn = document.getElementById('sb-auth-send-otp');
+    const phone = document.getElementById('sb-auth-phone').value.trim();
+    errEl.textContent = '';
+    errEl.style.color = '';
+
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      errEl.textContent = '请输入有效的11位手机号';
+      return;
+    }
+    if (this._otpCountdown > 0) return;
+
+    btn.disabled = true;
+    btn.textContent = '发送中...';
+    const fullPhone = '+86' + phone;
+
+    try {
+      const { error } = await _sb.auth.signInWithOtp({
+        phone: fullPhone,
+        options: { channel: 'sms' }
+      });
+      if (error) throw error;
+
+      errEl.style.color = 'var(--amber-l)';
+      errEl.textContent = '验证码已发送，请查收短信';
+      this._otpCountdown = 60;
+      const tick = () => {
+        if (this._otpCountdown <= 0) {
+          btn.disabled = false;
+          btn.textContent = '发送验证码';
+          return;
+        }
+        btn.textContent = this._otpCountdown + 's';
+        this._otpCountdown--;
+        setTimeout(tick, 1000);
+      };
+      tick();
+    } catch(e) {
+      errEl.textContent = e.message || '发送失败，请稍后重试';
+      btn.disabled = false;
+      btn.textContent = '发送验证码';
+    }
   },
 
   async submit() {
     const errEl = document.getElementById('sb-auth-err');
     const btn = document.getElementById('sb-auth-submit');
     errEl.textContent = '';
+    errEl.style.color = '';
     btn.disabled = true;
-    btn.textContent = '处理中...';
+    btn.textContent = '验证中...';
 
-    const email = document.getElementById('sb-auth-email').value.trim();
-    const pass = document.getElementById('sb-auth-pass').value;
-    if (!email || !pass) { errEl.textContent = '请填写邮箱和密码'; btn.disabled = false; btn.textContent = this.mode === 'login' ? '登录' : '注册'; return; }
-    if (pass.length < 6) { errEl.textContent = '密码至少6位'; btn.disabled = false; btn.textContent = this.mode === 'login' ? '登录' : '注册'; return; }
+    const phone = document.getElementById('sb-auth-phone').value.trim();
+    const otp = document.getElementById('sb-auth-otp').value.trim();
+
+    if (!/^1[3-9]\d{9}$/.test(phone)) { errEl.textContent = '请输入有效的手机号'; btn.disabled = false; btn.textContent = this.mode === 'login' ? '验证登录' : '验证注册'; return; }
+    if (!/^\d{4,6}$/.test(otp)) { errEl.textContent = '请输入收到的短信验证码'; btn.disabled = false; btn.textContent = this.mode === 'login' ? '验证登录' : '验证注册'; return; }
+
+    const fullPhone = '+86' + phone;
 
     try {
-      if (this.mode === 'register') {
-        const nick = document.getElementById('sb-auth-nick').value.trim() || '玩家' + Math.random().toString(36).slice(2, 8);
-        const { data, error } = await _sb.auth.signUp({
-          email, password: pass,
-          options: { data: { username: nick } }
-        });
-        if (error) throw error;
-        if (data.user && !data.session) {
-          errEl.style.color = 'var(--amber-l)';
-          errEl.textContent = '注册成功！请检查邮箱确认后登录。';
-        } else if (data.session) {
-          errEl.style.color = 'var(--amber-l)';
-          errEl.textContent = '注册成功！正在登录...';
-          this.onAuth(data.user);
+      const { data, error } = await _sb.auth.verifyOtp({
+        phone: fullPhone,
+        token: otp,
+        type: 'sms'
+      });
+      if (error) throw error;
+
+      if (data.user) {
+        const meta = data.user.user_metadata || {};
+        if (this.mode === 'register' && !meta.phone) {
+          const nick = document.getElementById('sb-auth-nick').value.trim() || '玩家' + phone.slice(-4);
+          const officialCode = document.getElementById('sb-auth-code').value.trim();
+          let role = 'player';
+
+          if (officialCode === '7618') {
+            try {
+              const { data: existing } = await _sb.from('profiles').select('id').eq('username', '官方').limit(1);
+              if (existing && existing.length > 0) {
+                errEl.style.color = 'var(--amber-l)';
+                errEl.textContent = '验证成功，但官方账号已存在，已注册为普通玩家';
+              } else {
+                role = 'official';
+              }
+            } catch(e) {}
+          }
+
+          await _sb.auth.updateUser({
+            data: { username: role === 'official' ? '官方' : nick, role: role, phone: phone }
+          });
+
+          try {
+            await _sb.from('profiles').upsert({ id: data.user.id, username: role === 'official' ? '官方' : nick });
+          } catch(e) {}
         }
-      } else {
-        const { data, error } = await _sb.auth.signInWithPassword({ email, password: pass });
-        if (error) throw error;
+
+        errEl.style.color = 'var(--amber-l)';
+        errEl.textContent = '验证成功！正在登录...';
         this.onAuth(data.user);
       }
     } catch(e) {
-      errEl.textContent = e.message || '操作失败';
+      errEl.textContent = e.message || '验证失败，请检查验证码';
     }
     btn.disabled = false;
-    btn.textContent = this.mode === 'login' ? '登录' : '注册';
+    btn.textContent = this.mode === 'login' ? '验证登录' : '验证注册';
   },
 
   async logout() {
@@ -11836,11 +12368,22 @@ const SBAuth = {
       if (loggedEl) loggedEl.style.display = '';
       const nick = this.profile?.username || '玩家';
       const avEl = document.getElementById('sb-auth-avatar');
-      if (avEl) avEl.textContent = nick.charAt(0).toUpperCase();
+      if (avEl) {
+        avEl.textContent = nick.charAt(0).toUpperCase();
+        if (this.role === 'official') avEl.style.background = 'linear-gradient(135deg,#ffd700,#ff8c00)';
+        else if (this.role === 'cocreator') avEl.style.background = 'linear-gradient(135deg,#c0c0c0,#a0a0a0)';
+        else avEl.style.background = 'var(--amber-d)';
+      }
       const nEl = document.getElementById('sb-auth-nick-display');
       if (nEl) nEl.textContent = nick;
+      const rEl = document.getElementById('sb-auth-role-display');
+      if (rEl) {
+        if (this.role === 'official') rEl.innerHTML = '<span class="sb-role-badge sb-role-official">官方账号</span>';
+        else if (this.role === 'cocreator') rEl.innerHTML = '<span class="sb-role-badge sb-role-cocreator">共创者</span>';
+        else rEl.innerHTML = '<span class="sb-role-badge sb-role-player">玩家</span>';
+      }
       const eEl = document.getElementById('sb-auth-email-display');
-      if (eEl) eEl.textContent = this.user.email || '';
+      if (eEl) eEl.textContent = this.phone || (this.user.email || '').replace('@backrooms.game', '');
     } else {
       if (formEl) formEl.style.display = '';
       if (loggedEl) loggedEl.style.display = 'none';
@@ -11850,7 +12393,9 @@ const SBAuth = {
     if (badge) {
       if (this.user) {
         const nick = this.profile?.username || '玩家';
-        badge.innerHTML = '<div class="sb-user-avatar">' + nick.charAt(0).toUpperCase() + '</div><span class="sb-user-name">' + nick + '</span>';
+        const avatarBg = this.role === 'official' ? 'background:linear-gradient(135deg,#ffd700,#ff8c00);' : this.role === 'cocreator' ? 'background:linear-gradient(135deg,#c0c0c0,#a0a0a0);' : '';
+        const roleTag = this.role === 'official' ? ' <span style="font-size:9px;color:#ffd700;">官方</span>' : this.role === 'cocreator' ? ' <span style="font-size:9px;color:#c0c0c0;">共创</span>' : '';
+        badge.innerHTML = '<div class="sb-user-avatar" style="' + avatarBg + '">' + nick.charAt(0).toUpperCase() + '</div><span class="sb-user-name">' + nick + roleTag + '</span>';
       } else {
         badge.innerHTML = '<div class="sb-user-avatar" style="background:rgba(180,140,60,.2);color:var(--tc-sm);">?</div><span class="sb-user-guest">未登录</span>';
       }
@@ -12076,11 +12621,15 @@ window.addEventListener('DOMContentLoaded', () => {
           <div class="sb-auth-field">
             <input type="text" id="sb-auth-nick" placeholder="昵称（注册时填写）" style="display:none;" autocomplete="off">
           </div>
-          <div class="sb-auth-field">
-            <input type="email" id="sb-auth-email" placeholder="邮箱" autocomplete="email">
+          <div class="sb-auth-field" style="display:flex;gap:8px;">
+            <input type="text" id="sb-auth-phone" placeholder="手机号" autocomplete="tel" maxlength="11" style="flex:1;">
+            <button class="sb-auth-btn" id="sb-auth-send-otp" onclick="SBAuth.sendOtp()" style="padding:0 12px;font-size:12px;white-space:nowrap;flex-shrink:0;">发送验证码</button>
+          </div>
+          <div class="sb-auth-field" id="sb-auth-code-field" style="display:none;">
+            <input type="text" id="sb-auth-code" class="sb-auth-code" placeholder="官方验证码（选填）" autocomplete="off" maxlength="4">
           </div>
           <div class="sb-auth-field">
-            <input type="password" id="sb-auth-pass" placeholder="密码（至少6位）" autocomplete="current-password">
+            <input type="text" id="sb-auth-otp" placeholder="短信验证码" autocomplete="one-time-code" maxlength="6" inputmode="numeric">
           </div>
           <button class="sb-auth-btn" id="sb-auth-submit" onclick="SBAuth.submit()">登录</button>
           <div class="sb-auth-err" id="sb-auth-err"></div>
@@ -12089,11 +12638,12 @@ window.addEventListener('DOMContentLoaded', () => {
           <div style="text-align:center;margin-bottom:12px;">
             <div class="sb-user-avatar" id="sb-auth-avatar" style="margin:0 auto 8px;">?</div>
             <div class="sb-user-name" id="sb-auth-nick-display">玩家</div>
+            <div id="sb-auth-role-display" style="margin-top:4px;"></div>
             <div style="font-size:10px;color:var(--tc-sm);margin-top:4px;" id="sb-auth-email-display"></div>
           </div>
           <button class="sb-auth-btn" onclick="SBAuth.logout()" style="background:rgba(180,60,60,.3);color:#e88;">退出登录</button>
         </div>
-        <div class="sb-auth-info">账号数据通过 Supabase 安全加密存储<br>昵称将显示在聊天中</div>
+        <div class="sb-auth-info">手机号注册 · 短信验证码登录<br>官方验证码 7618 可注册官方账号</div>
         <button class="sb-auth-skip" id="sb-auth-skip" onclick="SBAuth.dismissPrompt()" style="display:none;width:100%;background:none;border:none;color:var(--tc-sm);font-family:var(--font);font-size:11px;padding:8px;cursor:pointer;margin-top:8px;">稍后再说</button>
       </div>
     </div>
