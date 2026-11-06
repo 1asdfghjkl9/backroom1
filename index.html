@@ -12621,10 +12621,10 @@ window.addEventListener('DOMContentLoaded', () => {
           <div class="sb-auth-field">
             <input type="text" id="sb-auth-nick" placeholder="昵称（注册时填写）" style="display:none;" autocomplete="off">
           </div>
-          <div class="sb-auth-field" style="display:flex;gap:8px;">
-            <input type="text" id="sb-auth-phone" placeholder="手机号" autocomplete="tel" maxlength="11" style="flex:1;">
-            <button class="sb-auth-btn" id="sb-auth-send-otp" onclick="SBAuth.sendOtp()" style="padding:0 12px;font-size:12px;white-space:nowrap;flex-shrink:0;">发送验证码</button>
+          <div class="sb-auth-field">
+            <input type="text" id="sb-auth-phone" placeholder="手机号" autocomplete="tel" maxlength="11">
           </div>
+          <button class="sb-auth-btn" id="sb-auth-send-otp" onclick="SBAuth.sendOtp()" style="padding:8px;font-size:13px;">发送验证码</button>
           <div class="sb-auth-field" id="sb-auth-code-field" style="display:none;">
             <input type="text" id="sb-auth-code" class="sb-auth-code" placeholder="官方验证码（选填）" autocomplete="off" maxlength="4">
           </div>
