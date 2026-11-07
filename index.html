@@ -400,14 +400,15 @@ html,body{
 }
 .tutorial-box{
   background:rgba(20,18,12,.95);border:1px solid rgba(180,140,60,.3);
-  border-radius:6px;padding:24px;max-width:380px;width:90%;text-align:center;
-  box-shadow:0 0 30px rgba(180,140,60,.1);
+  border-radius:6px;padding:24px;max-width:380px;width:90%;max-height:85vh;overflow-y:auto;text-align:center;
+  box-shadow:0 0 30px rgba(180,140,60,.1);-webkit-tap-highlight-color:transparent;
 }
 .tutorial-icon{font-size:36px;margin-bottom:8px;}
 .tutorial-box h3{font-size:16px;color:var(--amber);margin-bottom:8px;}
 .tutorial-box p{font-size:12px;color:var(--tc);line-height:1.6;margin-bottom:8px;}
 .tutorial-hint{font-size:11px;color:var(--tc-sm);padding:6px 10px;background:rgba(180,140,60,.08);border-radius:3px;margin-bottom:12px;}
-.tutorial-controls{display:flex;gap:8px;justify-content:center;margin-bottom:10px;}
+.tutorial-controls{display:flex;gap:8px;justify-content:center;margin-bottom:10px;-webkit-tap-highlight-color:transparent;}
+.tutorial-controls button{-webkit-tap-highlight-color:transparent;outline:none;-webkit-appearance:none;}
 .tutorial-dots{display:flex;gap:4px;justify-content:center;}
 .tutorial-dot{width:6px;height:6px;border-radius:50%;background:rgba(180,140,60,.2);}
 .tutorial-dot.active{background:var(--amber);}
@@ -12301,8 +12302,8 @@ const SBAuth = {
     let username = document.getElementById('sb-auth-nick').value.trim();
     const pass = document.getElementById('sb-auth-pass').value;
 
-    if (!username || username.length < 2) { errEl.textContent = '请输入用户名（至少2位）'; btn.disabled = false; btn.textContent = this.mode; return; }
-    if (!pass || pass.length < 4) { errEl.textContent = '密码至少4位'; btn.disabled = false; btn.textContent = this.mode; return; }
+    if (!username || username.length < 2) { errEl.textContent = '请输入用户名（至少2位）'; btn.disabled = false; btn.textContent = this.mode === 'login' ? '登录' : '注册'; return; }
+    if (!pass || pass.length < 4) { errEl.textContent = '密码至少4位'; btn.disabled = false; btn.textContent = this.mode === 'login' ? '登录' : '注册'; return; }
 
     try {
       if (this.mode === 'register') {
@@ -12404,7 +12405,7 @@ const SBAuth = {
       errEl.textContent = e.message || '操作失败';
     }
     btn.disabled = false;
-    btn.textContent = this.mode;
+    btn.textContent = this.mode === 'login' ? '登录' : '注册';
   },
 
   async logout() {
