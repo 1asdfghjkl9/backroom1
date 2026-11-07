@@ -1087,6 +1087,7 @@ input[type="range"]::-moz-range-thumb {
 .sb-chat-send:hover{background:var(--amber);}
 .sb-chat-send:disabled{opacity:.4;cursor:not-allowed;}
 .sb-chat-fab{position:fixed;bottom:16px;right:16px;width:48px;height:48px;border-radius:50%;background:var(--amber-d);color:#000;border:none;font-size:20px;cursor:pointer;z-index:8000;box-shadow:0 4px 12px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;transition:transform .2s;}
+.sb-chat-fab.hidden{display:none;}
 .sb-chat-fab:hover{transform:scale(1.1);}
 .sb-chat-fab .badge{position:absolute;top:-2px;right:-2px;background:#e44;font-size:9px;color:#fff;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;}
 /* 认证模态 */
@@ -1297,6 +1298,10 @@ input[type="range"]::-moz-range-thumb {
             <span class="pubg-side-icon">🏆</span>
             <span class="pubg-side-text">成就</span>
           </button>
+          <button class="pubg-side-btn" data-action="leaderboard">
+            <span class="pubg-side-icon">📊</span>
+            <span class="pubg-side-text">排行榜</span>
+          </button>
           <button class="pubg-side-btn" data-action="feedback">
             <span class="pubg-side-icon">💬</span>
             <span class="pubg-side-text">留言板</span>
@@ -1373,6 +1378,21 @@ input[type="range"]::-moz-range-thumb {
       <div class="panel panel-wide">
         <h2>成就 <span id="ach-count" style="font-size:.6em;opacity:.6">0 / 0</span></h2>
         <div id="ach-list" class="ach-list"></div>
+        <div class="panel-foot">
+          <button class="btn btn-ghost" data-action="menu">返回</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 排行榜 -->
+    <section class="screen" id="screen-leaderboard">
+      <div class="panel panel-wide">
+        <h2>📊 排行榜</h2>
+        <div id="lb-tabs" style="display:flex;gap:8px;margin-bottom:14px;">
+          <button class="btn btn-primary" id="lb-tab-times" onclick="game.refreshLeaderboard('times')" style="font-size:12px;">⚡ 关卡速通</button>
+          <button class="btn btn-ghost" id="lb-tab-allclear" onclick="game.refreshLeaderboard('allclear')" style="font-size:12px;">🏆 全通关</button>
+        </div>
+        <div id="lb-content" style="max-height:400px;overflow-y:auto;"></div>
         <div class="panel-foot">
           <button class="btn btn-ghost" data-action="menu">返回</button>
         </div>
@@ -1877,6 +1897,33 @@ function wallpaper() {
   addStains(g, S, 8, '64,54,36', 6, 20, 0.16);
   mottle(g, S, 24, '250,240,204', '100,86,50', 10, 34);
 
+  // 新增：大面积水渍（天花板漏水痕迹）
+  for (let i = 0; i < 3; i++) {
+    const sx = Math.floor(Math.random() * S * 0.8);
+    const sy = Math.floor(Math.random() * S * 0.4);
+    const sw = 20 + Math.floor(Math.random() * 30);
+    const sh = 30 + Math.floor(Math.random() * 40);
+    const grd2 = g.createRadialGradient(sx, sy, 0, sx + sw/2, sy + sh/2, Math.max(sw, sh)/1.5);
+    grd2.addColorStop(0, 'rgba(90,76,42,0.20)');
+    grd2.addColorStop(0.5, 'rgba(110,92,52,0.10)');
+    grd2.addColorStop(1, 'rgba(120,100,56,0)');
+    g.fillStyle = grd2;
+    g.fillRect(sx - 5, sy - 5, sw + 10, sh + 10);
+  }
+
+  // 新增：墙纸起翘边缘
+  for (let i = 0; i < 2; i++) {
+    const px = Math.floor(Math.random() * S);
+    const py = Math.floor(Math.random() * S * 0.3) + S * 0.3;
+    g.fillStyle = 'rgba(56,46,24,0.30)';
+    g.beginPath();
+    g.moveTo(px, py);
+    g.lineTo(px + 8, py + 3);
+    g.lineTo(px + 6, py + 8);
+    g.closePath();
+    g.fill();
+  }
+
   // 底部返潮
   const grd = g.createLinearGradient(0, S * 0.66, 0, S);
   grd.addColorStop(0, 'rgba(80,68,38,0)');
@@ -1893,8 +1940,8 @@ function wallpaper() {
   g.fillStyle = 'rgba(16,12,4,0.55)';
   g.fillRect(0, S - 1.5, S, 1.5);
 
-  addCracks(g, S, 2, 'rgba(70,58,32,0.32)', S * 0.05, 1);
-  addNoise(g, S, 12);
+  addCracks(g, S, 3, 'rgba(70,58,32,0.32)', S * 0.06, 1.2);
+  addNoise(g, S, 14);
   return toArray(c);
 }
 
@@ -2694,7 +2741,7 @@ function carpetTex() {
   mottle(g, S, 36, '168,148,96', '44,36,18', 10, 44);
 
   // 绒面纤维
-  for (let i = 0; i < 3000; i++) {
+  for (let i = 0; i < 4000; i++) {
     const x = Math.random() * S, y = Math.random() * S;
     g.fillStyle = Math.random() < 0.5
       ? `rgba(200,182,132,${rnd(0.05, 0.18)})`
@@ -2713,7 +2760,21 @@ function carpetTex() {
   // 水迹（反光暗斑）
   addStains(g, S, 4, '20,16,8', 4, 12, 0.25);
 
-  addNoise(g, S, 18);
+  // 新增：磨损路径（人踩出来的暗色带）
+  for (let i = 0; i < 2; i++) {
+    const py = Math.floor(Math.random() * S);
+    g.fillStyle = 'rgba(48,38,20,0.15)';
+    g.fillRect(0, py, S, 3 + Math.floor(Math.random() * 3));
+  }
+
+  // 新增：大面积潮湿渐变
+  const dampGrd = g.createRadialGradient(S * 0.3, S * 0.7, 0, S * 0.3, S * 0.7, S * 0.5);
+  dampGrd.addColorStop(0, 'rgba(28,22,10,0.18)');
+  dampGrd.addColorStop(1, 'rgba(28,22,10,0)');
+  g.fillStyle = dampGrd;
+  g.fillRect(0, 0, S, S);
+
+  addNoise(g, S, 20);
   return toArray(c);
 }
 
@@ -5068,15 +5129,21 @@ function generateWorld(level, seed) {
     if (gen === 'pillars') {
       if (ix % 3 === 2 && iy % 3 === 2 && hash3(ax, ay, 7) < 0.75) return TILE.WALL;
       /* L型隔断墙 — 更密 */
-      if ((ix % 6 === 3) && (iy % 3 !== 2) && hash3(ax + 11, ay, 23) < 0.40) return TILE.WALL;
-      if ((iy % 6 === 3) && (ix % 3 !== 2) && hash3(ax, ay + 11, 24) < 0.40) return TILE.WALL;
+      if ((ix % 6 === 3) && (iy % 3 !== 2) && hash3(ax + 11, ay, 23) < 0.50) return TILE.WALL;
+      if ((iy % 6 === 3) && (ix % 3 !== 2) && hash3(ax, ay + 11, 24) < 0.50) return TILE.WALL;
       /* 走廊尽头堵墙 */
-      if ((ix % 9 === 0) && (iy % 3 === 1) && hash3(ax + 3, ay + 7, 31) < 0.22) return TILE.WALL;
+      if ((ix % 9 === 0) && (iy % 3 === 1) && hash3(ax + 3, ay + 7, 31) < 0.30) return TILE.WALL;
       /* 额外T型墙：形成房间感 */
-      if ((ix % 4 === 1) && (iy % 4 === 0) && hash3(ax + 5, ay + 3, 42) < 0.18) return TILE.WALL;
-      if ((iy % 4 === 1) && (ix % 4 === 0) && hash3(ax + 3, ay + 5, 43) < 0.18) return TILE.WALL;
+      if ((ix % 4 === 1) && (iy % 4 === 0) && hash3(ax + 5, ay + 3, 42) < 0.25) return TILE.WALL;
+      if ((iy % 4 === 1) && (ix % 4 === 0) && hash3(ax + 3, ay + 5, 43) < 0.25) return TILE.WALL;
       /* 偶尔的长墙段 */
-      if ((ix % 5 === 2) && (iy % 5 === 2) && hash3(ax * 3, ay * 3, 55) < 0.12) return TILE.WALL;
+      if ((ix % 5 === 2) && (iy % 5 === 2) && hash3(ax * 3, ay * 3, 55) < 0.15) return TILE.WALL;
+      /* 新增：房间隔墙 — 形成小房间 */
+      if ((ix % 7 === 3) && (iy % 5 !== 0) && hash3(ax + 17, ay + 3, 61) < 0.35) return TILE.WALL;
+      if ((iy % 7 === 3) && (ix % 5 !== 0) && hash3(ax + 3, ay + 17, 62) < 0.35) return TILE.WALL;
+      /* 新增：短墙段增加迷宫感 */
+      if ((ix % 8 === 4) && (iy % 4 === 2) && hash3(ax * 7, ay, 71) < 0.30) return TILE.WALL;
+      if ((iy % 8 === 4) && (ix % 4 === 2) && hash3(ax, ay * 7, 72) < 0.30) return TILE.WALL;
     } else if (gen === 'maze') {
       const w1 = (ix & 1) === 1 && hash3(seed + 5, ax, ay >> 1) < 0.42;
       const w2 = (iy & 1) === 1 && hash3(seed + 6, ax >> 1, ay) < 0.42;
@@ -9382,7 +9449,7 @@ const DEATH_LINES = [
   '你终于分不清哪一面墙是真的。'
 ];
 
-const SCREEN_IDS = ['menu', 'levels', 'help', 'settings', 'pause', 'dead', 'complete', 'victory', 'feedback', 'custom-levels'];
+const SCREEN_IDS = ['menu', 'levels', 'help', 'settings', 'pause', 'dead', 'complete', 'victory', 'feedback', 'custom-levels', 'achievements', 'leaderboard'];
 
 function showScreen(name) {
   for (const id of SCREEN_IDS) {
@@ -9584,6 +9651,111 @@ class Game {
     list.innerHTML = html;
     const counter = document.getElementById('ach-count');
     if (counter) counter.textContent = `${unlocked} / ${ACHIEVEMENTS.length}`;
+  }
+
+  updateChatFab() {
+    const fab = document.getElementById('sb-chat-fab');
+    if (!fab) return;
+    fab.classList.toggle('hidden', this.state === 'playing');
+  }
+
+  /* ============ 排行榜系统 ============ */
+  recordLevelTime(levelIdx, time) {
+    try {
+      const key = 'backrooms_leaderboard_v1';
+      let lb = JSON.parse(localStorage.getItem(key) || '{"times":{},"allClear":[]}');
+      if (!lb.times) lb.times = {};
+      if (!lb.allClear) lb.allClear = [];
+      const username = (SBAuth.user && SBAuth.user.username) || '匿名玩家';
+      const levelName = LEVELS[levelIdx] ? LEVELS[levelIdx].name : `Level ${levelIdx}`;
+      const entry = { time, username, date: Date.now() };
+      if (!lb.times[levelIdx] || time < lb.times[levelIdx].time) {
+        lb.times[levelIdx] = entry;
+      }
+      localStorage.setItem(key, JSON.stringify(lb));
+    } catch(e) {}
+  }
+
+  recordAllClear() {
+    try {
+      const key = 'backrooms_leaderboard_v1';
+      let lb = JSON.parse(localStorage.getItem(key) || '{"times":{},"allClear":[]}');
+      if (!lb.allClear) lb.allClear = [];
+      const username = (SBAuth.user && SBAuth.user.username) || '匿名玩家';
+      const totalTime = Object.values(lb.times || {}).reduce((s, e) => s + (e.time || 0), 0);
+      const existing = lb.allClear.find(e => e.username === username);
+      if (!existing) {
+        lb.allClear.push({ username, totalTime, date: Date.now() });
+        lb.allClear.sort((a, b) => (a.totalTime || 0) - (b.totalTime || 0));
+      } else if (totalTime < (existing.totalTime || Infinity)) {
+        existing.totalTime = totalTime;
+        existing.date = Date.now();
+        lb.allClear.sort((a, b) => (a.totalTime || 0) - (b.totalTime || 0));
+      }
+      localStorage.setItem(key, JSON.stringify(lb));
+    } catch(e) {}
+  }
+
+  refreshLeaderboard(tab) {
+    const content = document.getElementById('lb-content');
+    if (!content) return;
+    const tabTimes = document.getElementById('lb-tab-times');
+    const tabAllClear = document.getElementById('lb-tab-allclear');
+    if (tab === 'times') {
+      if (tabTimes) { tabTimes.classList.add('btn-primary'); tabTimes.classList.remove('btn-ghost'); }
+      if (tabAllClear) { tabAllClear.classList.add('btn-ghost'); tabAllClear.classList.remove('btn-primary'); }
+    } else {
+      if (tabAllClear) { tabAllClear.classList.add('btn-primary'); tabAllClear.classList.remove('btn-ghost'); }
+      if (tabTimes) { tabTimes.classList.add('btn-ghost'); tabTimes.classList.remove('btn-primary'); }
+    }
+
+    let lb;
+    try { lb = JSON.parse(localStorage.getItem('backrooms_leaderboard_v1') || '{"times":{},"allClear":[]}'); }
+    catch(e) { lb = { times: {}, allClear: [] }; }
+
+    if (tab === 'times') {
+      let html = '<div style="display:flex;flex-direction:column;gap:6px;">';
+      const nonHub = LEVELS.map((l, i) => ({l, i})).filter(x => !x.l.isHub);
+      let hasAny = false;
+      for (const {l, i} of nonHub) {
+        const entry = lb.times[i];
+        if (entry) hasAny = true;
+        const mins = entry ? Math.floor(entry.time / 60) : '--';
+        const secs = entry ? String(Math.floor(entry.time % 60)).padStart(2, '0') : '--';
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(20,18,12,.6);border:1px solid var(--border);border-radius:4px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="color:var(--amber);font-size:13px;font-weight:600;">${l.name}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            ${entry ? `<span style="font-size:11px;color:var(--tc-sm);">${entry.username}</span>` : ''}
+            <span style="font-size:14px;color:${entry ? 'var(--amber-l)' : 'var(--tc-sm)'};font-weight:600;font-family:monospace;">${entry ? mins + ':' + secs : '未通关'}</span>
+          </div>
+        </div>`;
+      }
+      if (!hasAny) html += '<div style="text-align:center;padding:30px;color:var(--tc-sm);font-size:12px;">暂无记录，快去通关吧！</div>';
+      html += '</div>';
+      content.innerHTML = html;
+    } else {
+      let html = '<div style="display:flex;flex-direction:column;gap:6px;">';
+      if (lb.allClear && lb.allClear.length > 0) {
+        lb.allClear.forEach((e, idx) => {
+          const mins = Math.floor((e.totalTime || 0) / 60);
+          const secs = String(Math.floor((e.totalTime || 0) % 60)).padStart(2, '0');
+          const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx + 1);
+          html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(20,18,12,.6);border:1px solid ${idx < 3 ? 'rgba(180,140,60,.3)' : 'var(--border)'};border-radius:4px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:16px;">${medal}</span>
+              <span style="font-size:13px;color:var(--amber-l);font-weight:600;">${e.username}</span>
+            </div>
+            <span style="font-size:14px;color:var(--amber);font-weight:600;font-family:monospace;">${mins}:${secs}</span>
+          </div>`;
+        });
+      } else {
+        html += '<div style="text-align:center;padding:30px;color:var(--tc-sm);font-size:12px;">还没有人全通关，成为第一个吧！</div>';
+      }
+      html += '</div>';
+      content.innerHTML = html;
+    }
   }
 
   /* ============ 留言板系统 ============ */
@@ -10187,6 +10359,10 @@ class Game {
         this.refreshAchievementsScreen();
         showScreen('achievements');
         break;
+      case 'leaderboard':
+        this.refreshLeaderboard('times');
+        showScreen('leaderboard');
+        break;
       case 'help':
         this.helpReturn = this.state === 'paused' ? 'pause' : 'menu';
         showScreen('help');
@@ -10553,10 +10729,12 @@ class Game {
 
     /* === 成就触发 === */
     // 关卡通关成就
-    const achMap = { 0:'level0_clear', 1:'level1_clear', 3:'level3_clear', 4:'level4_clear', 5:'level5_clear', 8:'level8_clear', 9:'level9_clear', 10:'level10_clear' };
+    const achMap = { 0:'level0_clear', 3:'level3_clear', 5:'level5_clear', 8:'level8_clear', 9:'level9_clear' };
     if (achMap[this.levelIndex]) this.unlockAchievement(achMap[this.levelIndex]);
-    // 全通关
-    if (isLast) this.unlockAchievement('all_clear');
+    // 全通关（所有非Hub关卡都通关）
+    const nonHubLevels = LEVELS.map((l, i) => ({l, i})).filter(x => !x.l.isHub);
+    const allCleared = nonHubLevels.every(x => this.progress.cleared.includes(x.i));
+    if (allCleared) this.unlockAchievement('all_clear');
     // 速通（3分钟内）
     if (this.levelTime <= 180) this.unlockAchievement('speedrun');
     // 无伤通关
@@ -10571,6 +10749,10 @@ class Game {
     if (this.player.sanity < 10) this.unlockAchievement('sanity_zero');
     // 手电筒大师
     if (this.flashlightTime >= 300) this.unlockAchievement('flashlight_master');
+
+    /* === 排行榜：记录通关时间 === */
+    this.recordLevelTime(this.levelIndex, this.levelTime);
+    if (allCleared) this.recordAllClear();
 
     this.state = 'complete';
     this.clearRun();
@@ -10652,6 +10834,9 @@ class Game {
         else if (this.state === 'dying') this._updateDeathSequence(dt);
         this.render(dt);
         this.input.endFrame();
+        /* 聊天按钮：游戏中隐藏，其他状态显示 */
+        const _fab = document.getElementById('sb-chat-fab');
+        if (_fab) _fab.classList.toggle('hidden', this.state === 'playing');
       } catch (err) {
         _loopError = err;
         console.error('[backrooms] 渲染循环错误', err);
