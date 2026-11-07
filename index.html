@@ -12255,16 +12255,30 @@ const SBAuth = {
         const officialCode = document.getElementById('sb-auth-code').value.trim();
         let role = 'player';
         if (officialCode === '7618') {
-          const { data: offExisting } = await _sb.from('profiles').select('id').eq('username', '官方').limit(1);
-          if (offExisting && offExisting.length > 0) {
+          /* 官方账号上限3个：检查已有官方账号数量 */
+          let officialCount = 0;
+          try {
+            const { count } = await _sb.from('profiles').select('id', { count: 'exact', head: true }).like('username', '官方%');
+            officialCount = count || 0;
+          } catch(e) {}
+          /* 也检查 localStorage */
+          const stored = localStorage.getItem('backrooms_official_count');
+          if (stored) officialCount = Math.max(officialCount, parseInt(stored) || 0);
+
+          if (officialCount >= 3) {
             errEl.style.color = 'var(--amber-l)';
-            errEl.textContent = '官方账号已存在，已注册为普通玩家';
+            errEl.textContent = '官方账号已达上限（3个），已注册为普通玩家';
           } else {
             role = 'official';
+            /* 用户名前加「官方」前缀便于计数 */
+            if (!username.startsWith('官方')) {
+              username = '官方' + username;
+            }
+            localStorage.setItem('backrooms_official_count', String(officialCount + 1));
           }
         }
 
-        const finalName = role === 'official' ? '官方' : username;
+        const finalName = role === 'official' ? username : username;
 
         /* 存入 profiles 表 */
         try {
