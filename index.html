@@ -12236,7 +12236,7 @@ const SBAuth = {
     btn.disabled = true;
     btn.textContent = '处理中...';
 
-    const username = document.getElementById('sb-auth-nick').value.trim();
+    let username = document.getElementById('sb-auth-nick').value.trim();
     const pass = document.getElementById('sb-auth-pass').value;
 
     if (!username || username.length < 2) { errEl.textContent = '请输入用户名（至少2位）'; btn.disabled = false; btn.textContent = this.mode; return; }
