@@ -1116,9 +1116,35 @@ input[type="range"]::-moz-range-thumb {
 .sb-user-avatar{width:32px;height:32px;border-radius:50%;background:var(--amber-d);color:#000;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;}
 .sb-user-name{font-size:12px;color:var(--amber-l);}
 .sb-user-guest{font-size:11px;color:var(--tc-sm);}
+/* Admin panel */
+.sb-admin-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9600;display:none;align-items:center;justify-content:center;}
+.sb-admin-modal.open{display:flex;}
+.sb-admin-box{background:rgba(20,18,12,.97);border:1px solid var(--amber-d);border-radius:6px;padding:20px;width:90%;max-width:480px;max-height:80vh;overflow-y:auto;font-family:var(--font);color:var(--tc);}
+.sb-admin-box h2{font-size:14px;color:var(--amber-l);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;}
+.sb-admin-user{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(100,80,40,.15);font-size:12px;}
+.sb-admin-user:hover{background:rgba(100,80,40,.08);}
+.sb-admin-user-info{display:flex;align-items:center;gap:8px;}
+.sb-admin-user-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;}
+.sb-admin-user-name{color:var(--amber-l);font-weight:600;}
+.sb-admin-user-role{font-size:10px;padding:1px 6px;border-radius:2px;}
+.sb-admin-btn-sm{background:rgba(180,140,60,.2);border:1px solid var(--amber-d);color:var(--amber-l);border-radius:3px;padding:4px 10px;font-size:11px;font-family:var(--font);cursor:pointer;white-space:nowrap;}
+.sb-admin-btn-sm:hover{background:var(--amber-d);color:#000;}
+.sb-admin-btn-sm:disabled{opacity:.3;cursor:not-allowed;}
+.sb-admin-empty{text-align:center;color:var(--tc-sm);padding:20px;font-size:12px;}
+.sb-admin-section{margin-top:16px;border-top:1px solid rgba(100,80,40,.2);padding-top:12px;}
+.sb-admin-section-title{font-size:11px;color:var(--amber-d);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;}
+.sb-admin-mode-btn{display:block;width:100%;background:rgba(180,140,60,.15);border:1px solid rgba(180,140,60,.3);color:var(--amber-l);border-radius:3px;padding:10px 12px;font-size:12px;font-family:var(--font);cursor:pointer;margin-bottom:6px;text-align:left;}
+.sb-admin-mode-btn:hover{background:rgba(180,140,60,.3);}
+.sb-admin-mode-btn.active{background:var(--amber-d);color:#000;}
+/* Chat improvements */
+.sb-chat-msg .role-tag{display:inline-block;font-size:9px;padding:1px 4px;border-radius:2px;margin-right:4px;font-weight:600;vertical-align:middle;}
+.sb-chat-msg .role-tag.official{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;}
+.sb-chat-msg .role-tag.cocreator{background:linear-gradient(135deg,#c0c0c0,#a0a0a0);color:#000;}
+.sb-chat-online{font-size:10px;color:var(--tc-sm);padding:4px 12px;border-bottom:1px solid rgba(100,80,40,.1);}
 @media(max-width:600px){
   .sb-chat-panel{width:100vw;}
   .sb-chat-fab{bottom:80px;right:12px;width:42px;height:42px;font-size:17px;}
+  .sb-admin-box{width:95vw;max-height:90vh;}
 }
 
 </style>
@@ -8133,8 +8159,8 @@ class ThreeJSRendererBridge {
     /* Rebuild world mesh if window scrolled */
     this._rebuildWorldIfNeeded();
 
-    /* Update fog based on world (创作者模式除雾) */
-    if (this.creativeMode) {
+    /* Update fog based on world (创作者模式/官方除雾) */
+    if (this.creativeMode || this._adminFogOff) {
       this.scene.fog.density = 0;
       this.scene.background = new THREE.Color(0x000000);
     } else if (world.fog) {
@@ -12209,6 +12235,14 @@ const SBAuth = {
   onAuthLocal(userObj) {
     this.user = userObj;
     this.role = userObj.role || 'player';
+    /* Check role map for cocreator promotion */
+    if (this.role === 'player') {
+      const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+      if (roleMap[userObj.username] === 'cocreator') {
+        this.role = 'cocreator';
+        userObj.role = 'cocreator';
+      }
+    }
     this.profile = { username: userObj.username };
     this.updateUI();
     SBChat.onAuthChange();
@@ -12378,6 +12412,9 @@ const SBAuth = {
       }
       const eEl = document.getElementById('sb-auth-email-display');
       if (eEl) eEl.textContent = '';
+      /* Show admin section for official accounts */
+      const adminSec = document.getElementById('sb-auth-admin-section');
+      if (adminSec) adminSec.style.display = (this.role === 'official') ? '' : 'none';
     } else {
       if (formEl) formEl.style.display = '';
       if (loggedEl) loggedEl.style.display = 'none';
@@ -12470,13 +12507,22 @@ const SBChat = {
       return;
     }
     const myId = SBAuth.user?.id;
+    /* Get role for a username from localStorage role map */
+    const getRole = (name) => {
+      const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+      if (name.startsWith('官方')) return 'official';
+      return roleMap[name] || 'player';
+    };
     box.innerHTML = this.messages.map(m => {
       const isMe = SBAuth.profile && m.username === SBAuth.profile.username;
       const cls = isMe ? 'sb-chat-msg me' : 'sb-chat-msg';
+      const role = getRole(m.username);
+      const roleTag = role === 'official' ? '<span class="role-tag official">官方</span>' : role === 'cocreator' ? '<span class="role-tag cocreator">共创</span>' : '';
       const t = new Date(m.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-      return '<div class="' + cls + '"><span class="nm">' + this.escape(m.username) + '</span><span class="tm">' + t + '</span><div class="tx">' + this.escape(m.message) + '</div></div>';
+      return '<div class="' + cls + '"><span class="nm">' + roleTag + this.escape(m.username) + '</span><span class="tm">' + t + '</span><div class="tx">' + this.escape(m.message) + '</div></div>';
     }).join('');
     box.scrollTop = box.scrollHeight;
+    this.updateOnlineCount();
   },
 
   escape(s) {
@@ -12521,7 +12567,19 @@ const SBChat = {
       const box = document.getElementById('sb-chat-msgs');
       box.scrollTop = box.scrollHeight;
       document.getElementById('sb-chat-input').focus();
+      this.updateOnlineCount();
     }
+  },
+
+  updateOnlineCount() {
+    const el = document.getElementById('sb-chat-online');
+    if (!el) return;
+    /* Count unique usernames in recent messages as "active" users */
+    const recent = this.messages.slice(-50);
+    const users = new Set(recent.map(m => m.username));
+    const myName = SBAuth.profile?.username;
+    if (myName) users.add(myName);
+    el.textContent = '在线 ' + users.size + ' 人';
   },
 
   open() {
@@ -12533,6 +12591,133 @@ const SBChat = {
   }
 };
 
+/* ===== Official Admin Panel ===== */
+const SBAdmin = {
+  users: [],
+
+  open() {
+    if (SBAuth.role !== 'official') return;
+    document.getElementById('sb-admin-modal').classList.add('open');
+    this.loadUsers();
+    this.refreshModeButtons();
+  },
+
+  close() {
+    document.getElementById('sb-admin-modal').classList.remove('open');
+  },
+
+  async loadUsers() {
+    const listEl = document.getElementById('sb-admin-user-list');
+    listEl.innerHTML = '<div class="sb-admin-empty">加载中...</div>';
+    this.users = [];
+    /* Load from Supabase profiles table */
+    if (_sb) {
+      try {
+        const { data, error } = await _sb.from('profiles').select('username,created_at').order('created_at', { ascending: false }).limit(100);
+        if (!error && data) this.users = data;
+      } catch(e) {}
+    }
+    /* Also merge localStorage known users */
+    const stored = localStorage.getItem('backrooms_user');
+    if (stored) {
+      try {
+        const u = JSON.parse(stored);
+        if (u.username && !this.users.find(x => x.username === u.username)) {
+          this.users.unshift({ username: u.username, created_at: new Date().toISOString() });
+        }
+      } catch(e) {}
+    }
+    if (this.users.length === 0) {
+      listEl.innerHTML = '<div class="sb-admin-empty">暂无用户数据</div>';
+      return;
+    }
+    const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+    listEl.innerHTML = this.users.map(u => {
+      const role = u.username.startsWith('官方') ? 'official' : (roleMap[u.username] || 'player');
+      const roleBadge = role === 'official' ? '<span class="sb-admin-user-role sb-role-official">官方</span>' : role === 'cocreator' ? '<span class="sb-admin-user-role sb-role-cocreator">共创</span>' : '<span class="sb-admin-user-role sb-role-player">玩家</span>';
+      const avBg = role === 'official' ? 'background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;' : role === 'cocreator' ? 'background:linear-gradient(135deg,#c0c0c0,#a0a0a0);color:#000;' : 'background:var(--amber-d);color:#000;';
+      const canPromote = role !== 'cocreator' && !u.username.startsWith('官方');
+      const promoteBtn = canPromote ? '<button class="sb-admin-btn-sm" onclick="SBAdmin.promote(\'' + u.username.replace(/'/g, "\\'") + '\')">任命共创者</button>' : '';
+      const canDemote = role === 'cocreator';
+      const demoteBtn = canDemote ? '<button class="sb-admin-btn-sm" onclick="SBAdmin.demote(\'' + u.username.replace(/'/g, "\\'") + '\')">取消共创</button>' : '';
+      return '<div class="sb-admin-user"><div class="sb-admin-user-info"><div class="sb-admin-user-avatar" style="' + avBg + '">' + u.username.charAt(0).toUpperCase() + '</div><div><div class="sb-admin-user-name">' + SBChat.escape(u.username) + '</div>' + roleBadge + '</div></div><div>' + promoteBtn + demoteBtn + '</div></div>';
+    }).join('');
+  },
+
+  promote(username) {
+    if (SBAuth.role !== 'official') return;
+    const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+    roleMap[username] = 'cocreator';
+    localStorage.setItem('backrooms_role_map', JSON.stringify(roleMap));
+    /* If promoting self, update current role */
+    if (SBAuth.user && SBAuth.user.username === username) {
+      SBAuth.role = 'cocreator';
+      SBAuth.user.role = 'cocreator';
+      localStorage.setItem('backrooms_user', JSON.stringify(SBAuth.user));
+      SBAuth.updateUI();
+    }
+    this.loadUsers();
+    SBChat.render();
+  },
+
+  demote(username) {
+    if (SBAuth.role !== 'official') return;
+    const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+    delete roleMap[username];
+    localStorage.setItem('backrooms_role_map', JSON.stringify(roleMap));
+    if (SBAuth.user && SBAuth.user.username === username) {
+      SBAuth.role = 'player';
+      SBAuth.user.role = 'player';
+      localStorage.setItem('backrooms_user', JSON.stringify(SBAuth.user));
+      SBAuth.updateUI();
+    }
+    this.loadUsers();
+    SBChat.render();
+  },
+
+  refreshModeButtons() {
+    const btn = document.getElementById('sb-admin-godmode');
+    if (!btn || !window.game) return;
+    btn.classList.toggle('active', !!game.creativeMode);
+    btn.textContent = game.creativeMode ? '✅ 创世神模式已开启（点击关闭）' : '切换创世神模式（无敌/穿墙）';
+  },
+
+  toggleGodMode() {
+    if (SBAuth.role !== 'official' || !window.game) return;
+    game.creativeMode = !game.creativeMode;
+    if (game.creativeMode) {
+      game.unlockAchievement('creative');
+      game.hud.toast('🛡 官方模式 · 创世神已开启', 3);
+    } else {
+      game.hud.toast('创世神模式已关闭', 3);
+    }
+    this.refreshModeButtons();
+  },
+
+  toggleFog() {
+    if (SBAuth.role !== 'official' || !window.game) return;
+    game._adminFogOff = !game._adminFogOff;
+    game.hud.toast(game._adminFogOff ? '雾效已关闭' : '雾效已恢复', 3);
+  },
+
+  openLevelSelect() {
+    if (SBAuth.role !== 'official' || !window.game) return;
+    this.close();
+    /* Build a quick level selector */
+    const names = LEVELS.map((l, i) => i + ': ' + l.name);
+    const choice = prompt('选择关卡编号:\n' + names.join('\n'));
+    if (choice === null) return;
+    const idx = parseInt(choice);
+    if (isNaN(idx) || idx < 0 || idx >= LEVELS.length) {
+      alert('无效关卡编号');
+      return;
+    }
+    showScreen('game');
+    game.startLevel(idx);
+    game.hud.toast('🛡 官方跳转: ' + LEVELS[idx].name, 3);
+  }
+};
+
 /* Enter key to send chat */
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'sb-chat-input') {
@@ -12541,6 +12726,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     document.getElementById('sb-chat-panel')?.classList.remove('open');
     document.getElementById('sb-auth-modal')?.classList.remove('open');
+    document.getElementById('sb-admin-modal')?.classList.remove('open');
   }
 });
 
@@ -12549,11 +12735,15 @@ document.addEventListener('click', (e) => {
   if (e.target.id === 'sb-auth-modal') {
     SBAuth.close();
   }
+  if (e.target.id === 'sb-admin-modal') {
+    SBAdmin.close();
+  }
 });
 
 /* Expose to global scope for onclick attributes */
 window.SBAuth = SBAuth;
 window.SBChat = SBChat;
+window.SBAdmin = SBAdmin;
 
 /* Bind button events via addEventListener (fallback for onclick) */
 window.addEventListener('DOMContentLoaded', () => {
@@ -12594,6 +12784,7 @@ window.addEventListener('DOMContentLoaded', () => {
         <span class="sb-chat-title">📡 在线聊天</span>
         <button class="sb-chat-close" onclick="document.getElementById('sb-chat-panel').classList.remove('open')">&times;</button>
       </div>
+      <div class="sb-chat-online" id="sb-chat-online"></div>
       <div class="sb-chat-msgs" id="sb-chat-msgs"></div>
       <div class="sb-chat-input-bar">
         <input type="text" class="sb-chat-input" id="sb-chat-input" placeholder="输入消息..." maxlength="200" autocomplete="off">
@@ -12634,6 +12825,25 @@ window.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="sb-auth-info">用户名注册 · 密码登录</div>
         <button class="sb-auth-skip" id="sb-auth-skip" onclick="SBAuth.dismissPrompt()" style="display:none;width:100%;background:none;border:none;color:var(--tc-sm);font-family:var(--font);font-size:11px;padding:8px;cursor:pointer;margin-top:8px;">稍后再说</button>
+        <div id="sb-auth-admin-section" style="display:none;margin-top:12px;border-top:1px solid rgba(100,80,40,.2);padding-top:12px;">
+          <button class="sb-auth-btn" onclick="SBAdmin.open()" style="background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;">🛡 官方管理面板</button>
+        </div>
+      </div>
+    </div>
+    <!-- 官方管理面板 -->
+    <div class="sb-admin-modal" id="sb-admin-modal">
+      <div class="sb-admin-box">
+        <h2><span>🛡 官方管理面板</span><button onclick="document.getElementById('sb-admin-modal').classList.remove('open')" style="background:none;border:none;color:var(--tc-sm);font-size:18px;cursor:pointer;font-family:var(--font);">&times;</button></h2>
+        <div class="sb-admin-section">
+          <div class="sb-admin-section-title">🎮 游戏模式控制</div>
+          <button class="sb-admin-mode-btn" id="sb-admin-godmode" onclick="SBAdmin.toggleGodMode()">切换创世神模式（无敌/穿墙）</button>
+          <button class="sb-admin-mode-btn" onclick="SBAdmin.openLevelSelect()">跳转任意关卡</button>
+          <button class="sb-admin-mode-btn" onclick="SBAdmin.toggleFog()">切换雾效显示</button>
+        </div>
+        <div class="sb-admin-section">
+          <div class="sb-admin-section-title">👥 用户管理</div>
+          <div id="sb-admin-user-list"><div class="sb-admin-empty">加载中...</div></div>
+        </div>
       </div>
     </div>
 
