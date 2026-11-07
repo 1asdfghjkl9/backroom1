@@ -12188,116 +12188,44 @@ const SBAuth = {
   init() {
     try {
       _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true }
+        auth: { persistSession: false }
       });
     } catch(e) {
       console.error('Supabase init failed:', e);
-      return;
     }
-    /* Restore session */
-    _sb.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        this.onAuth(data.session.user);
-      } else {
-        /* 未登录：首次进入弹窗提示注册 */
-        this.maybePromptRegister();
-      }
-      this.updateUI();
-    });
-    /* Listen to auth changes */
-    _sb.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        this.onAuth(session.user);
-      } else {
-        this.user = null;
-        this.profile = null;
-      }
-      this.updateUI();
-    });
+    /* Restore local session */
+    const stored = localStorage.getItem('backrooms_user');
+    if (stored) {
+      try {
+        const u = JSON.parse(stored);
+        this.onAuthLocal(u);
+      } catch(e) {}
+    } else {
+      this.maybePromptRegister();
+    }
+    this.updateUI();
+  },
+
+  onAuthLocal(userObj) {
+    this.user = userObj;
+    this.role = userObj.role || 'player';
+    this.profile = { username: userObj.username };
+    this.updateUI();
+    SBChat.onAuthChange();
   },
 
   async onAuth(user) {
-    this.user = user;
-    const meta = user.user_metadata || {};
-    this.role = meta.role || 'player';
-    this.phone = meta.phone || '';
-    /* Fetch profile */
-    try {
-      const { data } = await _sb.from('profiles').select('username').eq('id', user.id).single();
-      this.profile = data;
-      if (this.role === 'official' && (!this.profile || this.profile.username !== '官方')) {
-        this.profile = { username: '官方' };
-      }
-    } catch(e) {
-      this.profile = { username: meta.username || '玩家' + user.id.slice(0, 6) };
-    }
-    this.updateUI();
-    SBChat.onAuthChange();
+    /* 兼容旧版 Supabase Auth 回调 */
+    this.onAuthLocal({ id: user.id, username: user.user_metadata?.username || '玩家', role: user.user_metadata?.role || 'player' });
   },
 
   setTab(tab) {
     this.mode = tab;
     document.getElementById('sb-tab-login').classList.toggle('active', tab === 'login');
     document.getElementById('sb-tab-register').classList.toggle('active', tab === 'register');
-    document.getElementById('sb-auth-nick').style.display = tab === 'register' ? '' : 'none';
     document.getElementById('sb-auth-code-field').style.display = tab === 'register' ? '' : 'none';
-    document.getElementById('sb-auth-submit').textContent = tab === 'login' ? '验证登录' : '验证注册';
+    document.getElementById('sb-auth-submit').textContent = tab === 'login' ? '登录' : '注册';
     document.getElementById('sb-auth-err').textContent = '';
-    document.getElementById('sb-auth-otp').value = '';
-  },
-
-  _otpCountdown: 0,
-  _localOtp: null,
-  async sendOtp() {
-    const errEl = document.getElementById('sb-auth-err');
-    const btn = document.getElementById('sb-auth-send-otp');
-    const phone = document.getElementById('sb-auth-phone').value.trim();
-    errEl.textContent = '';
-    errEl.style.color = '';
-
-    if (!/^1[3-9]\d{9}$/.test(phone)) {
-      errEl.textContent = '请输入有效的11位手机号';
-      return;
-    }
-    if (this._otpCountdown > 0) return;
-
-    btn.disabled = true;
-    btn.textContent = '发送中...';
-    const fullPhone = '+86' + phone;
-
-    try {
-      const { error } = await _sb.auth.signInWithOtp({
-        phone: fullPhone,
-        options: { channel: 'sms' }
-      });
-      if (error) throw error;
-
-      errEl.style.color = 'var(--amber-l)';
-      errEl.textContent = '验证码已发送，请查收短信';
-      this._startOtpCountdown(btn);
-    } catch(e) {
-      /* 短信发送失败（如运营商不支持），使用本地验证码兜底 */
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      this._localOtp = { code, phone, time: Date.now() };
-      errEl.style.color = 'var(--amber-l)';
-      errEl.textContent = '验证码: ' + code + '（短信服务暂不可用，请使用此验证码）';
-      this._startOtpCountdown(btn);
-    }
-  },
-
-  _startOtpCountdown(btn) {
-    this._otpCountdown = 60;
-    const tick = () => {
-      if (this._otpCountdown <= 0) {
-        btn.disabled = false;
-        btn.textContent = '发送验证码';
-        return;
-      }
-      btn.textContent = this._otpCountdown + 's';
-      this._otpCountdown--;
-      setTimeout(tick, 1000);
-    };
-    tick();
   },
 
   async submit() {
@@ -12306,152 +12234,83 @@ const SBAuth = {
     errEl.textContent = '';
     errEl.style.color = '';
     btn.disabled = true;
-    btn.textContent = '验证中...';
+    btn.textContent = '处理中...';
 
-    const phone = document.getElementById('sb-auth-phone').value.trim();
-    const otp = document.getElementById('sb-auth-otp').value.trim();
+    const username = document.getElementById('sb-auth-nick').value.trim();
+    const pass = document.getElementById('sb-auth-pass').value;
 
-    if (!/^1[3-9]\d{9}$/.test(phone)) { errEl.textContent = '请输入有效的手机号'; btn.disabled = false; btn.textContent = this.mode === 'login' ? '验证登录' : '验证注册'; return; }
-    if (!/^\d{4,6}$/.test(otp)) { errEl.textContent = '请输入收到的短信验证码'; btn.disabled = false; btn.textContent = this.mode === 'login' ? '验证登录' : '验证注册'; return; }
+    if (!username || username.length < 2) { errEl.textContent = '请输入用户名（至少2位）'; btn.disabled = false; btn.textContent = this.mode; return; }
+    if (!pass || pass.length < 4) { errEl.textContent = '密码至少4位'; btn.disabled = false; btn.textContent = this.mode; return; }
 
-    const fullPhone = '+86' + phone;
-
-    /* 本地验证码兜底：短信不可用时直接验证本地生成的码 */
-    if (this._localOtp && this._localOtp.phone === phone) {
-      if (Date.now() - this._localOtp.time > 300000) {
-        errEl.textContent = '验证码已过期，请重新发送';
-        btn.disabled = false; btn.textContent = this.mode === 'login' ? '验证登录' : '验证注册'; return;
-      }
-      if (otp !== this._localOtp.code) {
-        errEl.textContent = '验证码不正确';
-        btn.disabled = false; btn.textContent = this.mode === 'login' ? '验证登录' : '验证注册'; return;
-      }
-      /* 本地验证通过，使用邮箱+密码方式注册/登录 */
-      const email = phone + '@backrooms.game';
-      const pass = 'bw_' + phone;
-      try {
-        if (this.mode === 'register') {
-          const nick = document.getElementById('sb-auth-nick').value.trim() || '玩家' + phone.slice(-4);
-          const officialCode = document.getElementById('sb-auth-code').value.trim();
-          let role = 'player';
-          if (officialCode === '7618') {
-            try {
-              const { data: existing } = await _sb.from('profiles').select('id').eq('username', '官方').limit(1);
-              if (existing && existing.length > 0) { role = 'player'; }
-              else { role = 'official'; }
-            } catch(e) {}
-          }
-          const { data: regData, error: regErr } = await _sb.auth.signUp({
-            email, password: pass,
-            options: { data: { username: role === 'official' ? '官方' : nick, role: role, phone: phone } }
-          });
-          if (regErr) throw regErr;
-          if (regData.user) {
-            try { await _sb.from('profiles').upsert({ id: regData.user.id, username: role === 'official' ? '官方' : nick }); } catch(e) {}
-          }
-          if (regData.session) {
-            errEl.style.color = 'var(--amber-l)';
-            errEl.textContent = '注册成功！正在登录...';
-            this.onAuth(regData.user);
-          } else {
-            /* 尝试直接登录 */
-            const { data: loginData, error: loginErr } = await _sb.auth.signInWithPassword({ email, password: pass });
-            if (loginErr) throw loginErr;
-            if (loginData.user) {
-              errEl.style.color = 'var(--amber-l)';
-              errEl.textContent = '注册成功！正在登录...';
-              this.onAuth(loginData.user);
-            } else {
-              errEl.style.color = 'var(--amber-l)';
-              errEl.textContent = '注册成功！请重新发送验证码并登录。';
-            }
-          }
-        } else {
-          const { data: loginData, error: loginErr } = await _sb.auth.signInWithPassword({ email, password: pass });
-          if (loginErr) {
-            /* 登录失败可能是未注册，尝试注册 */
-            const { data: regData, error: regErr } = await _sb.auth.signUp({
-              email, password: pass,
-              options: { data: { username: '玩家' + phone.slice(-4), role: 'player', phone: phone } }
-            });
-            if (regErr) throw regErr;
-            if (regData.user) {
-              try { await _sb.from('profiles').upsert({ id: regData.user.id, username: '玩家' + phone.slice(-4) }); } catch(e) {}
-            }
-            if (regData.session) {
-              errEl.style.color = 'var(--amber-l)';
-              errEl.textContent = '登录成功！';
-              this.onAuth(regData.user);
-            } else {
-              errEl.style.color = 'var(--amber-l)';
-              errEl.textContent = '账号已创建，请再次发送验证码并登录。';
-            }
-          } else {
-            this.onAuth(loginData.user);
-          }
-        }
-        this._localOtp = null;
-        btn.disabled = false; btn.textContent = this.mode === 'login' ? '验证登录' : '验证注册';
-        return;
-      } catch(e) {
-        errEl.textContent = e.message || '操作失败';
-        btn.disabled = false; btn.textContent = this.mode === 'login' ? '验证登录' : '验证注册';
-        return;
-      }
-    }
-
-    /* 正常短信验证码流程 */
     try {
-      const { data, error } = await _sb.auth.verifyOtp({
-        phone: fullPhone,
-        token: otp,
-        type: 'sms'
-      });
-      if (error) throw error;
-
-      if (data.user) {
-        const meta = data.user.user_metadata || {};
-        if (this.mode === 'register' && !meta.phone) {
-          const nick = document.getElementById('sb-auth-nick').value.trim() || '玩家' + phone.slice(-4);
-          const officialCode = document.getElementById('sb-auth-code').value.trim();
-          let role = 'player';
-
-          if (officialCode === '7618') {
-            try {
-              const { data: existing } = await _sb.from('profiles').select('id').eq('username', '官方').limit(1);
-              if (existing && existing.length > 0) {
-                errEl.style.color = 'var(--amber-l)';
-                errEl.textContent = '验证成功，但官方账号已存在，已注册为普通玩家';
-              } else {
-                role = 'official';
-              }
-            } catch(e) {}
-          }
-
-          await _sb.auth.updateUser({
-            data: { username: role === 'official' ? '官方' : nick, role: role, phone: phone }
-          });
-
-          try {
-            await _sb.from('profiles').upsert({ id: data.user.id, username: role === 'official' ? '官方' : nick });
-          } catch(e) {}
+      if (this.mode === 'register') {
+        /* 检查用户名是否已存在 */
+        const { data: existing } = await _sb.from('profiles').select('id').eq('username', username).limit(1);
+        if (existing && existing.length > 0) {
+          errEl.textContent = '用户名已存在';
+          btn.disabled = false; btn.textContent = '注册'; return;
         }
+
+        /* 检查官方验证码 */
+        const officialCode = document.getElementById('sb-auth-code').value.trim();
+        let role = 'player';
+        if (officialCode === '7618') {
+          const { data: offExisting } = await _sb.from('profiles').select('id').eq('username', '官方').limit(1);
+          if (offExisting && offExisting.length > 0) {
+            errEl.style.color = 'var(--amber-l)';
+            errEl.textContent = '官方账号已存在，已注册为普通玩家';
+          } else {
+            role = 'official';
+          }
+        }
+
+        const finalName = role === 'official' ? '官方' : username;
+
+        /* 存入 profiles 表 */
+        try {
+          await _sb.from('profiles').insert({ username: finalName });
+        } catch(e) {}
+
+        /* 存入 localStorage */
+        const userObj = { id: 'local_' + Date.now(), username: finalName, role: role, password: pass };
+        localStorage.setItem('backrooms_user', JSON.stringify(userObj));
 
         errEl.style.color = 'var(--amber-l)';
-        errEl.textContent = '验证成功！正在登录...';
-        this.onAuth(data.user);
+        errEl.textContent = '注册成功！正在登录...';
+        this.onAuthLocal(userObj);
+      } else {
+        /* 登录：先查 localStorage */
+        const stored = localStorage.getItem('backrooms_user');
+        if (stored) {
+          const u = JSON.parse(stored);
+          if (u.username === username && u.password === pass) {
+            errEl.style.color = 'var(--amber-l)';
+            errEl.textContent = '登录成功！';
+            this.onAuthLocal(u);
+            btn.disabled = false; btn.textContent = '登录';
+            return;
+          }
+        }
+        /* localStorage 没有匹配，检查是否是其他设备注册的用户（只能验证用户名存在） */
+        const { data: profile } = await _sb.from('profiles').select('username').eq('username', username).limit(1);
+        if (profile && profile.length > 0) {
+          errEl.textContent = '密码错误（如在其他设备注册，请在原设备登录）';
+        } else {
+          errEl.textContent = '用户名不存在，请先注册';
+        }
       }
     } catch(e) {
-      errEl.textContent = e.message || '验证失败，请检查验证码';
+      errEl.textContent = e.message || '操作失败';
     }
     btn.disabled = false;
-    btn.textContent = this.mode === 'login' ? '验证登录' : '验证注册';
+    btn.textContent = this.mode;
   },
 
   async logout() {
-    try { await _sb.auth.signOut(); } catch(e) {}
+    localStorage.removeItem('backrooms_user');
     this.user = null;
     this.profile = null;
+    this.role = null;
     this.updateUI();
     SBChat.onAuthChange();
   },
@@ -12479,7 +12338,7 @@ const SBAuth = {
         else rEl.innerHTML = '<span class="sb-role-badge sb-role-player">玩家</span>';
       }
       const eEl = document.getElementById('sb-auth-email-display');
-      if (eEl) eEl.textContent = this.phone || (this.user.email || '').replace('@backrooms.game', '');
+      if (eEl) eEl.textContent = '';
     } else {
       if (formEl) formEl.style.display = '';
       if (loggedEl) loggedEl.style.display = 'none';
@@ -12600,7 +12459,6 @@ const SBChat = {
     btn.disabled = true;
     try {
       const { error } = await _sb.from('chat_messages').insert({
-        user_id: SBAuth.user.id,
         username: SBAuth.profile?.username || '玩家',
         message: msg
       });
@@ -12715,19 +12573,15 @@ window.addEventListener('DOMContentLoaded', () => {
         </div>
         <div id="sb-auth-form">
           <div class="sb-auth-field">
-            <input type="text" id="sb-auth-nick" placeholder="昵称（注册时填写）" style="display:none;" autocomplete="off">
+            <input type="text" id="sb-auth-nick" placeholder="用户名" autocomplete="off" maxlength="16">
           </div>
-          <div class="sb-auth-field">
-            <input type="text" id="sb-auth-phone" placeholder="手机号" autocomplete="tel" maxlength="11">
-          </div>
-          <button class="sb-auth-btn" id="sb-auth-send-otp" onclick="SBAuth.sendOtp()" style="padding:8px;font-size:13px;">发送验证码</button>
           <div class="sb-auth-field" id="sb-auth-code-field" style="display:none;">
             <input type="text" id="sb-auth-code" class="sb-auth-code" placeholder="官方验证码（选填）" autocomplete="off" maxlength="4">
           </div>
           <div class="sb-auth-field">
-            <input type="text" id="sb-auth-otp" placeholder="短信验证码" autocomplete="one-time-code" maxlength="6" inputmode="numeric">
+            <input type="password" id="sb-auth-pass" placeholder="密码（至少4位）" autocomplete="current-password" maxlength="32">
           </div>
-          <button class="sb-auth-btn" id="sb-auth-submit" onclick="SBAuth.submit()">登录</button>
+          <button class="sb-auth-btn" id="sb-auth-submit" onclick="SBAuth.submit()">注册</button>
           <div class="sb-auth-err" id="sb-auth-err"></div>
         </div>
         <div id="sb-auth-logged-in" style="display:none;">
@@ -12739,7 +12593,7 @@ window.addEventListener('DOMContentLoaded', () => {
           </div>
           <button class="sb-auth-btn" onclick="SBAuth.logout()" style="background:rgba(180,60,60,.3);color:#e88;">退出登录</button>
         </div>
-        <div class="sb-auth-info">手机号注册 · 验证码登录</div>
+        <div class="sb-auth-info">用户名注册 · 密码登录</div>
         <button class="sb-auth-skip" id="sb-auth-skip" onclick="SBAuth.dismissPrompt()" style="display:none;width:100%;background:none;border:none;color:var(--tc-sm);font-family:var(--font);font-size:11px;padding:8px;cursor:pointer;margin-top:8px;">稍后再说</button>
       </div>
     </div>
