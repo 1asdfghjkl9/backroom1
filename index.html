@@ -1276,6 +1276,7 @@ input[type="range"]::-moz-range-thumb {
           <div class="pubg-profile-info">
             <div class="pubg-profile-name" id="md-level">LV.0</div>
             <div class="pubg-profile-stat">已通过 <span id="md-cleared">0/11</span></div>
+            <div class="pubg-profile-stat">成就 <span id="md-achievements">0/0</span></div>
             <div class="pubg-profile-stat">存档 <span id="md-run">无</span></div>
           </div>
         </div>
@@ -10287,6 +10288,8 @@ class Game {
     /* 主菜单中央关卡简介卡片 */
     const cardsEl = document.getElementById('menu-level-cards');
     if (cardsEl) {
+      let lb;
+      try { lb = JSON.parse(localStorage.getItem('backrooms_leaderboard_v1') || '{"times":{}}'); } catch(e) { lb = {times:{}}; }
       cardsEl.innerHTML = '';
       LEVELS.forEach((lv, i) => {
         const cleared = this.progress.cleared.includes(i);
@@ -10298,13 +10301,23 @@ class Game {
         else if (cleared) status = '✓ 已通过';
         else if (unlocked) status = '已解锁';
         else status = '🔒';
+        /* 最快通关时间 */
+        const bestTime = lb.times && lb.times[i];
+        const timeStr = bestTime ? Math.floor(bestTime.time / 60) + ':' + String(Math.floor(bestTime.time % 60)).padStart(2, '0') : '';
         card.innerHTML =
           `<div class="ml-code">${lv.code}</div>` +
           `<div class="ml-name">${lv.name}</div>` +
           `<div class="ml-intro">${lv.intro || ''}</div>` +
-          `<div class="ml-status">${status}</div>`;
+          `<div class="ml-status">${status}${timeStr ? ' · ⚡' + timeStr : ''}</div>`;
         cardsEl.appendChild(card);
       });
+    }
+
+    /* 更新成就计数 */
+    const achCount = document.getElementById('md-achievements');
+    if (achCount) {
+      const unlocked = Object.keys(this.achievements || {}).length;
+      achCount.textContent = `${unlocked}/${ACHIEVEMENTS.length}`;
     }
   }
 
@@ -12333,6 +12346,7 @@ try {
   game = new Game(canvas);
   game.start();
   window.__BACKROOMS__ = game;
+  window.game = game;
 
   /* 页面隐藏/关闭时自动存档 */
   document.addEventListener('visibilitychange', () => {
@@ -12881,26 +12895,40 @@ const SBAdmin = {
       const role = u.username.startsWith('官方·') ? 'official' : (roleMap[u.username] || 'player');
       const roleBadge = role === 'official' ? '<span class="sb-admin-user-role sb-role-official">官方</span>' : role === 'cocreator' ? '<span class="sb-admin-user-role sb-role-cocreator">共创</span>' : '<span class="sb-admin-user-role sb-role-player">玩家</span>';
       const avBg = role === 'official' ? 'background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;' : role === 'cocreator' ? 'background:linear-gradient(135deg,#c0c0c0,#a0a0a0);color:#000;' : 'background:var(--amber-d);color:#000;';
-      const canPromote = role !== 'cocreator' && !u.username.startsWith('官方·');
+      const canPromote = role !== 'cocreator' && !u.username.startsWith('官方·') && (!SBAuth.user || u.username !== SBAuth.user.username);
       const promoteBtn = canPromote ? '<button class="sb-admin-btn-sm" onclick="SBAdmin.promote(\'' + u.username.replace(/'/g, "\\'") + '\')">任命共创者</button>' : '';
       const canDemote = role === 'cocreator';
       const demoteBtn = canDemote ? '<button class="sb-admin-btn-sm" onclick="SBAdmin.demote(\'' + u.username.replace(/'/g, "\\'") + '\')">取消共创</button>' : '';
       return '<div class="sb-admin-user"><div class="sb-admin-user-info"><div class="sb-admin-user-avatar" style="' + avBg + '">' + u.username.charAt(0).toUpperCase() + '</div><div><div class="sb-admin-user-name">' + SBChat.escape(u.username) + '</div>' + roleBadge + '</div></div><div>' + promoteBtn + demoteBtn + '</div></div>';
     }).join('');
+    /* 更新统计 */
+    const officialCount = this.users.filter(u => u.username.startsWith('官方·')).length;
+    const cocreatorCount2 = Object.values(roleMap).filter(r => r === 'cocreator').length;
+    const playerCount = this.users.length - officialCount - cocreatorCount2;
+    const el = (id) => document.getElementById(id);
+    if (el('sb-stat-total')) el('sb-stat-total').textContent = this.users.length;
+    if (el('sb-stat-official')) el('sb-stat-official').textContent = officialCount;
+    if (el('sb-stat-cocreator')) el('sb-stat-cocreator').textContent = cocreatorCount2;
+    if (el('sb-stat-player')) el('sb-stat-player').textContent = Math.max(0, playerCount);
+    if (el('sb-cocreator-count')) el('sb-cocreator-count').textContent = '(共创者: ' + cocreatorCount2 + '/10)';
   },
 
   promote(username) {
     if (SBAuth.role !== 'official') return;
+    /* 不能任命自己 */
+    if (SBAuth.user && SBAuth.user.username === username) {
+      SBAuth.hud?.toast?.('不能任命自己为共创者', 3);
+      return;
+    }
+    /* 共创者名额上限 */
     const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+    const cocreatorCount = Object.values(roleMap).filter(r => r === 'cocreator').length;
+    if (cocreatorCount >= 10 && !roleMap[username]) {
+      alert('共创者名额已达上限（10人），请先取消其他共创者');
+      return;
+    }
     roleMap[username] = 'cocreator';
     localStorage.setItem('backrooms_role_map', JSON.stringify(roleMap));
-    /* If promoting self, update current role */
-    if (SBAuth.user && SBAuth.user.username === username) {
-      SBAuth.role = 'cocreator';
-      SBAuth.user.role = 'cocreator';
-      localStorage.setItem('backrooms_user', JSON.stringify(SBAuth.user));
-      SBAuth.updateUI();
-    }
     this.loadUsers();
     SBChat.render();
   },
@@ -12910,12 +12938,6 @@ const SBAdmin = {
     const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
     delete roleMap[username];
     localStorage.setItem('backrooms_role_map', JSON.stringify(roleMap));
-    if (SBAuth.user && SBAuth.user.username === username) {
-      SBAuth.role = 'player';
-      SBAuth.user.role = 'player';
-      localStorage.setItem('backrooms_user', JSON.stringify(SBAuth.user));
-      SBAuth.updateUI();
-    }
     this.loadUsers();
     SBChat.render();
   },
@@ -13077,13 +13099,34 @@ window.addEventListener('DOMContentLoaded', () => {
       <div class="sb-admin-box">
         <h2><span>🛡 官方管理面板</span><button onclick="document.getElementById('sb-admin-modal').classList.remove('open')" style="background:none;border:none;color:var(--tc-sm);font-size:18px;cursor:pointer;font-family:var(--font);">&times;</button></h2>
         <div class="sb-admin-section">
+          <div class="sb-admin-section-title">📊 玩家统计</div>
+          <div id="sb-admin-stats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;">
+            <div style="flex:1;min-width:80px;background:rgba(20,18,12,.6);border:1px solid var(--border);border-radius:4px;padding:8px;text-align:center;">
+              <div style="font-size:18px;color:var(--amber-l);font-weight:700;" id="sb-stat-total">-</div>
+              <div style="font-size:9px;color:var(--tc-sm);">总注册</div>
+            </div>
+            <div style="flex:1;min-width:80px;background:rgba(20,18,12,.6);border:1px solid var(--border);border-radius:4px;padding:8px;text-align:center;">
+              <div style="font-size:18px;color:#ffd700;font-weight:700;" id="sb-stat-official">-</div>
+              <div style="font-size:9px;color:var(--tc-sm);">官方</div>
+            </div>
+            <div style="flex:1;min-width:80px;background:rgba(20,18,12,.6);border:1px solid var(--border);border-radius:4px;padding:8px;text-align:center;">
+              <div style="font-size:18px;color:#c0c0c0;font-weight:700;" id="sb-stat-cocreator">-</div>
+              <div style="font-size:9px;color:var(--tc-sm);">共创者</div>
+            </div>
+            <div style="flex:1;min-width:80px;background:rgba(20,18,12,.6);border:1px solid var(--border);border-radius:4px;padding:8px;text-align:center;">
+              <div style="font-size:18px;color:var(--amber-d);font-weight:700;" id="sb-stat-player">-</div>
+              <div style="font-size:9px;color:var(--tc-sm);">玩家</div>
+            </div>
+          </div>
+        </div>
+        <div class="sb-admin-section">
           <div class="sb-admin-section-title">🎮 游戏模式控制</div>
           <button class="sb-admin-mode-btn" id="sb-admin-godmode" onclick="SBAdmin.toggleGodMode()">切换创世神模式（无敌/穿墙）</button>
           <button class="sb-admin-mode-btn" onclick="SBAdmin.openLevelSelect()">跳转任意关卡</button>
           <button class="sb-admin-mode-btn" onclick="SBAdmin.toggleFog()">切换雾效显示</button>
         </div>
         <div class="sb-admin-section">
-          <div class="sb-admin-section-title">👥 用户管理</div>
+          <div class="sb-admin-section-title">👥 用户管理 <span id="sb-cocreator-count" style="font-size:9px;color:var(--tc-sm);">(共创者上限: 10)</span></div>
           <div id="sb-admin-user-list"><div class="sb-admin-empty">加载中...</div></div>
         </div>
       </div>
