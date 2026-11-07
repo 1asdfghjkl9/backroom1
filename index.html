@@ -1136,6 +1136,12 @@ input[type="range"]::-moz-range-thumb {
 .sb-admin-mode-btn{display:block;width:100%;background:rgba(180,140,60,.15);border:1px solid rgba(180,140,60,.3);color:var(--amber-l);border-radius:3px;padding:10px 12px;font-size:12px;font-family:var(--font);cursor:pointer;margin-bottom:6px;text-align:left;}
 .sb-admin-mode-btn:hover{background:rgba(180,140,60,.3);}
 .sb-admin-mode-btn.active{background:var(--amber-d);color:#000;}
+/* Official zone in menu */
+.pubg-official-zone{position:fixed;bottom:16px;right:16px;background:rgba(20,18,12,.95);border:1px solid #ffd700;border-radius:6px;padding:10px;z-index:7000;max-width:160px;}
+.official-zone-title{font-size:10px;color:#ffd700;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;text-align:center;border-bottom:1px solid rgba(255,215,0,.2);padding-bottom:6px;}
+.official-zone-btn{display:block;width:100%;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.2);color:#ffd700;border-radius:3px;padding:6px 10px;font-size:11px;font-family:var(--font);cursor:pointer;margin-bottom:4px;text-align:left;}
+.official-zone-btn:hover{background:rgba(255,215,0,.2);}
+.official-zone-btn:last-child{margin-bottom:0;}
 /* Chat improvements */
 .sb-chat-msg .role-tag{display:inline-block;font-size:9px;padding:1px 4px;border-radius:2px;margin-right:4px;font-weight:600;vertical-align:middle;}
 .sb-chat-msg .role-tag.official{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;}
@@ -1313,6 +1319,23 @@ input[type="range"]::-moz-range-thumb {
           <button class="pubg-side-btn" data-action="settings">
             <span class="pubg-side-icon">⚙️</span>
             <span class="pubg-side-text">设置</span>
+          </button>
+        </div>
+
+        <!-- 官方专属区域（仅官方账号可见） -->
+        <div class="pubg-official-zone" id="official-zone" style="display:none;">
+          <div class="official-zone-title">🛡 官方控制台</div>
+          <button class="official-zone-btn" onclick="SBAdmin.open()">
+            <span>🛡 管理面板</span>
+          </button>
+          <button class="official-zone-btn" onclick="SBAdmin.toggleGodMode()">
+            <span>⚡ 创世神模式</span>
+          </button>
+          <button class="official-zone-btn" onclick="SBAdmin.openLevelSelect()">
+            <span>🎮 跳转关卡</span>
+          </button>
+          <button class="official-zone-btn" onclick="SBAdmin.toggleFog()">
+            <span>🌫 切换雾效</span>
           </button>
         </div>
 
@@ -12235,6 +12258,11 @@ const SBAuth = {
   onAuthLocal(userObj) {
     this.user = userObj;
     this.role = userObj.role || 'player';
+    /* Official prefix check */
+    if (userObj.username && userObj.username.startsWith('官方·')) {
+      this.role = 'official';
+      userObj.role = 'official';
+    }
     /* Check role map for cocreator promotion */
     if (this.role === 'player') {
       const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
@@ -12308,7 +12336,7 @@ const SBAuth = {
           let officialCount = 0;
           if (_sb) {
             try {
-              const { count } = await _sb.from('profiles').select('id', { count: 'exact', head: true }).like('username', '官方%');
+              const { count } = await _sb.from('profiles').select('id', { count: 'exact', head: true }).like('username', '官方·%');
               officialCount = count || 0;
             } catch(e) {}
           }
@@ -12321,8 +12349,8 @@ const SBAuth = {
             errEl.textContent = '官方账号已达上限（3个），已注册为普通玩家';
           } else {
             role = 'official';
-            if (!username.startsWith('官方')) {
-              username = '官方' + username;
+            if (!username.startsWith('官方·')) {
+              username = '官方·' + username;
             }
             localStorage.setItem('backrooms_official_count', String(officialCount + 1));
           }
@@ -12412,9 +12440,9 @@ const SBAuth = {
       }
       const eEl = document.getElementById('sb-auth-email-display');
       if (eEl) eEl.textContent = '';
-      /* Show admin section for official accounts */
-      const adminSec = document.getElementById('sb-auth-admin-section');
-      if (adminSec) adminSec.style.display = (this.role === 'official') ? '' : 'none';
+      /* Show official zone for official accounts in menu */
+      const officialZone = document.getElementById('official-zone');
+      if (officialZone) officialZone.style.display = (this.role === 'official') ? '' : 'none';
     } else {
       if (formEl) formEl.style.display = '';
       if (loggedEl) loggedEl.style.display = 'none';
@@ -12524,7 +12552,7 @@ const SBChat = {
     /* Get role for a username from localStorage role map */
     const getRole = (name) => {
       const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
-      if (name.startsWith('官方')) return 'official';
+      if (name.startsWith('官方·')) return 'official';
       return roleMap[name] || 'player';
     };
     box.innerHTML = this.messages.map(m => {
@@ -12664,10 +12692,10 @@ const SBAdmin = {
     }
     const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
     listEl.innerHTML = this.users.map(u => {
-      const role = u.username.startsWith('官方') ? 'official' : (roleMap[u.username] || 'player');
+      const role = u.username.startsWith('官方·') ? 'official' : (roleMap[u.username] || 'player');
       const roleBadge = role === 'official' ? '<span class="sb-admin-user-role sb-role-official">官方</span>' : role === 'cocreator' ? '<span class="sb-admin-user-role sb-role-cocreator">共创</span>' : '<span class="sb-admin-user-role sb-role-player">玩家</span>';
       const avBg = role === 'official' ? 'background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;' : role === 'cocreator' ? 'background:linear-gradient(135deg,#c0c0c0,#a0a0a0);color:#000;' : 'background:var(--amber-d);color:#000;';
-      const canPromote = role !== 'cocreator' && !u.username.startsWith('官方');
+      const canPromote = role !== 'cocreator' && !u.username.startsWith('官方·');
       const promoteBtn = canPromote ? '<button class="sb-admin-btn-sm" onclick="SBAdmin.promote(\'' + u.username.replace(/'/g, "\\'") + '\')">任命共创者</button>' : '';
       const canDemote = role === 'cocreator';
       const demoteBtn = canDemote ? '<button class="sb-admin-btn-sm" onclick="SBAdmin.demote(\'' + u.username.replace(/'/g, "\\'") + '\')">取消共创</button>' : '';
@@ -12856,9 +12884,6 @@ window.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="sb-auth-info">用户名注册 · 密码登录</div>
         <button class="sb-auth-skip" id="sb-auth-skip" onclick="SBAuth.dismissPrompt()" style="display:none;width:100%;background:none;border:none;color:var(--tc-sm);font-family:var(--font);font-size:11px;padding:8px;cursor:pointer;margin-top:8px;">稍后再说</button>
-        <div id="sb-auth-admin-section" style="display:none;margin-top:12px;border-top:1px solid rgba(100,80,40,.2);padding-top:12px;">
-          <button class="sb-auth-btn" onclick="SBAdmin.open()" style="background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;">🛡 官方管理面板</button>
-        </div>
       </div>
     </div>
     <!-- 官方管理面板 -->
