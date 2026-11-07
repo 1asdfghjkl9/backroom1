@@ -12464,9 +12464,17 @@ const SBChat = {
   subscribed: false,
 
   async init() {
-    if (!_sb) return;
-    await this.loadMessages();
-    this.subscribe();
+    if (_sb) {
+      await this.loadMessages();
+      this.subscribe();
+    } else {
+      /* Supabase 不可用，加载本地离线消息 */
+      try {
+        const local = JSON.parse(localStorage.getItem('backrooms_local_chat') || '[]');
+        this.messages = local;
+        this.render();
+      } catch(e) {}
+    }
   },
 
   async loadMessages() {
@@ -12481,6 +12489,12 @@ const SBChat = {
       this.messages = data || [];
       this.render();
     } catch(e) {
+      /* 加载失败也尝试本地 */
+      try {
+        const local = JSON.parse(localStorage.getItem('backrooms_local_chat') || '[]');
+        this.messages = local;
+        this.render();
+      } catch(e2) {}
       console.error('Chat load failed:', e);
     }
   },
@@ -12531,6 +12545,13 @@ const SBChat = {
     return d.innerHTML;
   },
 
+  _saveLocal() {
+    try {
+      const recent = this.messages.slice(-50);
+      localStorage.setItem('backrooms_local_chat', JSON.stringify(recent));
+    } catch(e) {}
+  },
+
   async send() {
     const input = document.getElementById('sb-chat-input');
     const btn = document.getElementById('sb-chat-send');
@@ -12542,15 +12563,25 @@ const SBChat = {
     const msg = input.value.trim();
     input.value = '';
     btn.disabled = true;
+    const username = SBAuth.profile?.username || '玩家';
+    const now = new Date().toISOString();
+    const msgObj = { id: 'local_' + Date.now(), username, message: msg, created_at: now };
     try {
-      const { error } = await _sb.from('chat_messages').insert({
-        username: SBAuth.profile?.username || '玩家',
-        message: msg
-      });
-      if (error) throw error;
+      if (_sb) {
+        const { error } = await _sb.from('chat_messages').insert({ username, message: msg });
+        if (error) throw error;
+      } else {
+        /* Supabase 不可用，存本地 */
+        this.messages.push(msgObj);
+        this._saveLocal();
+        this.render();
+      }
     } catch(e) {
-      input.value = msg;
-      console.error('Send failed:', e);
+      /* 发送失败也显示在本地（离线模式） */
+      this.messages.push(msgObj);
+      this._saveLocal();
+      this.render();
+      console.error('Send failed (online), saved locally:', e);
     }
     btn.disabled = false;
     input.focus();
