@@ -7276,7 +7276,7 @@ class Entity {
   }
 
   update(dt, world, player, field, audio) {
-    const def = this.def;
+    let def = this.def;
     const dxp = player.x - this.x, dyp = player.y - this.y;
     const dist = Math.hypot(dxp, dyp);
 
@@ -8252,10 +8252,10 @@ class ThreeJSRendererBridge {
     this._rebuildWorldIfNeeded();
 
     /* Update fog based on world (创作者模式/官方除雾) */
-    if (this.creativeMode || this._adminFogOff) {
-      this.scene.fog.density = 0;
+    if (window.game && (window.game.creativeMode || window.game._adminFogOff || window.game.noFog)) {
+      if (this.scene.fog) this.scene.fog.density = 0;
       this.scene.background = new THREE.Color(0x000000);
-    } else if (world.fog) {
+    } else if (world.fog && this.scene.fog) {
       this.scene.fog.density = world.fog * 0.7;
       if (world.fogColor !== undefined) {
         this.scene.fog.color.setHex(world.fogColor);
@@ -9364,8 +9364,8 @@ class HUD {
     }
 
     // 画出口（绿色方块）
-    if (game.world.exitX != null) {
-      const dx = game.world.exitX - px, dy = game.world.exitY - py;
+    if (game.world.exitPos) {
+      const dx = game.world.exitPos.x - px, dy = game.world.exitPos.y - py;
       if (Math.abs(dx) <= range && Math.abs(dy) <= range) {
         const sx = (dx + range) * scale;
         const sy = (dy + range) * scale;
@@ -10689,17 +10689,16 @@ class Game {
     if (!e) { this.die(); return; }
     this._deathTimer += dt;
     const t = Math.min(1, this._deathTimer / this._deathDuration);
-    // 目标角度：看向怪物
-    const targetAngle = Math.atan2(e.y - p.y, e.x - p.x);
-    const targetPitch = 0;
-    // 缓动插值
-    const ease = t * t * (3 - 2 * t);
-    // 角度差归一化
-    let da = targetAngle - this._deathStartAngle;
-    while (da > Math.PI) da -= Math.PI * 2;
-    while (da < -Math.PI) da += Math.PI * 2;
-    p.angle = this._deathStartAngle + da * ease;
-    p.pitch = this._deathStartPitch + (targetPitch - this._deathStartPitch) * ease;
+    // 只有实体类型的杀手才有坐标，可以转向
+    if (e && typeof e.x === 'number' && typeof e.y === 'number') {
+      const targetAngle = Math.atan2(e.y - p.y, e.x - p.x);
+      let da = targetAngle - this._deathStartAngle;
+      while (da > Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      const ease = t * t * (3 - 2 * t);
+      p.angle = this._deathStartAngle + da * ease;
+      p.pitch = this._deathStartPitch + (0 - this._deathStartPitch) * ease;
+    }
     // 理智快速下降
     p.sanity = Math.max(0, p.sanity - 15 * dt);
     if (t >= 1) {
@@ -10746,7 +10745,7 @@ class Game {
     if (achMap[this.levelIndex]) this.unlockAchievement(achMap[this.levelIndex]);
     // 全通关（所有非Hub关卡都通关）
     const nonHubLevels = LEVELS.map((l, i) => ({l, i})).filter(x => !x.l.isHub);
-    const allCleared = nonHubLevels.every(x => this.progress.cleared.includes(x.i));
+    const allCleared = nonHubLevels.every(x => x.i === this.levelIndex || this.progress.cleared.includes(x.i));
     if (allCleared) this.unlockAchievement('all_clear');
     // 速通（3分钟内）
     if (this.levelTime <= 180) this.unlockAchievement('speedrun');
@@ -12425,20 +12424,23 @@ window.addEventListener('contextmenu', (e) => {
 
 /* === 在线聊天 & 认证系统 (Edge Function API) === */
 const API_URL = 'https://br-brave-deer-ccf32b58.supabase2.aidap-global.cn-beijing.volces.com/functions/v1/backrooms-api';
-let _sb = null;
-let _sbChannel = null;
 let _chatPollTimer = null;
 
-/* 调用 Edge Function API */
+/* 调用 Edge Function API（带 10 秒超时） */
 async function _apiCall(action, data) {
   try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
     const resp = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, ...data })
+      body: JSON.stringify({ action, ...data }),
+      signal: ctrl.signal
     });
+    clearTimeout(timer);
     return await resp.json();
   } catch(e) {
+    if (e.name === 'AbortError') return { error: '请求超时，请检查网络后重试' };
     return { error: '网络连接失败，请检查网络' };
   }
 }
@@ -12595,7 +12597,11 @@ const SBAuth = {
 
         /* 2. 通过 Edge Function 验证（跨设备登录） */
         if (!loggedIn) {
-          const loginResult = await _apiCall('login', { username, password: pass });
+          let loginResult = await _apiCall('login', { username, password: pass });
+          /* 如果直接用户名匹配失败，尝试加"官方·"前缀 */
+          if (!loginResult.success && !username.startsWith('官方·')) {
+            loginResult = await _apiCall('login', { username: '官方·' + username, password: pass });
+          }
           if (loginResult.success) {
             const userObj = {
               id: loginResult.user.id,
@@ -12686,7 +12692,8 @@ const SBAuth = {
         const nick = this.profile?.username || '玩家';
         const avatarBg = this.role === 'official' ? 'background:linear-gradient(135deg,#ffd700,#ff8c00);' : this.role === 'cocreator' ? 'background:linear-gradient(135deg,#c0c0c0,#a0a0a0);' : '';
         const roleTag = this.role === 'official' ? ' <span style="font-size:9px;color:#ffd700;">官方</span>' : this.role === 'cocreator' ? ' <span style="font-size:9px;color:#c0c0c0;">共创</span>' : '';
-        badge.innerHTML = '<div class="sb-user-avatar" style="' + avatarBg + '">' + nick.charAt(0).toUpperCase() + '</div><span class="sb-user-name">' + nick + roleTag + '</span>';
+        const safeNick = (nick || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+        badge.innerHTML = '<div class="sb-user-avatar" style="' + avatarBg + '">' + nick.charAt(0).toUpperCase() + '</div><span class="sb-user-name">' + safeNick + roleTag + '</span>';
       } else {
         badge.innerHTML = '<div class="sb-user-avatar" style="background:rgba(180,140,60,.2);color:var(--tc-sm);">?</div><span class="sb-user-guest">未登录</span>';
       }
@@ -12733,6 +12740,7 @@ const SBChat = {
       const result = await _apiCall('chat-load', { limit: 100 });
       if (result.success && result.messages) {
         this.messages = result.messages;
+        this._saveLocal();
         this.render();
       } else {
         /* 加载失败，尝试本地缓存 */
@@ -12869,6 +12877,11 @@ const SBChat = {
 
   onAuthChange() {
     this.render();
+    if (SBAuth.user) {
+      this.startPolling();
+    } else {
+      this.stopPolling();
+    }
   }
 };
 
@@ -12939,7 +12952,7 @@ const SBAdmin = {
     if (SBAuth.role !== 'official') return;
     /* 不能任命自己 */
     if (SBAuth.user && SBAuth.user.username === username) {
-      SBAuth.hud?.toast?.('不能任命自己为共创者', 3);
+      (window.game?.hud || { toast: () => alert('不能任命自己为共创者') }).toast('不能任命自己为共创者', 3);
       return;
     }
     /* 共创者名额上限 */
@@ -12966,9 +12979,15 @@ const SBAdmin = {
 
   refreshModeButtons() {
     const btn = document.getElementById('sb-admin-godmode');
-    if (!btn || !window.game) return;
-    btn.classList.toggle('active', !!game.creativeMode);
-    btn.textContent = game.creativeMode ? '✅ 创世神模式已开启（点击关闭）' : '切换创世神模式（无敌/穿墙）';
+    if (btn && window.game) {
+      btn.classList.toggle('active', !!game.creativeMode);
+      btn.textContent = game.creativeMode ? '✅ 创世神模式已开启（点击关闭）' : '切换创世神模式（无敌/穿墙）';
+    }
+    const fogBtn = document.getElementById('sb-admin-fog');
+    if (fogBtn && window.game) {
+      fogBtn.classList.toggle('active', !!game._adminFogOff);
+      fogBtn.textContent = game._adminFogOff ? '✅ 雾效已关闭（点击恢复）' : '切换雾效显示';
+    }
   },
 
   toggleGodMode() {
@@ -12987,6 +13006,7 @@ const SBAdmin = {
     if (SBAuth.role !== 'official' || !window.game) return;
     game._adminFogOff = !game._adminFogOff;
     game.hud.toast(game._adminFogOff ? '雾效已关闭' : '雾效已恢复', 3);
+    this.refreshModeButtons();
   },
 
   openLevelSelect() {
@@ -13036,7 +13056,7 @@ window.SBAdmin = SBAdmin;
 
 /* Bind button events via addEventListener (fallback for onclick) */
 window.addEventListener('DOMContentLoaded', () => {
-  if (typeof supabase !== 'undefined') {
+  if (typeof supabase !== 'undefined' || true) {
     SBAuth.init();
     SBChat.init();
   }
@@ -13145,7 +13165,7 @@ window.addEventListener('DOMContentLoaded', () => {
           <div class="sb-admin-section-title">🎮 游戏模式控制</div>
           <button class="sb-admin-mode-btn" id="sb-admin-godmode" onclick="SBAdmin.toggleGodMode()">切换创世神模式（无敌/穿墙）</button>
           <button class="sb-admin-mode-btn" onclick="SBAdmin.openLevelSelect()">跳转任意关卡</button>
-          <button class="sb-admin-mode-btn" onclick="SBAdmin.toggleFog()">切换雾效显示</button>
+          <button class="sb-admin-mode-btn" id="sb-admin-fog" onclick="SBAdmin.toggleFog()">切换雾效显示</button>
         </div>
         <div class="sb-admin-section">
           <div class="sb-admin-section-title">👥 用户管理 <span id="sb-cocreator-count" style="font-size:9px;color:var(--tc-sm);">(共创者上限: 10)</span></div>
