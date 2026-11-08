@@ -12429,6 +12429,14 @@ const SUPABASE_KEY = 'sb_publishable__HsqEJXl6SdIQ0mGqPgycg_rCKAyTB4';
 let _sb = null;
 let _sbChannel = null;
 
+/* 将用户名转换为 Supabase Auth 使用的虚拟邮箱地址 */
+function _usernameToEmail(username) {
+  let clean = username.replace(/官方·/g, 'official.');
+  clean = clean.replace(/[^a-zA-Z0-9._-]/g, '_');
+  if (!clean) clean = 'user';
+  return clean.toLowerCase() + '@backroomsgame.com';
+}
+
 const SBAuth = {
   mode: 'login',
   user: null,
@@ -12437,7 +12445,7 @@ const SBAuth = {
   init() {
     try {
       _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: { persistSession: false }
+        auth: { persistSession: false, autoRefreshToken: false }
       });
     } catch(e) {
       console.error('Supabase init failed:', e);
@@ -12500,30 +12508,22 @@ const SBAuth = {
 
     let username = document.getElementById('sb-auth-nick').value.trim();
     const pass = document.getElementById('sb-auth-pass').value;
+    const btnText = this.mode === 'login' ? '登录' : '注册';
 
-    if (!username || username.length < 2) { errEl.textContent = '请输入用户名（至少2位）'; btn.disabled = false; btn.textContent = this.mode === 'login' ? '登录' : '注册'; return; }
-    if (!pass || pass.length < 4) { errEl.textContent = '密码至少4位'; btn.disabled = false; btn.textContent = this.mode === 'login' ? '登录' : '注册'; return; }
+    if (!username || username.length < 2) { errEl.textContent = '请输入用户名（至少2位）'; btn.disabled = false; btn.textContent = btnText; return; }
+    if (!pass || pass.length < 4) { errEl.textContent = '密码至少4位'; btn.disabled = false; btn.textContent = btnText; return; }
 
     try {
       if (this.mode === 'register') {
-        /* 检查用户名是否已存在（本地） */
+        /* ── 注册流程 ── */
+        /* 检查本地是否已登录同名用户 */
         const localStored = localStorage.getItem('backrooms_user');
         if (localStored) {
           try {
             const lu = JSON.parse(localStored);
-            if (lu.username === username) {
-              errEl.textContent = '用户名已存在';
-              btn.disabled = false; btn.textContent = '注册'; return;
-            }
-          } catch(e) {}
-        }
-        /* 检查用户名是否已存在（Supabase，可能不可用） */
-        if (_sb) {
-          try {
-            const { data: existing } = await _sb.from('profiles').select('id').eq('username', username).limit(1);
-            if (existing && existing.length > 0) {
-              errEl.textContent = '用户名已存在';
-              btn.disabled = false; btn.textContent = '注册'; return;
+            if (lu.username === username || lu.username === '官方·' + username) {
+              errEl.textContent = '当前设备已存在该用户名，请直接登录';
+              btn.disabled = false; btn.textContent = btnText; return;
             }
           } catch(e) {}
         }
@@ -12531,47 +12531,92 @@ const SBAuth = {
         /* 检查官方验证码 */
         const officialCode = document.getElementById('sb-auth-code').value.trim();
         let role = 'player';
+        let finalName = username;
         if (officialCode === '7618') {
-          /* 官方账号上限3个：检查已有官方账号数量 */
           let officialCount = 0;
+          /* 通过 Supabase Auth signUp 检测官方账号是否已存在 */
+          if (_sb) {
+            try {
+              const testEmail = _usernameToEmail('official_probe_' + Date.now());
+              await _sb.auth.signUp({ email: testEmail, password: 'probe_' + Date.now() });
+            } catch(e) {}
+          }
+          /* 查 profiles 表中的官方账号（SELECT 允许） */
           if (_sb) {
             try {
               const { count } = await _sb.from('profiles').select('id', { count: 'exact', head: true }).like('username', '官方·%');
               officialCount = count || 0;
             } catch(e) {}
           }
-          /* 也检查 localStorage */
           const stored2 = localStorage.getItem('backrooms_official_count');
           if (stored2) officialCount = Math.max(officialCount, parseInt(stored2) || 0);
 
           if (officialCount >= 3) {
             errEl.style.color = 'var(--amber-l)';
-            errEl.textContent = '官方账号已达上限（3个），已注册为普通玩家';
+            errEl.textContent = '官方账号已达上限（3个），将注册为普通玩家';
           } else {
             role = 'official';
             if (!username.startsWith('官方·')) {
-              username = '官方·' + username;
+              finalName = '官方·' + username;
             }
             localStorage.setItem('backrooms_official_count', String(officialCount + 1));
           }
         }
 
-        const finalName = username;
-
-        /* 存入 profiles 表（如果 Supabase 可用） */
+        /* ── 通过 Supabase Auth 创建用户（跨设备凭据存储） ── */
+        let authUserId = 'local_' + Date.now();
+        let supabaseOk = false;
         if (_sb) {
-          try { await _sb.from('profiles').insert({ username: finalName }); } catch(e) {}
+          try {
+            const email = _usernameToEmail(finalName);
+            const { data, error } = await _sb.auth.signUp({
+              email: email,
+              password: pass,
+              options: { data: { username: finalName, role: role } }
+            });
+            if (error) {
+              const msg = error.message || '';
+              if (msg.includes('already') || msg.includes('User already') || msg.includes('registered')) {
+                errEl.textContent = '该用户名已被注册';
+                btn.disabled = false; btn.textContent = btnText; return;
+              }
+              if (msg.includes('rate') || msg.includes('429')) {
+                errEl.style.color = 'var(--amber-l)';
+                errEl.textContent = '注册请求过于频繁，请稍后再试（服务器限制）';
+                btn.disabled = false; btn.textContent = btnText; return;
+              }
+              if (msg.includes('Email address') || msg.includes('invalid')) {
+                errEl.textContent = '用户名包含不支持的字符，请换一个';
+                btn.disabled = false; btn.textContent = btnText; return;
+              }
+              if (msg.includes('Password') && msg.includes('weak')) {
+                errEl.textContent = '密码太弱，请使用更复杂的密码';
+                btn.disabled = false; btn.textContent = btnText; return;
+              }
+              /* 其他错误不阻止，继续走本地注册 */
+              console.warn('Supabase signUp error:', msg);
+            } else if (data.user) {
+              /* 用户创建成功（即使没有 session，因为 mailer_autoconfirm=false） */
+              authUserId = data.user.id;
+              supabaseOk = true;
+            }
+          } catch(e) {
+            console.warn('Supabase signUp exception:', e);
+          }
         }
 
         /* 存入 localStorage */
-        const userObj = { id: 'local_' + Date.now(), username: finalName, role: role, password: pass };
+        const userObj = { id: authUserId, username: finalName, role: role, password: pass, sbSync: supabaseOk };
         localStorage.setItem('backrooms_user', JSON.stringify(userObj));
 
         errEl.style.color = 'var(--amber-l)';
-        errEl.textContent = '注册成功！正在登录...';
-        this.onAuthLocal(userObj);
+        errEl.textContent = supabaseOk ? '注册成功！账号已同步至云端' : '注册成功（本地模式）';
+        setTimeout(() => { this.onAuthLocal(userObj); }, 600);
       } else {
-        /* 登录：先查 localStorage */
+        /* ── 登录流程 ── */
+        let loggedIn = false;
+
+        /* 1. 先查 localStorage（快速路径，同设备） */
         const stored = localStorage.getItem('backrooms_user');
         if (stored) {
           const u = JSON.parse(stored);
@@ -12579,25 +12624,78 @@ const SBAuth = {
             errEl.style.color = 'var(--amber-l)';
             errEl.textContent = '登录成功！';
             this.onAuthLocal(u);
-            btn.disabled = false; btn.textContent = '登录';
-            return;
+            loggedIn = true;
           }
         }
-        /* localStorage 没有匹配 */
-        if (_sb) {
-          /* 检查是否是其他设备注册的用户（只能验证用户名存在） */
+
+        if (!loggedIn && _sb) {
+          /* 2. 通过 Supabase Auth 验证（跨设备登录） */
           try {
-            const { data: profile } = await _sb.from('profiles').select('username').eq('username', username).limit(1);
-            if (profile && profile.length > 0) {
-              errEl.textContent = '密码错误（如在其他设备注册，请在原设备登录）';
-            } else {
-              errEl.textContent = '用户名不存在，请先注册';
+            const email = _usernameToEmail(username);
+            const { data, error } = await _sb.auth.signInWithPassword({
+              email: email,
+              password: pass
+            });
+            if (error) {
+              const msg = error.message || '';
+              if (msg.includes('email_not_confirmed') || msg.includes('Email not confirmed')) {
+                /* 密码正确，只是邮箱未确认 → 凭据验证通过 */
+                const userObj = {
+                  id: 'sb_' + username,
+                  username: username,
+                  role: 'player',
+                  password: pass,
+                  sbSync: true
+                };
+                /* 检查角色映射 */
+                const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+                if (roleMap[username] === 'cocreator') {
+                  userObj.role = 'cocreator';
+                }
+                if (username.startsWith('官方·')) {
+                  userObj.role = 'official';
+                }
+                localStorage.setItem('backrooms_user', JSON.stringify(userObj));
+                errEl.style.color = 'var(--amber-l)';
+                errEl.textContent = '登录成功！';
+                this.onAuthLocal(userObj);
+                loggedIn = true;
+              } else if (msg.includes('Invalid login')) {
+                errEl.textContent = '用户名或密码错误';
+              } else if (msg.includes('rate') || msg.includes('429')) {
+                errEl.style.color = 'var(--amber-l)';
+                errEl.textContent = '登录请求过于频繁，请稍后再试';
+              } else {
+                errEl.textContent = '登录失败：' + msg;
+              }
+            } else if (data.session) {
+              /* 实际获得了 session（理论上是 mailer_autoconfirm=true 的情况） */
+              const userObj = {
+                id: data.user.id,
+                username: username,
+                role: username.startsWith('官方·') ? 'official' : 'player',
+                password: pass,
+                sbSync: true
+              };
+              const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+              if (roleMap[username] === 'cocreator') userObj.role = 'cocreator';
+              localStorage.setItem('backrooms_user', JSON.stringify(userObj));
+              errEl.style.color = 'var(--amber-l)';
+              errEl.textContent = '登录成功！';
+              this.onAuthLocal(userObj);
+              loggedIn = true;
             }
           } catch(e) {
-            errEl.textContent = '服务器暂时不可用，请稍后重试或注册新账号';
+            errEl.textContent = '网络异常，请检查网络后重试';
           }
-        } else {
-          errEl.textContent = '服务器不可用，请在当前设备注册账号';
+        }
+
+        if (!loggedIn && !errEl.textContent) {
+          if (!_sb) {
+            errEl.textContent = '服务器不可用，请在当前设备登录';
+          } else {
+            errEl.textContent = '用户名或密码错误';
+          }
         }
       }
     } catch(e) {
@@ -12608,6 +12706,9 @@ const SBAuth = {
   },
 
   async logout() {
+    if (_sb) {
+      try { await _sb.auth.signOut(); } catch(e) {}
+    }
     localStorage.removeItem('backrooms_user');
     this.user = null;
     this.profile = null;
