@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>逃离后室 · Backrooms 3D</title>
@@ -13056,10 +13055,8 @@ window.SBAdmin = SBAdmin;
 
 /* Bind button events via addEventListener (fallback for onclick) */
 window.addEventListener('DOMContentLoaded', () => {
-  if (typeof supabase !== 'undefined' || true) {
-    SBAuth.init();
-    SBChat.init();
-  }
+  SBAuth.init();
+  SBChat.init();
   /* Bind auth modal buttons */
   const tabLogin = document.getElementById('sb-tab-login');
   if (tabLogin) tabLogin.onclick = () => SBAuth.setTab('login');
