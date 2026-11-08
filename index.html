@@ -12581,9 +12581,10 @@ const SBAuth = {
                 btn.disabled = false; btn.textContent = btnText; return;
               }
               if (msg.includes('rate') || msg.includes('429')) {
+                /* 速率限制不阻止注册，降级为本地账号 */
                 errEl.style.color = 'var(--amber-l)';
-                errEl.textContent = '注册请求过于频繁，请稍后再试（服务器限制）';
-                btn.disabled = false; btn.textContent = btnText; return;
+                errEl.textContent = '云端同步服务繁忙，已创建本地账号（稍后可重新注册同步）';
+                /* 继续走本地注册流程 */
               }
               if (msg.includes('Email address') || msg.includes('invalid')) {
                 errEl.textContent = '用户名包含不支持的字符，请换一个';
@@ -12740,7 +12741,17 @@ const SBAuth = {
         else rEl.innerHTML = '<span class="sb-role-badge sb-role-player">玩家</span>';
       }
       const eEl = document.getElementById('sb-auth-email-display');
-      if (eEl) eEl.textContent = '';
+      if (eEl) {
+        if (this.user && this.user.sbSync) {
+          eEl.textContent = '☁ 已同步云端';
+          eEl.style.color = 'var(--amber-l)';
+        } else if (this.user) {
+          eEl.textContent = '📱 本地账号';
+          eEl.style.color = 'var(--tc-sm)';
+        } else {
+          eEl.textContent = '';
+        }
+      }
       /* Show official zone for official accounts in menu */
       const officialZone = document.getElementById('official-zone');
       if (officialZone) officialZone.style.display = (this.role === 'official') ? '' : 'none';
