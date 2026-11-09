@@ -6865,6 +6865,7 @@ class Player {
     }
     if (this.thirst < 30) this.thirstRate = 0.25;  /* 低口渴时正常衰减 */
     else if (this.thirst < 60) this.thirstRate = 0.22;
+    else this.thirstRate = 0.25;
     }
 
     /* --- 攻击冷却 --- */
@@ -7321,6 +7322,7 @@ class Entity {
           this.isDead = true;
           this.state = 'dead';
           this.deathAnim = 0;
+          if (this.onDeath) this.onDeath(this);
           return;
         }
         /* 被照时减速到 30% */
@@ -7846,7 +7848,7 @@ class ThreeJSRendererBridge {
     this.chunkList.length = 0;
     /* Clear old entity meshes */
     for (const m of this._entityMeshes) {
-      this.scene.remove(m);
+      this.renderer.scene.remove(m);
     }
     this._entityMeshes.length = 0;
     /* Clear old item billboards */
@@ -9323,15 +9325,15 @@ class HUD {
         const wx = Math.floor(px + dx), wy = Math.floor(py + dy);
         const lx = wx - ox, ly = wy - oy;
         if (lx < 0 || ly < 0 || lx >= w.w || ly >= w.h) continue;
-        const idx = ly * w.w + lx;
+        const cellIdx = ly * w.w + lx;
         const sx = (dx + range) * scale;
         const sy = (dy + range) * scale;
-        if (w.height[idx] > 0.5) {
+        if (w.height[cellIdx] > 0.5) {
           // 墙
           ctx.fillStyle = '#2a2520';
         } else {
           // 地面
-          const lit = w.light[idx] * w.lightMul;
+          const lit = w.light[cellIdx] * w.lightMul;
           ctx.fillStyle = `rgb(${10 + lit * 30},${12 + lit * 32},${8 + lit * 20})`;
         }
         ctx.fillRect(sx | 0, sy | 0, Math.ceil(scale), Math.ceil(scale));
@@ -9450,7 +9452,7 @@ const DEATH_LINES = [
   '你终于分不清哪一面墙是真的。'
 ];
 
-const SCREEN_IDS = ['menu', 'levels', 'help', 'settings', 'pause', 'dead', 'complete', 'victory', 'feedback', 'custom-levels', 'achievements', 'leaderboard'];
+const SCREEN_IDS = ['menu', 'levels', 'help', 'settings', 'pause', 'dead', 'complete', 'victory', 'feedback', 'custom-levels', 'achievements', 'leaderboard', 'archives'];
 
 function showScreen(name) {
   for (const id of SCREEN_IDS) {
@@ -9717,6 +9719,7 @@ class Game {
     if (tab === 'times') {
       let html = '<div style="display:flex;flex-direction:column;gap:6px;">';
       const nonHub = LEVELS.map((l, i) => ({l, i})).filter(x => !x.l.isHub);
+      const _esc = (s) => (s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
       let hasAny = false;
       for (const {l, i} of nonHub) {
         const entry = lb.times[i];
@@ -9728,7 +9731,7 @@ class Game {
             <span style="color:var(--amber);font-size:13px;font-weight:600;">${l.name}</span>
           </div>
           <div style="display:flex;align-items:center;gap:12px;">
-            ${entry ? `<span style="font-size:11px;color:var(--tc-sm);">${entry.username}</span>` : ''}
+            ${entry ? `<span style="font-size:11px;color:var(--tc-sm);">${_esc(entry.username)}</span>` : ''}
             <span style="font-size:14px;color:${entry ? 'var(--amber-l)' : 'var(--tc-sm)'};font-weight:600;font-family:monospace;">${entry ? mins + ':' + secs : '未通关'}</span>
           </div>
         </div>`;
@@ -9746,7 +9749,7 @@ class Game {
           html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(20,18,12,.6);border:1px solid ${idx < 3 ? 'rgba(180,140,60,.3)' : 'var(--border)'};border-radius:4px;">
             <div style="display:flex;align-items:center;gap:10px;">
               <span style="font-size:16px;">${medal}</span>
-              <span style="font-size:13px;color:var(--amber-l);font-weight:600;">${e.username}</span>
+              <span style="font-size:13px;color:var(--amber-l);font-weight:600;">${_esc(e.username)}</span>
             </div>
             <span style="font-size:14px;color:var(--amber);font-weight:600;font-family:monospace;">${mins}:${secs}</span>
           </div>`;
@@ -9880,10 +9883,10 @@ class Game {
     }
     const params = {};
     input.value.split('\n').forEach(line => {
-      const idx = line.indexOf('=');
-      if (idx < 0) return;
-      const key = line.slice(0, idx).trim();
-      const val = line.slice(idx + 1).trim();
+      const eqIdx = line.indexOf('=');
+      if (eqIdx < 0) return;
+      const key = line.slice(0, eqIdx).trim();
+      const val = line.slice(eqIdx + 1).trim();
       params[key] = val;
     });
 
@@ -10483,7 +10486,7 @@ class Game {
 
     /* 清理创作者模式的静态实体 */
     if (this._staticEntities) {
-      for (const m of this._staticEntities) this.scene.remove(m);
+      for (const m of this._staticEntities) this.renderer.scene.remove(m);
       this._staticEntities = [];
     }
 
@@ -10555,6 +10558,7 @@ class Game {
 
     /* 洪水逃生系统（Level 4 泳池洪水层，进入即启动） */
     this.floodProgress = 0;
+    this._lastFloodToast = -1;
     this.floodActive = (level.id === 4);
     this.oxygen = 100;
     this.player.inWater = false;
@@ -11838,7 +11842,11 @@ class Game {
     }
     /* HUD 提示水位 */
     if (Math.floor(this.floodProgress) % 25 === 0 && this.floodProgress > 0) {
-      this.hud.toast(`水位 ${Math.floor(this.floodProgress)}%`, 1);
+      const level = Math.floor(this.floodProgress);
+      if (level !== this._lastFloodToast) {
+        this._lastFloodToast = level;
+        this.hud.toast(`水位 ${level}%`, 1);
+      }
     }
   }
 
@@ -12173,12 +12181,12 @@ class Game {
     /* 在玩家前方 3 格放置 */
     const fx = p.x + Math.cos(p.angle) * 3;
     const fy = p.y + Math.sin(p.angle) * 3;
-    const maker = this._ENTITY_MAKERS[etype] || this._ENTITY_MAKERS.hound;
+    const maker = this.renderer._ENTITY_MAKERS[etype] || this.renderer._ENTITY_MAKERS.hound;
     const mesh = maker();
     mesh.userData.entityType = etype;
     mesh.userData.isStatic = true;
     mesh.position.set(fx * CELL, 0, fy * CELL);
-    this.scene.add(mesh);
+    this.renderer.scene.add(mesh);
     if (!this._staticEntities) this._staticEntities = [];
     this._staticEntities.push(mesh);
     this.hud.toast(`已放置 ${etype} · 静态模型`, 2);
@@ -12188,7 +12196,7 @@ class Game {
   clearStaticEntities() {
     if (!this._staticEntities) return;
     for (const m of this._staticEntities) {
-      this.scene.remove(m);
+      this.renderer.scene.remove(m);
     }
     this._staticEntities = [];
     this.hud.toast('已清除全部静态模型', 2);
@@ -12229,7 +12237,7 @@ class Game {
         </div>
       `).join('');
     }
-    this.showScreen('archives');
+    showScreen('archives');
   }
 
   /* ---------------- 渲染 ---------------- */
@@ -12940,10 +12948,11 @@ const SBAdmin = {
       const roleBadge = role === 'official' ? '<span class="sb-admin-user-role sb-role-official">官方</span>' : role === 'cocreator' ? '<span class="sb-admin-user-role sb-role-cocreator">共创</span>' : '<span class="sb-admin-user-role sb-role-player">玩家</span>';
       const avBg = role === 'official' ? 'background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;' : role === 'cocreator' ? 'background:linear-gradient(135deg,#c0c0c0,#a0a0a0);color:#000;' : 'background:var(--amber-d);color:#000;';
       const canPromote = role !== 'cocreator' && !u.username.startsWith('官方·') && (!SBAuth.user || u.username !== SBAuth.user.username);
-      const promoteBtn = canPromote ? '<button class="sb-admin-btn-sm" onclick="SBAdmin.promote(\'' + u.username.replace(/'/g, "\\'") + '\')">任命共创者</button>' : '';
+      const _safeU = SBChat.escape(u.username).replace(/'/g, '&#39;');
+      const promoteBtn = canPromote ? '<button class="sb-admin-btn-sm" onclick="SBAdmin.promote(\'' + _safeU + '\')">任命共创者</button>' : '';
       const canDemote = role === 'cocreator';
-      const demoteBtn = canDemote ? '<button class="sb-admin-btn-sm" onclick="SBAdmin.demote(\'' + u.username.replace(/'/g, "\\'") + '\')">取消共创</button>' : '';
-      return '<div class="sb-admin-user"><div class="sb-admin-user-info"><div class="sb-admin-user-avatar" style="' + avBg + '">' + u.username.charAt(0).toUpperCase() + '</div><div><div class="sb-admin-user-name">' + SBChat.escape(u.username) + '</div>' + roleBadge + '</div></div><div>' + promoteBtn + demoteBtn + '</div></div>';
+      const demoteBtn = canDemote ? '<button class="sb-admin-btn-sm" onclick="SBAdmin.demote(\'' + _safeU + '\')">取消共创</button>' : '';
+      return '<div class="sb-admin-user"><div class="sb-admin-user-info"><div class="sb-admin-user-avatar" style="' + avBg + '">' + SBChat.escape(u.username.charAt(0).toUpperCase()) + '</div><div><div class="sb-admin-user-name">' + SBChat.escape(u.username) + '</div>' + roleBadge + '</div></div><div>' + promoteBtn + demoteBtn + '</div></div>';
     }).join('');
     /* 更新统计 */
     const officialCount = this.users.filter(u => u.username.startsWith('官方·')).length;
