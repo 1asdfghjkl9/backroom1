@@ -4708,7 +4708,8 @@ function setupTouch(game) {
     biscuit: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="7" width="17" height="10" rx="1.5"/><circle cx="7.5" cy="10.5" r=".7" fill="currentColor"/><circle cx="11" cy="10.5" r=".7" fill="currentColor"/><circle cx="14.5" cy="10.5" r=".7" fill="currentColor"/><circle cx="7.5" cy="13.5" r=".7" fill="currentColor"/><circle cx="11" cy="13.5" r=".7" fill="currentColor"/><circle cx="14.5" cy="13.5" r=".7" fill="currentColor"/></svg>',
     water: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5c-2.8 3.5-4.8 6-4.8 9a4.8 4.8 0 0 0 9.6 0c0-3-2-5.5-4.8-9z"/></svg>',
     flashlight: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-.8 4.5L13.5 9h-3L9.8 7.5z"/><path d="M10 9h4v2.3l-1 2.7h-2l-1-2.7z"/><path d="M12 14v7M10.5 17h3"/></svg>',
-    navigator: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7l2 5-2 5-2-5z" fill="currentColor" opacity=".3"/><path d="M12 7l2 5-2 5-2-5z"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2" opacity=".4"/></svg>'
+    navigator: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7l2 5-2 5-2-5z" fill="currentColor" opacity=".3"/><path d="M12 7l2 5-2 5-2-5z"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2" opacity=".4"/></svg>',
+    attack: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4l6 6-4 4-6-6z"/><path d="M14 4l-9 9-2 5 5-2 9-9"/><path d="M5 20l2-2"/></svg>'
   };
 
   const root = document.createElement('div');
@@ -9016,7 +9017,7 @@ class ThreeJSRendererBridge {
         'item:' + (opts.itemCount || 0),
         'RT:' + this.rt.width + 'x' + this.rt.height,
         'cam:' + cam.position.x.toFixed(1) + ',' + cam.position.y.toFixed(1) + ',' + cam.position.z.toFixed(1),
-        'fog:' + this.scene.fog.density.toFixed(3),
+        'fog:' + (this.scene.fog ? this.scene.fog.density.toFixed(3) : 'off'),
         'hemi:' + this.hemi.intensity.toFixed(2)
       ];
       ctx.save();
@@ -9426,7 +9427,7 @@ const ACHIEVEMENTS = [
   { id: 'first_blood',    name: '初次遭遇',   desc: '第一次被实体攻击',           icon: '⚠' },
   { id: 'first_kill',     name: '反击',       desc: '击杀第一个实体',             icon: '✦' },
   { id: 'pacifist',       name: '和平主义者', desc: '不击杀任何实体通过一关',     icon: '☮' },
-  { id: 'no_damage',      name: '无伤通关',   desc: '不受到任何伤害通过一关',     icon: '♥' },
+  { id: 'no_damage',      name: '无伤通关',   desc: '不死亡通过一关',             icon: '♥' },
   { id: 'speedrun',       name: '速通',       desc: '3分钟内通过任意关卡',         icon: '⚡' },
   { id: 'level0_clear',   name: '逃出生天',   desc: '通过 Level 0',              icon: '◉' },
   { id: 'level3_clear',   name: '黑暗中的光', desc: '通过 Level 3 电气房',        icon: '☼' },
@@ -9772,19 +9773,21 @@ class Game {
   refreshFeedbackList() {
     const list = document.getElementById('feedback-list');
     if (!list) return;
-    const notes = JSON.parse(localStorage.getItem('backrooms_feedback_v1') || '[]');
+    let notes;
+    try { notes = JSON.parse(localStorage.getItem('backrooms_feedback_v1') || '[]'); } catch(e) { notes = []; }
     if (notes.length === 0) {
       list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--tc-sm);font-size:12px;">还没有留言。成为第一个留下足迹的人。</div>';
       return;
     }
+    const _esc = s => (s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
     list.innerHTML = notes.slice(-50).reverse().map(n => `
       <div style="background:rgba(14,12,8,.5);border:1px solid var(--border);border-radius:3px;padding:10px 12px;margin-bottom:6px;">
         <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-          <span style="font-size:11px;color:var(--amber-l);font-weight:600;">${n.name || '匿名流浪者'}</span>
-          <span style="font-size:9px;color:var(--tc-sm);">${n.time}</span>
+          <span style="font-size:11px;color:var(--amber-l);font-weight:600;">${_esc(n.name) || '匿名流浪者'}</span>
+          <span style="font-size:9px;color:var(--tc-sm);">${_esc(n.time)}</span>
         </div>
-        <div style="font-size:12px;color:var(--tc);line-height:1.5;">${n.text}</div>
-        ${n.file ? `<div style="margin-top:6px;font-size:10px;color:var(--amber-d);">📎 ${n.file}</div>` : ''}
+        <div style="font-size:12px;color:var(--tc);line-height:1.5;">${_esc(n.text)}</div>
+        ${n.file ? `<div style="margin-top:6px;font-size:10px;color:var(--amber-d);">📎 ${_esc(n.file)}</div>` : ''}
       </div>
     `).join('');
   }
@@ -9798,7 +9801,8 @@ class Game {
       if (statusEl) statusEl.textContent = '请输入留言内容';
       return;
     }
-    const notes = JSON.parse(localStorage.getItem('backrooms_feedback_v1') || '[]');
+    let notes;
+    try { notes = JSON.parse(localStorage.getItem('backrooms_feedback_v1') || '[]'); } catch(e) { notes = []; }
     const note = {
       name: nameEl ? nameEl.value.trim() : '',
       text: textEl.value.trim(),
@@ -9995,7 +9999,7 @@ class Game {
           this.refreshCustomLevelList();
           this.hud && this.hud.toast('关卡已导入！', 3);
         } catch(err) {
-          alert('导入失败：文件格式错误');
+          (this.hud || window.game?.hud)?.toast('导入失败：文件格式错误', 3) || console.error('[backrooms] 导入失败', err);
         }
       };
       reader.readAsText(file);
@@ -11020,7 +11024,7 @@ class Game {
     /* 电闸小游戏更新 */
     this.updateSwitchGame(dt);
 
-    /* 洪水逃生系统（Level 3） */
+    /* 洪水逃生系统（Level 4） */
     this.updateFlood(dt);
 
     /* 氧气系统 */
@@ -12473,7 +12477,8 @@ const SBAuth = {
     }
     /* Check role map for cocreator promotion */
     if (this.role === 'player') {
-      const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+      let roleMap;
+      try { roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}'); } catch(e) { roleMap = {}; }
       if (roleMap[userObj.username] === 'cocreator') {
         this.role = 'cocreator';
         userObj.role = 'cocreator';
@@ -12610,7 +12615,8 @@ const SBAuth = {
               sbSync: true
             };
             /* 检查角色映射 */
-            const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+            let roleMap;
+            try { roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}'); } catch(e) { roleMap = {}; }
             if (roleMap[userObj.username] === 'cocreator' && userObj.role === 'player') {
               userObj.role = 'cocreator';
             }
@@ -12743,12 +12749,14 @@ const SBChat = {
         this.render();
       } else {
         /* 加载失败，尝试本地缓存 */
-        const local = JSON.parse(localStorage.getItem('backrooms_local_chat') || '[]');
+        let local;
+        try { local = JSON.parse(localStorage.getItem('backrooms_local_chat') || '[]'); } catch(e2) { local = []; }
         this.messages = local;
         this.render();
       }
     } catch(e) {
-      const local = JSON.parse(localStorage.getItem('backrooms_local_chat') || '[]');
+      let local;
+      try { local = JSON.parse(localStorage.getItem('backrooms_local_chat') || '[]'); } catch(e2) { local = []; }
       this.messages = local;
       this.render();
     }
@@ -12780,10 +12788,11 @@ const SBChat = {
       return;
     }
     /* Get role for a username from localStorage role map */
+    let _roleMap;
+    try { _roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}'); } catch(e) { _roleMap = {}; }
     const getRole = (name) => {
-      const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
       if (name.startsWith('官方·')) return 'official';
-      return roleMap[name] || 'player';
+      return _roleMap[name] || 'player';
     };
     box.innerHTML = this.messages.map(m => {
       const isMe = SBAuth.profile && m.username === SBAuth.profile.username;
@@ -12867,7 +12876,7 @@ const SBChat = {
     const users = new Set(recent.map(m => m.username));
     const myName = SBAuth.profile?.username;
     if (myName) users.add(myName);
-    el.textContent = '在线 ' + users.size + ' 人';
+    el.textContent = '活跃 ' + users.size + ' 人';
   },
 
   open() {
@@ -12924,7 +12933,8 @@ const SBAdmin = {
       listEl.innerHTML = '<div class="sb-admin-empty">暂无用户数据</div>';
       return;
     }
-    const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+    let roleMap;
+    try { roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}'); } catch(e) { roleMap = {}; }
     listEl.innerHTML = this.users.map(u => {
       const role = u.username.startsWith('官方·') ? 'official' : (roleMap[u.username] || 'player');
       const roleBadge = role === 'official' ? '<span class="sb-admin-user-role sb-role-official">官方</span>' : role === 'cocreator' ? '<span class="sb-admin-user-role sb-role-cocreator">共创</span>' : '<span class="sb-admin-user-role sb-role-player">玩家</span>';
@@ -12951,14 +12961,15 @@ const SBAdmin = {
     if (SBAuth.role !== 'official') return;
     /* 不能任命自己 */
     if (SBAuth.user && SBAuth.user.username === username) {
-      (window.game?.hud || { toast: () => alert('不能任命自己为共创者') }).toast('不能任命自己为共创者', 3);
+      (window.game?.hud || { toast: () => {} }).toast('不能任命自己为共创者', 3);
       return;
     }
     /* 共创者名额上限 */
-    const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+    let roleMap;
+    try { roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}'); } catch(e) { roleMap = {}; }
     const cocreatorCount = Object.values(roleMap).filter(r => r === 'cocreator').length;
     if (cocreatorCount >= 10 && !roleMap[username]) {
-      alert('共创者名额已达上限（10人），请先取消其他共创者');
+      (window.game?.hud || { toast: () => {} }).toast('共创者名额已达上限（10人），请先取消其他共创者', 3);
       return;
     }
     roleMap[username] = 'cocreator';
@@ -12969,7 +12980,8 @@ const SBAdmin = {
 
   demote(username) {
     if (SBAuth.role !== 'official') return;
-    const roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}');
+    let roleMap;
+    try { roleMap = JSON.parse(localStorage.getItem('backrooms_role_map') || '{}'); } catch(e) { roleMap = {}; }
     delete roleMap[username];
     localStorage.setItem('backrooms_role_map', JSON.stringify(roleMap));
     this.loadUsers();
@@ -13011,18 +13023,34 @@ const SBAdmin = {
   openLevelSelect() {
     if (SBAuth.role !== 'official' || !window.game) return;
     this.close();
-    /* Build a quick level selector */
-    const names = LEVELS.map((l, i) => i + ': ' + l.name);
-    const choice = prompt('选择关卡编号:\n' + names.join('\n'));
-    if (choice === null) return;
-    const idx = parseInt(choice);
-    if (isNaN(idx) || idx < 0 || idx >= LEVELS.length) {
-      alert('无效关卡编号');
-      return;
-    }
-    showScreen('game');
-    game.startLevel(idx);
-    game.hud.toast('🛡 官方跳转: ' + LEVELS[idx].name, 3);
+    /* Build a modal level selector */
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;';
+    const panel = document.createElement('div');
+    panel.style.cssText = 'background:#1a1814;border:1px solid var(--amber-d);border-radius:6px;padding:16px;max-width:340px;width:90%;max-height:70vh;overflow-y:auto;';
+    panel.innerHTML = '<div style="font-size:14px;color:var(--amber-l);font-weight:700;margin-bottom:12px;">🛡 官方关卡跳转</div>';
+    LEVELS.forEach((l, i) => {
+      const btn = document.createElement('button');
+      btn.style.cssText = 'display:block;width:100%;padding:8px 12px;margin-bottom:4px;background:rgba(14,12,8,.6);border:1px solid var(--border);border-radius:3px;color:var(--tc);font-size:12px;cursor:pointer;text-align:left;';
+      btn.textContent = i + ': ' + l.name;
+      btn.onmouseenter = () => btn.style.borderColor = 'var(--amber-d)';
+      btn.onmouseleave = () => btn.style.borderColor = 'var(--border)';
+      btn.onclick = () => {
+        overlay.remove();
+        showScreen('game');
+        game.startLevel(i);
+        game.hud.toast('🛡 官方跳转: ' + l.name, 3);
+      };
+      panel.appendChild(btn);
+    });
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '取消';
+    closeBtn.style.cssText = 'display:block;width:100%;padding:8px;margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:3px;color:var(--tc-sm);font-size:12px;cursor:pointer;';
+    closeBtn.onclick = () => overlay.remove();
+    panel.appendChild(closeBtn);
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
   }
 };
 
