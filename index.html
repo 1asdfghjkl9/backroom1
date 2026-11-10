@@ -909,6 +909,7 @@ input[type="range"]::-moz-range-thumb {
 /* JS 判定为触控设备时以类为准（比媒体查询更可靠） */
 .touch-mode #touch-ui { display: block; }
 .touch-mode .keys-hint { display: none !important; }
+.tutorial-active #touch-ui { pointer-events: none !important; }
 
 /* 触屏时把左上关卡信息让开暂停键 */
 .touch-mode .hud-topleft { top: calc(58px + env(safe-area-inset-top)); }
@@ -4825,6 +4826,7 @@ function setupTouch(game) {
     (e) => {
       if (e.target.closest('.tc-btn, .tc-pause')) return;
       if (game.state !== 'playing') return;
+      if (game._tutorialActive) return;
       e.preventDefault();
 
       const r = root.getBoundingClientRect();
@@ -10172,7 +10174,7 @@ class Game {
 
     this.canvas.addEventListener('click', () => {
       this.audio.init();
-      if (this.state === 'playing' && !this.input.locked && !this.input.touchMode) {
+      if (this.state === 'playing' && !this.input.locked && !this.input.touchMode && !this._tutorialActive) {
         this.input.requestLock();
       }
     });
@@ -10605,6 +10607,7 @@ class Game {
     if (!step) { this.endTutorial(); return; }
     overlay.style.display = 'flex';
     this._tutorialActive = true;
+    document.getElementById('app').classList.add('tutorial-active');
     const iconEl = document.getElementById('tutorial-icon');
     const titleEl = document.getElementById('tutorial-title');
     const textEl = document.getElementById('tutorial-text');
@@ -10643,6 +10646,7 @@ class Game {
     const overlay = document.getElementById('tutorial-overlay');
     if (overlay) overlay.style.display = 'none';
     this._tutorialActive = false;
+    document.getElementById('app').classList.remove('tutorial-active');
     localStorage.setItem('backrooms_tutorial_seen', '1');
     if (this.state === 'playing') {
       setTimeout(() => this.input.requestLock(), 100);
