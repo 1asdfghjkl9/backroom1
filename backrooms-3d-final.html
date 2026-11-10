@@ -5972,7 +5972,9 @@ const LEVELS = [
       { x: 24, y: 8,  target: 7, label: '医院层',     icon: '🏥' },
       { x: 8,  y: 8,  target: 8, label: '黑暗层',     icon: '🌑' },
       { x: 24, y: 24, target: 9, label: '核心',       icon: '💎' },
-      { x: 8,  y: 24, target: 10,label: '终章',       icon: '🔑' }
+      { x: 8,  y: 24, target: 10,label: '终章',       icon: '🔑' },
+      { x: 16, y: 2,  target: 11, label: '???',       icon: '🌙', secret: true },
+      { x: 28, y: 2,  target: 12, label: '???',       icon: '🎀', secret: true }
     ]
   },
 
@@ -6288,6 +6290,90 @@ const LEVELS = [
     sanityDrain: 0.5,
     sanityGain: 3.0,
     hint: '沿着 V 形坡道向下走，走廊两侧是回溯展廊。找到 5 个记忆碎片后，晶格之门将开启。'
+  },
+
+  /* ============ 彩蛋关卡（同学原创设计） ============ */
+
+  /* ---------------- LEVEL 11（梦境层 · 追踪战） ---------------- */
+  {
+    id: 11,
+    code: 'LEVEL ?',
+    name: '梦境层',
+    en: 'LEVEL DREAM',
+    intro: '噩梦初醒。走廊无尽延伸，有什么东西在你身后——它打不死，它一直在追。跑。',
+    gen: 'maze',
+    genOpts: { step: 3, density: 0.7 },
+    size: [61, 61],
+    wallTex: 'wallpaper',
+    floorTex: 'carpet',
+    ceilTex: 'panel',
+    ambient: 0.08,
+    fog: 0.15,
+    lampColor: 0xff3344,
+    fogColor: 0x1a0508,
+    hemiSky: 0x401020, hemiGround: 0x0a0204,
+    ceilingH: 1.4,
+    lampStep: 8,
+    lampSkip: 0.5,
+    flickerChance: 0.6,
+    decor: { type: 'office', density: 0.04 },
+    pipes: 2,
+    vents: 1,
+    entities: [
+      { type: 'dream_chaser', count: 1, minDist: 20 }
+    ],
+    objective: { name: '出口', count: 0 },
+    altClear: { type: 'survive', time: 90, hint: '存活 90 秒 · 出口才会出现' },
+    biscuits: 4,
+    waters: 2,
+    batteries: 3,
+    navP: 0,
+    sanityDrain: 3.0,
+    sanityGain: 0.5,
+    hint: '它打不死，一直追你。理智消耗极快。别停下，别回头。存活 90 秒后出口出现。',
+    isEasterEgg: true,
+    teleporters: true,
+    fakeWalls: true
+  },
+
+  /* ---------------- LEVEL 12（作弊层 · 粉色空间） ---------------- */
+  {
+    id: 12,
+    code: 'LEVEL ?',
+    name: '作弊层',
+    en: 'LEVEL CHEAT',
+    intro: '"你为什么要作弊？" 粉色的空间里回荡着这句话。巨大的笑脸在走廊尽头等着你。',
+    gen: 'pillars',
+    genOpts: { step: 5, density: 0.3 },
+    size: [45, 45],
+    wallTex: 'wallpaper',
+    floorTex: 'carpet',
+    ceilTex: 'panel',
+    ambient: 0.5,
+    fog: 0.06,
+    lampColor: 0xff69b4,
+    fogColor: 0x2a0820,
+    hemiSky: 0xff69b4, hemiGround: 0x100410,
+    ceilingH: 1.8,
+    lampStep: 5,
+    lampSkip: 0.1,
+    flickerChance: 0.0,
+    decor: { type: 'office', density: 0.06 },
+    pipes: 0,
+    vents: 0,
+    entities: [
+      { type: 'smile_demon', count: 1, minDist: 15 }
+    ],
+    objective: { name: '签名', count: 3, variant: 'normal' },
+    biscuits: 5,
+    waters: 3,
+    batteries: 2,
+    navP: 0,
+    sanityDrain: 1.0,
+    sanityGain: 1.0,
+    hint: '粉色的噩梦。找到 3 个开发者签名后出口解锁。别碰笑魔。',
+    isEasterEgg: true,
+    pinkTheme: true
   }
 ];
 
@@ -6553,11 +6639,16 @@ class Player {
     const r = this.radius;
     const minX = Math.floor(x - r), maxX = Math.floor(x + r);
     const minY = Math.floor(y - r), maxY = Math.floor(y + r);
+    const fws = window.game && window.game.fakeWallSet;
     for (let cy = minY; cy <= maxY; cy++) {
       for (let cx = minX; cx <= maxX; cx++) {
         const i = idx(world, cx, cy);
         if (i < 0) return false;
-        if (world.height[i] > z + 0.07) return false;
+        /* 假墙：标记的位置可穿过 */
+        if (world.height[i] > z + 0.07) {
+          if (fws && fws.has(cx + ',' + cy)) continue;
+          return false;
+        }
         if ((world.flags[i] & F.LOWCEIL) && !crouch) return false;
       }
     }
@@ -7123,6 +7214,30 @@ const ENTITY_DEF = {
     sprite: 'watcher',
     damage: 18,
     hp: 90
+  },
+  /* 彩蛋关卡实体：梦境追逐者 —— 不死、紧追、理智双倍消耗 */
+  dream_chaser: {
+    name: '梦境追逐者',
+    speed: 3.2,
+    sight: 99,
+    hear: 99,
+    worldH: 1.1,
+    worldW: 0.6,
+    sprite: 'stalker',
+    damage: 999,
+    hp: 99999
+  },
+  /* 彩蛋关卡实体：笑魔 —— 触之即死的巨型实体 */
+  smile_demon: {
+    name: '笑魔',
+    speed: 1.0,
+    sight: 20,
+    hear: 20,
+    worldH: 1.8,
+    worldW: 1.2,
+    sprite: 'smiler',
+    damage: 999,
+    hp: 99999
   }
 };
 
@@ -7250,6 +7365,12 @@ class Entity {
   /* 受到攻击 */
   takeDamage(amount, fromX, fromY, weapon) {
     if (this.isDead) return;
+    /* dream_chaser 和 smile_demon 不死 —— 攻击只产生短暂硬直 */
+    if (this.type === 'dream_chaser' || this.type === 'smile_demon') {
+      this.hurtFlash = 0.15;
+      this.stunned = Math.max(this.stunned, 0.2);
+      return;
+    }
     this.hp -= amount;
     this.hurtFlash = 0.3;
     /* 击退 */
@@ -7315,6 +7436,13 @@ class Entity {
     const los = dist < def.sight && lineOfSight(world, this.x, this.y, player.x, player.y, 0.62);
     const hearRange = def.hear * (player.crouch ? 0.4 : player.sprinting ? 1.75 : 1);
     const heard = dist < hearRange && (player.noise > 1 || dist < hearRange * 0.5);
+
+    /* 梦境追逐者 & 笑魔：永远追击，无视视线和听觉限制 */
+    if (this.type === 'dream_chaser' || this.type === 'smile_demon') {
+      this.state = 'chase';
+      this.alert = 99;
+      /* 追逐时玩家理智额外消耗（双倍）由 Game.update 处理 */
+    }
 
     /* 凝视者：被手电照射时受伤+减速 */
     this.litUp = false;
@@ -7707,7 +7835,9 @@ class ThreeJSRendererBridge {
       rot: this._makeRot.bind(this),
       echo: this._makeEcho.bind(this),
       partygoer: this._makePartygoer.bind(this),
-      watcher: this._makeWatcher.bind(this)
+      watcher: this._makeWatcher.bind(this),
+      dream_chaser: this._makeDreamChaser.bind(this),
+      smile_demon: this._makeSmileDemon.bind(this)
     };
     this._entityModelCache = {};
     this._curWeapon = null;
@@ -8246,6 +8376,78 @@ class ThreeJSRendererBridge {
       new THREE.MeshBasicMaterial({ color: 0x4a9eff, transparent: true, opacity: 0, side: THREE.DoubleSide }));
     ring.position.set(0, 0.88, 0.45); g.add(ring);
     g.userData = { legs, iris, pupil, ring, body, type: 'watcher', glow: 0x4a9eff, glowPos: [0, 0.88, 0.42] };
+    return g;
+  }
+
+  /* 梦境追逐者：高大半透明的暗影人形，红色裂口笑眼 */
+  _makeDreamChaser() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({
+      color: 0x0a0612, transparent: true, opacity: 0.85, emissive: 0x300010, emissiveIntensity: 0.6
+    });
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 1.3, 8), mat);
+    torso.position.y = 1.5; g.add(torso);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), mat);
+    head.position.y = 2.3; g.add(head);
+    /* 裂口笑眼 —— 血红发光 */
+    [-1, 1].forEach(s => {
+      const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6),
+        new THREE.MeshBasicMaterial({ color: 0xff0033 }));
+      e.position.set(0.08 * s, 2.35, 0.15); g.add(e);
+    });
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.03, 0.02),
+      new THREE.MeshBasicMaterial({ color: 0xff0033 }));
+    mouth.position.set(0, 2.25, 0.16); g.add(mouth);
+    /* 长臂 */
+    const arms = [];
+    [-1, 1].forEach(s => {
+      const p = new THREE.Group(); p.position.set(0.26 * s, 2.0, 0);
+      const a = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.03, 1.3, 5), mat);
+      a.position.y = -0.65; p.add(a); g.add(p); arms.push(p);
+    });
+    const legs = [];
+    [-1, 1].forEach(s => {
+      const p = new THREE.Group(); p.position.set(0.12 * s, 0.85, 0);
+      const l = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.85, 5), mat);
+      l.position.y = -0.42; p.add(l); g.add(p); legs.push(p);
+    });
+    g.userData = { legs, arms, type: 'dream_chaser', glow: 0xff0033, glowPos: [0, 2.35, 0.15] };
+    return g;
+  }
+
+  /* 笑魔：巨型粉色实体，大笑脸，触之即死 */
+  _makeSmileDemon() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({
+      color: 0xff69b4, emissive: 0x6a1040, emissiveIntensity: 0.4, flatShading: true
+    });
+    /* 巨大球形身体 */
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 10), mat);
+    body.position.y = 1.0; g.add(body);
+    /* 大笑脸 —— 白色眼睛和咧嘴 */
+    [-1, 1].forEach(s => {
+      const e = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6),
+        new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      e.position.set(0.2 * s, 1.15, 0.5); e.scale.set(1, 1.2, 0.5); g.add(e);
+      const p = new THREE.Mesh(new THREE.CircleGeometry(0.05, 10),
+        new THREE.MeshBasicMaterial({ color: 0x0a0a0a }));
+      p.position.set(0.2 * s, 1.15, 0.56); g.add(p);
+    });
+    /* 咧嘴笑 */
+    const smileGeo = new THREE.TorusGeometry(0.18, 0.04, 6, 12, Math.PI);
+    const smile = new THREE.Mesh(smileGeo,
+      new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+    smile.position.set(0, 0.85, 0.55); smile.rotation.z = Math.PI; g.add(smile);
+    /* 短粗腿 */
+    const legs = [];
+    [-1, 1].forEach(s => {
+      const p = new THREE.Group(); p.position.set(0.2 * s, 0.4, 0);
+      const l = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.08, 0.4, 6), mat);
+      l.position.y = -0.2; p.add(l); g.add(p); legs.push(p);
+    });
+    g.userData = { legs, body, type: 'smile_demon', glow: 0xff69b4, glowPos: [0, 1.15, 0.55] };
     return g;
   }
 
@@ -10579,6 +10781,52 @@ class Game {
     this.oxygen = 100;
     this.player.inWater = false;
 
+    /* 彩蛋关卡特殊系统 */
+    this.teleporters = [];
+    this._tpCooldown = 0;
+    this.fakeWallSet = null;
+    if (level.id === 11) {
+      /* 梦境层：生成传送点 */
+      const W = world.w, H = world.h;
+      const tpCount = 6;
+      for (let i = 0; i < tpCount; i++) {
+        const tx = 5 + Math.floor(Math.random() * (W - 10));
+        const ty = 5 + Math.floor(Math.random() * (H - 10));
+        this.teleporters.push({ x: tx + 0.5, y: ty + 0.5, used: false });
+      }
+      /* 梦境层：标记假墙（随机选取一些墙位置作为可通过） */
+      this.fakeWallSet = new Set();
+      const fwCount = Math.floor(W * H * 0.015);
+      for (let i = 0; i < fwCount; i++) {
+        const fx = Math.floor(Math.random() * W);
+        const fy = Math.floor(Math.random() * H);
+        const fi = fy * W + fx;
+        if (world.height[fi] > 0.6) {
+          this.fakeWallSet.add(fx + ',' + fy);
+        }
+      }
+      this.hud.toast('梦境层 · 墙壁可能不是真的 · 寻找传送点', 4);
+    }
+    if (level.id === 12) {
+      /* 作弊层：生成开发者签名收集物 */
+      const W = world.w, H = world.h;
+      const sigNames = ['猫猫', '同学A', '后室之主'];
+      for (let i = 0; i < sigNames.length; i++) {
+        let sx, sy, tries = 0;
+        do {
+          sx = 5 + Math.floor(Math.random() * (W - 10));
+          sy = 5 + Math.floor(Math.random() * (H - 10));
+          tries++;
+        } while (tries < 20 && world.height[sy * W + sx] > 0.6);
+        this.items.push({
+          type: 'signature', x: sx + 0.5, y: sy + 0.5, taken: false,
+          key: 'sig' + i, bob: Math.random() * 6.28, variant: 'normal',
+          sigName: sigNames[i]
+        });
+      }
+      this.hud.toast('作弊层 · 收集 3 个开发者签名 · 小心笑魔', 4);
+    }
+
     this.state = 'playing';
     showScreen(null);
     this.audio.init();
@@ -10757,12 +11005,24 @@ class Game {
 
   completeLevel() {
     if (this.state !== 'playing') return;
-    const isLast = this.levelIndex >= LEVELS.length - 1;
     /* Hub 不自动进入下一层，需要通过门选择 */
     if (this.level.isHub) {
       this.hud.setPrompt('探索中枢，找到发光的门进入下一层');
       return;
     }
+    /* 彩蛋关卡通关后返回 Hub */
+    if (this.level.isEasterEgg) {
+      if (!this.progress.cleared.includes(this.levelIndex)) this.progress.cleared.push(this.levelIndex);
+      this.saveProgress();
+      this.clearRun();
+      this.audio.levelDone();
+      this.hud.toast('彩蛋完成！返回中枢...', 3);
+      setTimeout(() => this.startLevel(2), 1500);
+      this.state = 'complete';
+      return;
+    }
+
+    const isLast = this.levelIndex >= LEVELS.filter(l => !l.isEasterEgg).length - 1;
 
     /* === 成就触发 === */
     // 关卡通关成就
@@ -11032,6 +11292,27 @@ class Game {
     /* 实体 */
     this.updateEntities(dt);
 
+    /* 传送点检测（梦境层） */
+    if (this.teleporters && this.teleporters.length && this._tpCooldown <= 0) {
+      for (const tp of this.teleporters) {
+        if (tp.used) continue;
+        const d = Math.hypot(tp.x - p.x, tp.y - p.y);
+        if (d < 1.0) {
+          /* 随机传送到远处 */
+          const ang = Math.random() * Math.PI * 2;
+          const dist = 20 + Math.random() * 30;
+          p.x += Math.cos(ang) * dist;
+          p.y += Math.sin(ang) * dist;
+          this._tpCooldown = 3;
+          this.hud.toast('⚡ 传送！', 2);
+          this.audio.clank();
+          if (w.ensure(p.x, p.y)) this.refreshContent();
+          break;
+        }
+      }
+    }
+    if (this._tpCooldown > 0) this._tpCooldown -= dt;
+
     /* 交互 */
     if (w.ensure(p.x, p.y)) this.refreshContent();
 
@@ -11230,7 +11511,9 @@ class Game {
           this._startDeathSequence(e);
         }
       } else if (d < 8.5 && e.state === 'chase' && lineOfSight(w, e.x, e.y, p.x, p.y, 0.62) && !this.creativeMode) {
-        p.sanity -= (1 - d / 8.5) * 2.0 * dt;
+        /* 梦境追逐者：理智消耗双倍 */
+        const drainMult = (e.type === 'dream_chaser') ? 4.0 : 2.0;
+        p.sanity -= (1 - d / 8.5) * drainMult * dt;
       }
     }
 
@@ -11386,11 +11669,21 @@ class Game {
       }
     } else if (best.kind === 'hubDoor') {
       const hd = best.door;
-      const unlocked = hd.target <= this.progress.maxUnlocked;
-      if (unlocked) {
-        this.hud.setPrompt(`${A} 推开门 · ${hd.icon} ${hd.label}`);
+      if (hd.secret) {
+        /* 彩蛋门：通关全部关卡后解锁 */
+        const allCleared = this.progress.cleared.length >= LEVELS.filter(l => !l.isHub && !l.isEasterEgg).length;
+        if (allCleared) {
+          this.hud.setPrompt(`${A} 推开门 · ${hd.icon} ${hd.label}`);
+        } else {
+          this.hud.setPrompt(`${hd.icon} ??? · 🔒 通关全部关卡后解锁`);
+        }
       } else {
-        this.hud.setPrompt(`${hd.icon} ${hd.label} · 🔒 已锁住`);
+        const unlocked = hd.target <= this.progress.maxUnlocked;
+        if (unlocked) {
+          this.hud.setPrompt(`${A} 推开门 · ${hd.icon} ${hd.label}`);
+        } else {
+          this.hud.setPrompt(`${hd.icon} ${hd.label} · 🔒 已锁住`);
+        }
       }
     } else {
       const name = this.level.objective.name;
@@ -11427,6 +11720,7 @@ class Game {
     if (type === 'canteen') return '水壶';
     if (type === 'keycard') return '钥匙卡';
     if (type === 'note') return '纸条';
+    if (type === 'signature') return '开发者签名';
     return this.level.objective.name;
   }
 
@@ -11470,15 +11764,28 @@ class Game {
 
     if (best.kind === 'hubDoor') {
       const hd = best.door;
-      const unlocked = hd.target <= this.progress.maxUnlocked;
-      if (unlocked) {
-        this.audio.door();
-        this.hud.toast(`进入 ${hd.icon} ${hd.label}...`, 2);
-        this.clearRun();
-        this.startLevel(hd.target);
+      if (hd.secret) {
+        const allCleared = this.progress.cleared.length >= LEVELS.filter(l => !l.isHub && !l.isEasterEgg).length;
+        if (allCleared) {
+          this.audio.door();
+          this.hud.toast(`进入 ${hd.icon} ???...`, 2);
+          this.clearRun();
+          this.startLevel(hd.target);
+        } else {
+          this.audio.clank();
+          this.hud.toast('??? · 通关全部关卡后解锁', 3);
+        }
       } else {
-        this.audio.clank();
-        this.hud.toast(`门被锁住了 · ${hd.label} 尚未解锁`, 3);
+        const unlocked = hd.target <= this.progress.maxUnlocked;
+        if (unlocked) {
+          this.audio.door();
+          this.hud.toast(`进入 ${hd.icon} ${hd.label}...`, 2);
+          this.clearRun();
+          this.startLevel(hd.target);
+        } else {
+          this.audio.clank();
+          this.hud.toast(`门被锁住了 · ${hd.label} 尚未解锁`, 3);
+        }
       }
       return;
     }
@@ -11564,6 +11871,16 @@ class Game {
       this.collectedNotes.push(entry);
       try { localStorage.setItem('backrooms_notes_v1', JSON.stringify(this.collectedNotes)); } catch(e) {}
       this.showDocument(entry.title, entry.text);
+      return;
+    }
+    /* 开发者签名拾取（作弊层彩蛋） */
+    if (it.type === 'signature') {
+      p.collected++;
+      this.hud.toast(`拾取签名 · ${it.sigName}（${p.collected}/${this.objectiveCount}）`, 3);
+      this.audio.pickup();
+      if (p.collected >= this.objectiveCount) {
+        this.hud.banner('全部签名收集完毕！找到出口离开', 3);
+      }
       return;
     }
 
@@ -12255,19 +12572,20 @@ class Game {
     for (const it of this.items) {
       if (it.taken) continue;
       const isObj = it.type === 'objective';
+      const isSig = it.type === 'signature';
       const isVend = it.type === 'vending';
       const isCar = it.type === 'car';
-      const tex = this.textures.sprites[isObj ? 'fuse' : it.type];
+      const tex = this.textures.sprites[isObj ? 'fuse' : (isSig ? 'fuse' : it.type)];
       this.sprites.push({
         x: it.x,
         y: it.y,
         tex,
-        texKey: isObj ? 'objective' : it.type,
+        texKey: isObj ? 'objective' : (isSig ? 'signature' : it.type),
         variant: it.variant || 0,
-        worldH: isCar ? 1.2 : (isVend ? 1.0 : (isObj ? 0.3 : 0.25)),
-        worldW: isCar ? 1.6 : (isObj ? 0.3 : 0.25),
+        worldH: isCar ? 1.2 : (isVend ? 1.0 : (isObj || isSig ? 0.3 : 0.25)),
+        worldW: isCar ? 1.6 : (isObj || isSig ? 0.3 : 0.25),
         yOff: isCar ? 0 : (0.1 + Math.sin(t * 2 + it.bob) * 0.03),
-        glow: isObj ? 0.45 : 0.1
+        glow: isObj || isSig ? 0.45 : 0.1
       });
     }
     for (const e of this.entities) {
@@ -12323,6 +12641,21 @@ class Game {
           label: hd.label,
           icon: hd.icon,
           locked: !unlocked
+        });
+      }
+    }
+
+    /* 传送点精灵（梦境层） */
+    if (this.teleporters && this.teleporters.length) {
+      for (const tp of this.teleporters) {
+        if (tp.used) continue;
+        this.sprites.push({
+          x: tp.x, y: tp.y,
+          tex: this.textures.sprites['battery'],
+          texKey: 'teleporter',
+          worldH: 0.4, worldW: 0.4,
+          yOff: 0.2 + Math.sin(t * 4) * 0.06,
+          glow: 0.6
         });
       }
     }
