@@ -10094,17 +10094,18 @@ class Game {
   refreshCustomLevelList() {
     const list = document.getElementById('custom-level-list');
     if (!list) return;
-    const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
+    let customs = []; try { customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]'); } catch(e) {}
     if (customs.length === 0) {
       list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--tc-sm);font-size:12px;">还没有自制关卡。点击「文字创建」或「导入关卡」。</div>';
       return;
     }
+    const _esc = s => (s == null ? '' : String(s)).replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
     list.innerHTML = customs.map((cl, i) => `
       <div class="ach-item" style="cursor:pointer;">
         <span class="ach-icon">🎮</span>
         <div class="ach-info">
-          <div class="ach-name">${cl.name || '未命名关卡'}</div>
-          <div class="ach-desc">作者：${cl.author || '匿名'} · 大小：${cl.size || '?'}×${cl.size || '?'} · 👍 ${cl.likes || 0}</div>
+          <div class="ach-name">${_esc(cl.name || '未命名关卡')}</div>
+          <div class="ach-desc">作者：${_esc(cl.author || '匿名')} · 大小：${_esc(cl.size || '?')}×${_esc(cl.size || '?')} · 👍 ${parseInt(cl.likes) || 0}</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0;">
           <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px;" onclick="game.playCustomLevel(${i})">游玩</button>
@@ -10175,7 +10176,7 @@ class Game {
       created: Date.now()
     };
 
-    const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
+    let customs = []; try { customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]'); } catch(e) {}
     customs.push(custom);
     localStorage.setItem('backrooms_custom_levels_v1', JSON.stringify(customs));
     this.refreshCustomLevelList();
@@ -10187,7 +10188,7 @@ class Game {
 
   /* 导出单个关卡 */
   exportCustomLevel(index) {
-    const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
+    let customs = []; try { customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]'); } catch(e) {}
     const cl = customs[index];
     if (!cl) return;
     const blob = new Blob([JSON.stringify(cl, null, 2)], { type: 'application/json' });
@@ -10202,7 +10203,7 @@ class Game {
 
   /* 导出全部关卡 */
   exportAllCustomLevels() {
-    const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
+    let customs = []; try { customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]'); } catch(e) {}
     if (customs.length === 0) {
       this.hud && this.hud.toast('没有可导出的关卡', 2);
       return;
@@ -10246,7 +10247,7 @@ class Game {
       reader.onload = (ev) => {
         try {
           const data = JSON.parse(ev.target.result);
-          const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
+          let customs = []; try { customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]'); } catch(e) {}
           customs.push(data);
           localStorage.setItem('backrooms_custom_levels_v1', JSON.stringify(customs));
           this.refreshCustomLevelList();
@@ -10261,7 +10262,7 @@ class Game {
   }
 
   playCustomLevel(index) {
-    const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
+    let customs = []; try { customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]'); } catch(e) {}
     const cl = customs[index];
     if (!cl) return;
     /* 创建临时关卡对象 */
@@ -10308,7 +10309,7 @@ class Game {
   }
 
   likeCustomLevel(index) {
-    const customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]');
+    let customs = []; try { customs = JSON.parse(localStorage.getItem('backrooms_custom_levels_v1') || '[]'); } catch(e) {}
     if (!customs[index]) return;
     const likeKey = `backrooms_liked_${customs[index].created || index}`;
     if (localStorage.getItem(likeKey)) {
@@ -10719,6 +10720,12 @@ class Game {
   /* ---------------- 关卡装载 ---------------- */
 
   startLevel(index, run) {
+    /* 清理自定义关卡临时数据 */
+    if (this._tempLevelIndex != null && LEVELS.length > this._tempLevelIndex) {
+      LEVELS.splice(this._tempLevelIndex);
+      this._tempLevelIndex = null;
+      if (index > LEVELS.length - 1) index = LEVELS.length - 1;
+    }
     const level = LEVELS[Math.max(0, Math.min(LEVELS.length - 1, index))];
     this.levelIndex = index;
     this.level = level;
