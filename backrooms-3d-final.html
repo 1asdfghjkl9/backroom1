@@ -6349,6 +6349,7 @@ const LEVELS = [
     wallTex: 'wallpaper',
     floorTex: 'carpet',
     ceilTex: 'panel',
+    objRoomP: 0,
     ambient: 0.5,
     fog: 0.06,
     lampColor: 0xff69b4,
@@ -6644,9 +6645,13 @@ class Player {
       for (let cx = minX; cx <= maxX; cx++) {
         const i = idx(world, cx, cy);
         if (i < 0) return false;
-        /* 假墙：标记的位置可穿过 */
+        /* 假墙：确定性哈希判断（梦境层），约 8% 的墙可穿过 */
         if (world.height[i] > z + 0.07) {
-          if (fws && fws.has(cx + ',' + cy)) continue;
+          if (fws === 'hash') {
+            const seed = window.game._fakeWallSeed || 0xD1234;
+            const h = ((cx * 73856093) ^ (cy * 19349663) ^ seed) >>> 0;
+            if (h % 100 < 8) continue;
+          }
           return false;
         }
         if ((world.flags[i] & F.LOWCEIL) && !crouch) return false;
@@ -7919,6 +7924,21 @@ class ThreeJSRendererBridge {
     }
     /* Objective item uses 'fuse' sprite */
     this._itemTex.objective = this._itemTex.fuse;
+    /* Signature uses 'fuse' sprite (easter egg) */
+    this._itemTex.signature = this._itemTex.fuse;
+    /* Teleporter uses 'navigator' sprite (easter egg) */
+    this._itemTex.teleporter = this._itemTex.navigator;
+    /* Hub door textures from sprite bank */
+    {
+      const hd = tex.sprites.hubDoor;
+      if (hd) {
+        if (Array.isArray(hd)) {
+          this._itemTex.hubDoor = hd.map(f => toTexRect(f.data, f.w, f.h));
+        } else {
+          this._itemTex.hubDoor = toTexRect(hd.data, hd.w, hd.h);
+        }
+      }
+    }
   }
 
   setQuality(name) {
@@ -8700,6 +8720,18 @@ class ThreeJSRendererBridge {
         }
         /* Ring glow when lit up by flashlight */
         if (u.ring) u.ring.material.opacity = s.litUp ? 0.6 + Math.sin(time * 6) * 0.2 : 0;
+      } else if (u.type === 'dream_chaser') {
+        /* 梦境追逐者：狂奔动画 + 身体微浮 */
+        const run = walking ? 1.0 : 0.2;
+        for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = Math.sin(ph + k * Math.PI) * 0.65 * run;
+        for (let k = 0; k < u.arms.length; k++) u.arms[k].rotation.x = Math.sin(ph + k * Math.PI) * 0.55 * run;
+        e.position.y = Math.abs(Math.sin(ph)) * 0.04 * run;
+      } else if (u.type === 'smile_demon') {
+        /* 笑魔：弹跳 + 身体脉动 */
+        const bob = Math.sin(time * 2.5) * 0.08;
+        e.position.y = bob;
+        if (u.body) u.body.scale.y = 1 + Math.sin(time * 3) * 0.05;
+        for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = Math.sin(time * 2.5 + k * Math.PI) * 0.15;
       }
 
       /* Death animation: tilt over + sink */
@@ -10528,10 +10560,13 @@ class Game {
         /* 最快通关时间 */
         const bestTime = lb.times && lb.times[i];
         const timeStr = bestTime ? Math.floor(bestTime.time / 60) + ':' + String(Math.floor(bestTime.time % 60)).padStart(2, '0') : '';
+        const showIntro = (unlocked || cleared) || !lv.isEasterEgg;
+        const showName = (unlocked || cleared) || !lv.isEasterEgg ? lv.name : '???';
+        const showCode = (unlocked || cleared) || !lv.isEasterEgg ? lv.code : 'LEVEL ???';
         card.innerHTML =
-          `<div class="ml-code">${lv.code}</div>` +
-          `<div class="ml-name">${lv.name}</div>` +
-          `<div class="ml-intro">${lv.intro || ''}</div>` +
+          `<div class="ml-code">${showCode}</div>` +
+          `<div class="ml-name">${showName}</div>` +
+          `<div class="ml-intro">${showIntro ? (lv.intro || '') : '??????'}</div>` +
           `<div class="ml-status">${status}${timeStr ? ' · ⚡' + timeStr : ''}</div>`;
         cardsEl.appendChild(card);
       });
@@ -10785,32 +10820,31 @@ class Game {
     this.teleporters = [];
     this._tpCooldown = 0;
     this.fakeWallSet = null;
+    this.extraItems = null;
     if (level.id === 11) {
-      /* 梦境层：生成传送点 */
+      /* 梦境层：生成传送点（确保不在墙内） */
       const W = world.w, H = world.h;
       const tpCount = 6;
       for (let i = 0; i < tpCount; i++) {
-        const tx = 5 + Math.floor(Math.random() * (W - 10));
-        const ty = 5 + Math.floor(Math.random() * (H - 10));
+        let tx, ty, ti, tries = 0;
+        do {
+          tx = 5 + Math.floor(Math.random() * (W - 10));
+          ty = 5 + Math.floor(Math.random() * (H - 10));
+          ti = ty * W + tx;
+          tries++;
+        } while (tries < 30 && world.height[ti] > 0.6);
         this.teleporters.push({ x: tx + 0.5, y: ty + 0.5, used: false });
       }
-      /* 梦境层：标记假墙（随机选取一些墙位置作为可通过） */
-      this.fakeWallSet = new Set();
-      const fwCount = Math.floor(W * H * 0.015);
-      for (let i = 0; i < fwCount; i++) {
-        const fx = Math.floor(Math.random() * W);
-        const fy = Math.floor(Math.random() * H);
-        const fi = fy * W + fx;
-        if (world.height[fi] > 0.6) {
-          this.fakeWallSet.add(fx + ',' + fy);
-        }
-      }
+      /* 梦境层：假墙使用确定性哈希，不预存坐标 */
+      this.fakeWallSet = 'hash';
+      this._fakeWallSeed = 0xD1234;
       this.hud.toast('梦境层 · 墙壁可能不是真的 · 寻找传送点', 4);
     }
     if (level.id === 12) {
-      /* 作弊层：生成开发者签名收集物 */
+      /* 作弊层：生成开发者签名收集物（存入 extraItems，不被 refreshContent 覆盖） */
       const W = world.w, H = world.h;
       const sigNames = ['猫猫', '同学A', '后室之主'];
+      this.extraItems = [];
       for (let i = 0; i < sigNames.length; i++) {
         let sx, sy, tries = 0;
         do {
@@ -10818,11 +10852,15 @@ class Game {
           sy = 5 + Math.floor(Math.random() * (H - 10));
           tries++;
         } while (tries < 20 && world.height[sy * W + sx] > 0.6);
-        this.items.push({
-          type: 'signature', x: sx + 0.5, y: sy + 0.5, taken: false,
-          key: 'sig' + i, bob: Math.random() * 6.28, variant: 'normal',
+        const sigKey = 'sig' + i;
+        const sig = {
+          type: 'signature', x: sx + 0.5, y: sy + 0.5,
+          taken: this.taken.has(sigKey),
+          key: sigKey, bob: Math.random() * 6.28, variant: 'normal',
           sigName: sigNames[i]
-        });
+        };
+        this.extraItems.push(sig);
+        this.items.push(sig);
       }
       this.hud.toast('作弊层 · 收集 3 个开发者签名 · 小心笑魔', 4);
     }
@@ -11029,7 +11067,7 @@ class Game {
     const achMap = { 0:'level0_clear', 3:'level3_clear', 5:'level5_clear', 8:'level8_clear', 9:'level9_clear' };
     if (achMap[this.levelIndex]) this.unlockAchievement(achMap[this.levelIndex]);
     // 全通关（所有非Hub关卡都通关）
-    const nonHubLevels = LEVELS.map((l, i) => ({l, i})).filter(x => !x.l.isHub);
+    const nonHubLevels = LEVELS.map((l, i) => ({l, i})).filter(x => !x.l.isHub && !x.l.isEasterEgg);
     const allCleared = nonHubLevels.every(x => x.i === this.levelIndex || this.progress.cleared.includes(x.i));
     if (allCleared) this.unlockAchievement('all_clear');
     // 速通（3分钟内）
@@ -11075,7 +11113,7 @@ class Game {
       const el = document.getElementById('victory-stats');
       if (el) el.innerHTML = statsHtml;
       /* 终章通关：显示终末诗 */
-      if (this.levelIndex === LEVELS.length - 1 && this.level.id === 10) {
+      if (this.level.id === 10 && isLast) {
         const poemEl = document.getElementById('victory-stats');
         if (poemEl) {
           poemEl.innerHTML = statsHtml + `
@@ -11397,6 +11435,12 @@ class Game {
     const res = w.content(p.x, p.y, 26, this.taken, 9);
 
     this.items = res.items;
+    /* 彩蛋关卡：签名物不被 refreshContent 覆盖 */
+    if (this.extraItems && this.extraItems.length) {
+      for (const ei of this.extraItems) {
+        if (!ei.taken) this.items.push(ei);
+      }
+    }
     this.holdItem = null;   // 物品对象重建了，别抓着上一批的引用不放
 
     const map = this.entMap, next = [], seen = new Set();
@@ -11687,7 +11731,7 @@ class Game {
       }
     } else {
       const name = this.level.objective.name;
-      if (this.floodActive || this.level.isHub || this.player.collected >= need || this.altClearMet || this.creativeMode) {
+      if (this.floodActive || this.level.isHub || (this.objectiveCount > 0 && this.player.collected >= need) || this.altClearMet || this.creativeMode) {
         if (this.floodActive) {
           this.hud.setPrompt(`${A} 逃离！水还在涨！`);
         } else if (this.level.isHub) {
@@ -11697,7 +11741,11 @@ class Game {
         }
       } else if (this.altClear && this.altClear.type === 'survive') {
         const remain = Math.ceil(this.altClear.time - this.altTimer);
-        this.hud.setPrompt(`出口已锁 · 还差 ${need - this.player.collected} 个${name}，或存活 ${remain}s`);
+        if (this.objectiveCount > 0) {
+          this.hud.setPrompt(`出口已锁 · 还差 ${need - this.player.collected} 个${name}，或存活 ${remain}s`);
+        } else {
+          this.hud.setPrompt(`出口已锁 · 存活 ${remain}s 后解锁`);
+        }
       } else if (this.switches && this.switches.length) {
         const pulled = this.switches.filter(s => s.pulled).length;
         this.hud.setPrompt(`出口已锁 · 拉下全部电闸 (${pulled}/${this.switches.length})`);
@@ -11796,7 +11844,7 @@ class Game {
         this.hud.toast('探索中枢，找到发光的门', 2);
         return;
       }
-      if (this.floodActive || p.collected >= this.objectiveCount || this.altClearMet || this.creativeMode) {
+      if (this.floodActive || (this.objectiveCount > 0 && p.collected >= this.objectiveCount) || this.altClearMet || this.creativeMode) {
         this.audio.door();
         this.completeLevel();
       } else {
@@ -12604,7 +12652,7 @@ class Game {
         x: e.x,
         y: e.y,
         tex,
-        entityType: e.def.sprite,
+        entityType: e.type,
         entityState: e.state,
         entityPhase: e.stepPhase || 0,
         teleportCharge: e.teleportCharge || 0,
