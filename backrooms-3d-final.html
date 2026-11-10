@@ -10194,16 +10194,16 @@ class Game {
     });
 
     /* 横屏适配：resize + orientationchange 双保险，延迟确保手机旋转后尺寸已更新 */
-    let _rsz = null;
+    let _rsz = null, _rsz2 = null;
     const doResize = () => {
       /* 立即执行一次，解决部分设备延迟过长的问题 */
       this.renderer.resize();
       clearTimeout(_rsz);
+      clearTimeout(_rsz2);
       /* 再延迟执行两次，确保旋转完成后尺寸正确 */
       _rsz = setTimeout(() => this.renderer.resize(), 60);
       _rsz2 = setTimeout(() => this.renderer.resize(), 200);
     };
-    let _rsz2 = null;
     window.addEventListener('resize', doResize);
     window.addEventListener('orientationchange', doResize);
     /* 部分浏览器旋转后 visualViewport 才更新 */
