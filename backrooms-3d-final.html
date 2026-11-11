@@ -10461,7 +10461,8 @@ class Game {
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape') {
-        if (this.state === 'puzzle') this.closeKeypad();
+        if (this.state === 'reading') this.action('close-doc');
+        else if (this.state === 'puzzle') this.closeKeypad();
         else if (this.state === 'switchgame') this.closeSwitchGame();
         else if (this.state === 'inventory') this.closeInventory();
         else if (this.state === 'spawner') this.closeSpawner();
@@ -10690,6 +10691,12 @@ class Game {
         break;
       case 'quit':
         this.quitToMenu();
+        break;
+      case 'close-doc':
+        this.closeDocument();
+        if (this.state === 'playing' && !this.input.touchMode) {
+          setTimeout(() => this.input.requestLock(), 50);
+        }
         break;
       default:
         break;
