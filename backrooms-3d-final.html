@@ -8134,10 +8134,11 @@ class ThreeJSRendererBridge {
       }
     }
 
-    /* Collect lamp positions for light pool */
+    /* Collect lamp positions for light pool — only within VIEW_R of player */
     this._lamps = [];
-    for (let ly = 0; ly < H; ly++) {
-      for (let lx = 0; lx < W; lx++) {
+    const _vpx = Math.floor(W / 2), _vpy = Math.floor(H / 2);
+    for (let ly = Math.max(0, _vpy - 40); ly < Math.min(H, _vpy + 40); ly++) {
+      for (let lx = Math.max(0, _vpx - 40); lx < Math.min(W, _vpx + 40); lx++) {
         if (lampAt(lx, ly)) {
           this._lamps.push({ x: (lx + ox) * CELL + CELL/2, z: (ly + oy) * CELL + CELL/2 });
         }
@@ -8582,16 +8583,38 @@ class ThreeJSRendererBridge {
   _updateLights(px, pz, time, world) {
     if (!this._lamps) return;
     const lightMul = world ? world.lightMul : 1;
-    const cand = this._lamps.map(l => ({
-      lx: l.x, lz: l.z,
-      d: (l.x - px) * (l.x - px) + (l.z - pz) * (l.z - pz)
-    })).sort((a, b) => a.d - b.d);
+    /* 只取最近的 POOL 个灯，避免每帧对全部灯排序 */
+    const lamps = this._lamps;
+    const n = lamps.length;
+    if (n <= POOL) {
+      for (let i = 0; i < POOL; i++) {
+        const L = this.lightPool[i];
+        if (i >= n) { L.intensity = 0; continue; }
+        const l = lamps[i];
+        const d = (l.x - px) * (l.x - px) + (l.z - pz) * (l.z - pz);
+        L.position.set(l.x, WALL_H - 0.18, l.z);
+        const f = 0.86 + 0.14 * Math.sin(time * 13.0 + l.x * 3.1) * Math.sin(time * 3.7 + l.z);
+        const drop = Math.max(0, 1 - d / 400);
+        L.intensity = 2.6 * f * drop * lightMul;
+      }
+      return;
+    }
+    /* 距离过滤 + 排序，只处理范围内的灯 */
+    const near = [];
+    for (let i = 0; i < n; i++) {
+      const l = lamps[i];
+      const d = (l.x - px) * (l.x - px) + (l.z - pz) * (l.z - pz);
+      if (d < 400) near.push({ l, d });
+    }
+    near.sort((a, b) => a.d - b.d);
+    const cnt = Math.min(POOL, near.length);
     for (let i = 0; i < POOL; i++) {
-      const c = cand[i], L = this.lightPool[i];
-      if (!c) { L.intensity = 0; continue; }
-      L.position.set(c.lx, WALL_H - 0.18, c.lz);
-      const f = 0.86 + 0.14 * Math.sin(time * 13.0 + c.lx * 3.1) * Math.sin(time * 3.7 + c.lz);
-      const drop = Math.max(0, 1 - c.d / 400);
+      const L = this.lightPool[i];
+      if (i >= cnt) { L.intensity = 0; continue; }
+      const { l, d } = near[i];
+      L.position.set(l.x, WALL_H - 0.18, l.z);
+      const f = 0.86 + 0.14 * Math.sin(time * 13.0 + l.x * 3.1) * Math.sin(time * 3.7 + l.z);
+      const drop = Math.max(0, 1 - d / 400);
       L.intensity = 2.6 * f * drop * lightMul;
     }
   }
@@ -8698,7 +8721,10 @@ class ThreeJSRendererBridge {
           arr[k] = base[k] * d2; arr[k + 1] = base[k + 1] * d2; arr[k + 2] = base[k + 2] * d2;
         }
         pos.needsUpdate = true;
-        u.blob.geometry.computeVertexNormals();
+        /* computeVertexNormals 每帧调用太重，降频到约 20fps */
+        if (!u._normTimer) u._normTimer = 0;
+        u._normTimer -= dt;
+        if (u._normTimer <= 0) { u._normTimer = 0.05; u.blob.geometry.computeVertexNormals(); }
         const pp = 1 + Math.abs(Math.sin(time * (walking ? 5 : 2.2))) * 0.25;
         for (const p of u.pustules) p.scale.setScalar(pp);
       } else if (u.type === 'echo') {
@@ -9842,7 +9868,7 @@ class Game {
       hasWater: p.hasWater | 0,
       weapon: p.weapon || null,
       weaponDurability: p.weaponDurability | 0,
-      taken: Array.from(this.taken),
+      taken: Array.from(this.taken).slice(-2000),
       levelTime: Math.round(this.levelTime),
       at: Date.now()
     };
@@ -11177,10 +11203,10 @@ class Game {
 
   start() {
     this.renderer.resize();
-    let _loopError = null;
+    let _errCount = 0;
+    let _errBox = null;
     const loop = (ts) => {
       requestAnimationFrame(loop);
-      if (_loopError) return;
       try {
         if (!this.lastTs) this.lastTs = ts;
         let dt = (ts - this.lastTs) / 1000;
@@ -11197,17 +11223,27 @@ class Game {
         /* 聊天按钮：游戏中隐藏，其他状态显示 */
         const _fab = document.getElementById('sb-chat-fab');
         if (_fab) _fab.classList.toggle('hidden', this.state === 'playing');
+        /* 帧成功，重置错误计数并移除错误框 */
+        if (_errCount > 0) {
+          _errCount = 0;
+          if (_errBox) { _errBox.remove(); _errBox = null; }
+        }
       } catch (err) {
-        _loopError = err;
-        console.error('[backrooms] 渲染循环错误', err);
-        const box = document.createElement('pre');
-        box.style.cssText =
-          'position:fixed;left:16px;top:16px;z-index:9999;color:#ff6644;' +
-          'background:rgba(0,0,0,.9);padding:12px 16px;font:12px/1.6 monospace;' +
-          'border:1px solid #5a2222;border-radius:6px;max-width:80vw;white-space:pre-wrap';
-        box.textContent = '渲染错误：' + (err && err.message ? err.message : String(err)) + '\n' +
-          (err && err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : '');
-        document.body.appendChild(box);
+        _errCount++;
+        console.error('[backrooms] 渲染循环错误 #' + _errCount, err);
+        /* 连续报错超过 10 次才暂停，避免偶发错误直接卡死游戏 */
+        if (_errCount > 10) {
+          if (!_errBox) {
+            _errBox = document.createElement('pre');
+            _errBox.style.cssText =
+              'position:fixed;left:16px;top:16px;z-index:9999;color:#ff6644;' +
+              'background:rgba(0,0,0,.9);padding:12px 16px;font:12px/1.6 monospace;' +
+              'border:1px solid #5a2222;border-radius:6px;max-width:80vw;white-space:pre-wrap';
+            document.body.appendChild(_errBox);
+          }
+          _errBox.textContent = '渲染错误（连续 ' + _errCount + ' 次）：' + (err && err.message ? err.message : String(err)) + '\n' +
+            (err && err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : '');
+        }
       }
     };
     requestAnimationFrame(loop);
@@ -11367,7 +11403,7 @@ class Game {
             const dist = 20 + Math.random() * 30;
             const cx = p.x + Math.cos(ang) * dist;
             const cy = p.y + Math.sin(ang) * dist;
-            if (this.player.canStandAt(cx, cy, this.world)) {
+            if (this.player.canStandAt(this.world, cx, cy)) {
               tx = cx; ty = cy;
               break;
             }
