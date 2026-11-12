@@ -6938,7 +6938,8 @@ class Player {
       this.velY = (this.velY || 0) + 1.2 * dt;
       if (this.z < 0.35) this.z += this.velY * dt;
       else { this.z = 0.35; this.velY = 0; }
-    } else { this.velY = 0; }
+    }
+    /* 非游泳时不触碰 velY，避免清零跳跃速度 */
     /* 怪物 nearby: 肾上腺素 +50% 速度 */
     if (this.dangerNear) speed *= 1.5;
 
