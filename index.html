@@ -5285,29 +5285,46 @@ class AudioEngine {
     this.stopAmbient();
     if (!this.ctx) return;
     const ctx = this.ctx;
-    /* 不同关卡有不同的基频和调制速度 */
+    /* 迭代44: 关卡专属环境音 — 根据gen类型选择基频和音色 */
     const levelId = (levelConfig && levelConfig.id != null) ? levelConfig.id : 0;
-    const baseFreqs = [48, 55, 42, 60, 38, 52, 45, 50, 40, 58, 44, 46, 36, 54, 62];
-    const baseFreq = baseFreqs[levelId % baseFreqs.length];
-    const modSpeed = 0.08 + (levelId % 5) * 0.03;
+    const levelGen = (levelConfig && levelConfig.gen) ? levelConfig.gen : '';
+    /* 每种gen类型的环境音参数 */
+    const _genAudio = {
+      corridor:  { baseFreq: 55, modSpeed: 0.08, oscType: 'sine',     noiseFreq: 100,  noiseGain: 0.15, extra: 'drip' },
+      hotel:     { baseFreq: 65, modSpeed: 0.10, oscType: 'sine',     noiseFreq: 120,  noiseGain: 0.12, extra: 'piano' },
+      parking:   { baseFreq: 45, modSpeed: 0.06, oscType: 'sawtooth', noiseFreq: 80,   noiseGain: 0.18, extra: 'metal' },
+      pipe:      { baseFreq: 80, modSpeed: 0.15, oscType: 'sawtooth', noiseFreq: 200,  noiseGain: 0.20, extra: 'steam' },
+      pillars:   { baseFreq: 50, modSpeed: 0.07, oscType: 'sine',     noiseFreq: 90,   noiseGain: 0.14, extra: 'none' },
+      maze:      { baseFreq: 50, modSpeed: 0.12, oscType: 'sawtooth', noiseFreq: 70,   noiseGain: 0.16, extra: 'scratch' },
+      windows:   { baseFreq: 70, modSpeed: 0.05, oscType: 'sine',     noiseFreq: 150,  noiseGain: 0.10, extra: 'water' },
+      finale:    { baseFreq: 40, modSpeed: 0.04, oscType: 'sawtooth', noiseFreq: 60,   noiseGain: 0.20, extra: 'heartbeat' },
+      grid:      { baseFreq: 58, modSpeed: 0.09, oscType: 'sine',     noiseFreq: 110,  noiseGain: 0.13, extra: 'none' },
+      hub:       { baseFreq: 55, modSpeed: 0.06, oscType: 'sine',     noiseFreq: 100,  noiseGain: 0.10, extra: 'none' },
+      rooms:     { baseFreq: 52, modSpeed: 0.08, oscType: 'sine',     noiseFreq: 95,   noiseGain: 0.14, extra: 'none' },
+      supply:    { baseFreq: 48, modSpeed: 0.10, oscType: 'sawtooth', noiseFreq: 85,   noiseGain: 0.16, extra: 'none' }
+    };
+    const _audParams = _genAudio[levelGen] || _genAudio.corridor;
+    const baseFreq = _audParams.baseFreq;
+    const modSpeed = _audParams.modSpeed;
 
     const masterGain = ctx.createGain();
     masterGain.gain.value = 0;
     masterGain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 2.0);
     masterGain.connect(this.ambientGroup || this.master);
 
-    /* 2-3 个低频 oscillator（40-80Hz） */
+    /* 2-3 个低频 oscillator */
     const oscs = [];
     const oscFreqs = [baseFreq, baseFreq * 1.5, baseFreq * 0.75];
     for (let i = 0; i < 3; i++) {
       const o = ctx.createOscillator();
-      o.type = i === 0 ? 'sine' : 'sawtooth';
+      o.type = i === 0 ? _audParams.oscType : 'sawtooth';
       o.frequency.value = oscFreqs[i];
       const og = ctx.createGain();
       og.gain.value = i === 0 ? 0.5 : 0.2;
-      /* LFO 调制频率 */
+      /* LFO 调制频率 — maze类型使用波动频率 */
       const lfo = ctx.createOscillator();
-      lfo.frequency.value = modSpeed * (1 + i * 0.3);
+      const _lfoFreq = (levelGen === 'maze') ? modSpeed * (0.5 + i * 0.3) * (1 + Math.sin(i)) : modSpeed * (1 + i * 0.3);
+      lfo.frequency.value = _lfoFreq;
       const lfoGain = ctx.createGain();
       lfoGain.gain.value = oscFreqs[i] * 0.04;
       lfo.connect(lfoGain);
@@ -5325,17 +5342,77 @@ class AudioEngine {
     src.loop = true;
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 100;
+    lp.frequency.value = _audParams.noiseFreq;
     lp.Q.value = 0.5;
     const ng = ctx.createGain();
-    ng.gain.value = 0.15;
+    ng.gain.value = _audParams.noiseGain;
     src.connect(lp); lp.connect(ng); ng.connect(masterGain);
     src.start();
 
-    this.ambientNodes = { masterGain, oscs, src, lp, ng };
+    /* 迭代44: 关卡专属额外声音层 */
+    let extraNodes = null;
+    if (_audParams.extra === 'heartbeat') {
+      /* finale: 心跳节奏 — 每秒两次低频脉冲 */
+      const hbOsc = ctx.createOscillator();
+      hbOsc.type = 'sine';
+      hbOsc.frequency.value = 40;
+      const hbGain = ctx.createGain();
+      hbGain.gain.value = 0;
+      hbOsc.connect(hbGain); hbGain.connect(masterGain);
+      hbOsc.start();
+      /* 心跳节奏：用LFO模拟双脉冲 */
+      const hbLfo = ctx.createOscillator();
+      hbLfo.type = 'square';
+      hbLfo.frequency.value = 1.2;
+      const hbLfoGain = ctx.createGain();
+      hbLfoGain.gain.value = 0.08;
+      hbLfo.connect(hbLfoGain); hbLfoGain.connect(hbGain.gain);
+      hbLfo.start();
+      extraNodes = { hbOsc, hbLfo, hbGain };
+    } else if (_audParams.extra === 'water' || _audParams.extra === 'steam') {
+      /* windows: 水声 / pipe: 蒸汽 — 高频带通噪声 */
+      const wsSrc = ctx.createBufferSource();
+      wsSrc.buffer = this.noiseBuf;
+      wsSrc.loop = true;
+      const wsBp = ctx.createBiquadFilter();
+      wsBp.type = 'bandpass';
+      wsBp.frequency.value = (_audParams.extra === 'water') ? 800 : 1500;
+      wsBp.Q.value = 2;
+      const wsGain = ctx.createGain();
+      wsGain.gain.value = 0.06;
+      wsSrc.connect(wsBp); wsBp.connect(wsGain); wsGain.connect(masterGain);
+      wsSrc.start();
+      extraNodes = { wsSrc, wsBp, wsGain };
+    }
+
+    this.ambientNodes = { masterGain, oscs, src, lp, ng, extraNodes };
+
+    /* 迭代44: 定时触发额外声音事件 */
+    if (_audParams.extra === 'drip' || _audParams.extra === 'metal' || _audParams.extra === 'scratch' || _audParams.extra === 'piano') {
+      const _triggerExtra = () => {
+        if (!this.ambientNodes) return;
+        if (_audParams.extra === 'drip') {
+          this._tone(1400 + Math.random() * 600, 0.04, 0.05, 'sine', 400);
+        } else if (_audParams.extra === 'metal') {
+          this._tone(200 + Math.random() * 300, 0.3, 0.04, 'sawtooth', 150);
+        } else if (_audParams.extra === 'scratch') {
+          this._noise(0.2, 300 + Math.random() * 400, 2, 0.04, 'bandpass');
+        } else if (_audParams.extra === 'piano') {
+          const _notes = [220, 261, 294, 330, 349];
+          this._tone(_notes[Math.floor(Math.random() * _notes.length)], 0.8, 0.03, 'sine', 200);
+        }
+        this._ambientExtraTimer = setTimeout(_triggerExtra, 8 + Math.random() * 20);
+      };
+      this._ambientExtraTimer = setTimeout(_triggerExtra, 5 + Math.random() * 10);
+    }
   }
 
   stopAmbient() {
+    /* 迭代44: 清理额外声音定时器 */
+    if (this._ambientExtraTimer) {
+      clearTimeout(this._ambientExtraTimer);
+      this._ambientExtraTimer = null;
+    }
     if (!this.ambientNodes || !this.ctx) return;
     const ctx = this.ctx;
     const a = this.ambientNodes;
@@ -5348,12 +5425,21 @@ class AudioEngine {
         node.lfo.stop(t + 1.0);
       }
       a.src.stop(t + 1.0);
+      /* 迭代44: 清理额外节点 */
+      if (a.extraNodes) {
+        if (a.extraNodes.hbOsc) { a.extraNodes.hbOsc.stop(t + 1.0); a.extraNodes.hbLfo.stop(t + 1.0); }
+        if (a.extraNodes.wsSrc) { a.extraNodes.wsSrc.stop(t + 1.0); }
+      }
     } catch (e) { /* ignore */ }
     /* 断开所有节点，防止内存泄漏 */
     try {
       a.masterGain.disconnect();
       for (const node of a.oscs) { node.o.disconnect(); node.lfo.disconnect(); node.og.disconnect(); }
       a.src.disconnect(); a.lp.disconnect(); a.ng.disconnect();
+      if (a.extraNodes) {
+        if (a.extraNodes.hbOsc) { a.extraNodes.hbOsc.disconnect(); a.extraNodes.hbLfo.disconnect(); a.extraNodes.hbGain.disconnect(); }
+        if (a.extraNodes.wsSrc) { a.extraNodes.wsSrc.disconnect(); a.extraNodes.wsBp.disconnect(); a.extraNodes.wsGain.disconnect(); }
+      }
     } catch(e) { /* ignore */ }
     this.ambientNodes = null;
   }
@@ -6088,6 +6174,558 @@ function generateWorld(level, seed) {
     y: Math.floor(eyRaw / RS) * RS + (RS >> 1)
   };
 
+  /* ==================== 迭代16-18: 房间系统基础架构 ==================== */
+  /* 布局存储 — 闭包变量，fillWindow 重建时不会丢失 */
+  const _layoutCells = new Map();
+  const _landmarks = [];
+  const _heightVar = new Map();
+  /* 布局边界 — 重写的gen类型使用有限地图 */
+  const _layoutBounds = { x0: 0, y0: 0, x1: 0, y1: 0, active: false };
+
+  function _lcKey(ax, ay) { return ax * 100000 + ay; }
+  function _lcSet(ax, ay, t, f, h) { _layoutCells.set(_lcKey(ax, ay), { t, f: f || 0, h: h === undefined ? null : h }); }
+  function _lcGet(ax, ay) { return _layoutCells.get(_lcKey(ax, ay)); }
+
+  /* 迭代16: _makeRoom — 在指定位置创建 w×h 矩形房间 */
+  function _makeRoom(wx, wy, w, h, type) {
+    for (let dy = 0; dy < h; dy++) {
+      for (let dx = 0; dx < w; dx++) {
+        const ax = wx + dx, ay = wy + dy;
+        const isBorder = dx === 0 || dx === w - 1 || dy === 0 || dy === h - 1;
+        if (isBorder) {
+          _lcSet(ax, ay, TILE.WALL, 0, 1.0);
+        } else {
+          _lcSet(ax, ay, TILE.EMPTY, 0, 0);
+        }
+      }
+    }
+    /* 每面墙开一个门洞确保连通 */
+    const doors = [];
+    const dN = 1 + Math.floor(hash3(seed, wx, wy) * (w - 2));
+    _lcSet(wx + dN, wy, TILE.EMPTY, 0, 0); doors.push({ x: wx + dN, y: wy });
+    const dS = 1 + Math.floor(hash3(seed, wx + 1, wy + 1) * (w - 2));
+    _lcSet(wx + dS, wy + h - 1, TILE.EMPTY, 0, 0); doors.push({ x: wx + dS, y: wy + h - 1 });
+    const dW = 1 + Math.floor(hash3(seed, wx + 2, wy + 2) * (h - 2));
+    _lcSet(wx, wy + dW, TILE.EMPTY, 0, 0); doors.push({ x: wx, y: wy + dW });
+    const dE = 1 + Math.floor(hash3(seed, wx + 3, wy + 3) * (h - 2));
+    _lcSet(wx + w - 1, wy + dE, TILE.EMPTY, 0, 0); doors.push({ x: wx + w - 1, y: wy + dE });
+
+    /* 类型特定装饰 */
+    if (type === 'storage') {
+      for (let i = 0; i < 2; i++) {
+        const sx = wx + 1 + Math.floor(hash3(seed + i, wx, wy) * (w - 2));
+        const sy = wy + 1 + Math.floor(hash3(seed + i + 10, wx, wy) * (h - 2));
+        _lcSet(sx, sy, TILE.SHELF, F.STAND | F.CLIMB, 0.55);
+      }
+    } else if (type === 'utility') {
+      _lcSet(wx + 1, wy + 1, TILE.PIPE, F.CLIMB, 1.0);
+      if (w > 3) _lcSet(wx + w - 2, wy + 1, TILE.PIPE, F.CLIMB, 1.0);
+    }
+    return { x: wx + (w >> 1), y: wy + (h >> 1), w, h, type, doors };
+  }
+
+  /* 迭代17: _connectRooms — L型或Z型走廊连接两点 */
+  function _connectRooms(x1, y1, x2, y2, width) {
+    width = Math.max(1, width || 1);
+    const cells = [];
+    const useZ = hash3(seed, x1 + x2, y1 + y2) < 0.5;
+    if (useZ) {
+      const turnX = x1 + Math.floor((x2 - x1) * (0.3 + hash3(seed, x1, y2) * 0.4));
+      const sx1 = Math.min(x1, turnX), ex1 = Math.max(x1, turnX);
+      for (let x = sx1; x <= ex1; x++) for (let w = 0; w < width; w++) cells.push({ x, y: y1 + w });
+      const sy1 = Math.min(y1, y2), ey1 = Math.max(y1, y2);
+      for (let y = sy1; y <= ey1; y++) for (let w = 0; w < width; w++) cells.push({ x: turnX + w, y });
+      const sx2 = Math.min(turnX, x2), ex2 = Math.max(turnX, x2);
+      for (let x = sx2; x <= ex2; x++) for (let w = 0; w < width; w++) cells.push({ x, y: y2 + w });
+    } else {
+      const hFirst = hash3(seed, x2, y1) < 0.5;
+      if (hFirst) {
+        const sx = Math.min(x1, x2), ex = Math.max(x1, x2);
+        for (let x = sx; x <= ex; x++) for (let w = 0; w < width; w++) cells.push({ x, y: y1 + w });
+        const sy = Math.min(y1, y2), ey = Math.max(y1, y2);
+        for (let y = sy; y <= ey; y++) for (let w = 0; w < width; w++) cells.push({ x: x2 + w, y });
+      } else {
+        const sy = Math.min(y1, y2), ey = Math.max(y1, y2);
+        for (let y = sy; y <= ey; y++) for (let w = 0; w < width; w++) cells.push({ x: x1 + w, y });
+        const sx = Math.min(x1, x2), ex = Math.max(x1, x2);
+        for (let x = sx; x <= ex; x++) for (let w = 0; w < width; w++) cells.push({ x, y: y2 + w });
+      }
+    }
+    /* 走廊格子设为EMPTY，两侧自动放墙 */
+    const cs = new Set();
+    for (const c of cells) cs.add(c.x * 100000 + c.y);
+    for (const c of cells) {
+      _lcSet(c.x, c.y, TILE.EMPTY, 0, 0);
+      for (const [dx, dy] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+        const nx = c.x + dx, ny = c.y + dy;
+        if (!cs.has(nx * 100000 + ny) && !_lcGet(nx, ny)) _lcSet(nx, ny, TILE.WALL, 0, 1.0);
+      }
+    }
+    /* 随机放置1-2个门作为可选阻挡 */
+    const doorCount = 1 + Math.floor(hash3(seed, x1 + y1, x2 + y2) * 2);
+    for (let i = 0; i < doorCount && cells.length > 2; i++) {
+      const idx2 = Math.floor(hash3(seed + i * 7, x1, y2) * cells.length);
+      _lcSet(cells[idx2].x, cells[idx2].y, TILE.EXIT, F.EXIT, 1.0);
+    }
+    return cells;
+  }
+
+  /* 迭代18: _placeLandmark — 放置特殊地标房间 */
+  function _placeLandmark(wx, wy, type) {
+    let w, h;
+    if (type === 'ballroom') { w = 6; h = 6; _makeRoom(wx, wy, w, h, 'large');
+      _lcSet(wx + 2, wy + 2, TILE.WALL, 0, 1.0); _lcSet(wx + 3, wy + 2, TILE.WALL, 0, 1.0);
+      _lcSet(wx + 2, wy + 3, TILE.WALL, 0, 1.0); _lcSet(wx + 3, wy + 3, TILE.WALL, 0, 1.0);
+      for (let dy = 1; dy < h - 1; dy++) for (let dx = 1; dx < w - 1; dx++) {
+        if (dx >= 2 && dx <= 3 && dy >= 2 && dy <= 3) continue;
+        _heightVar.set(_lcKey(wx + dx, wy + dy), -0.2);
+      }
+    } else if (type === 'lobby') { w = 5; h = 5; _makeRoom(wx, wy, w, h, 'large');
+      _lcSet(wx + 2, wy + 1, TILE.CRATE, F.STAND | F.VAULT | F.CLIMB, 0.4);
+      _lcSet(wx + 2, wy + 2, TILE.CRATE, F.STAND | F.VAULT | F.CLIMB, 0.4);
+    } else if (type === 'maintenance') { w = 4; h = 4; _makeRoom(wx, wy, w, h, 'utility');
+      _lcSet(wx + 1, wy + 1, TILE.PIPE, F.CLIMB, 1.0);
+      _lcSet(wx + 2, wy + 2, TILE.CRATE, F.STAND | F.VAULT, 0.4);
+    } else if (type === 'pool_room') { w = 4; h = 4; _makeRoom(wx, wy, w, h, 'standard');
+      _lcSet(wx + 1, wy + 1, TILE.CRATE, F.STAND | F.VAULT | F.CLIMB, 0.4);
+      _lcSet(wx + 2, wy + 1, TILE.CRATE, F.STAND | F.VAULT | F.CLIMB, 0.4);
+      _lcSet(wx + 1, wy + 2, TILE.CRATE, F.STAND | F.VAULT | F.CLIMB, 0.4);
+      _lcSet(wx + 2, wy + 2, TILE.CRATE, F.STAND | F.VAULT | F.CLIMB, 0.4);
+    } else if (type === 'boiler') { w = 4; h = 4; _makeRoom(wx, wy, w, h, 'utility');
+      _lcSet(wx + 1, wy + 1, TILE.PIPE, F.CLIMB, 1.0); _lcSet(wx + 2, wy + 1, TILE.PIPE, F.CLIMB, 1.0);
+      _lcSet(wx + 1, wy + 2, TILE.PIPE, F.CLIMB, 1.0); _lcSet(wx + 2, wy + 2, TILE.CRATE, F.STAND | F.VAULT, 0.4);
+    } else if (type === 'junction') { w = 5; h = 5; _makeRoom(wx, wy, w, h, 'corridor_junction');
+    } else { w = 4; h = 4; _makeRoom(wx, wy, w, h, 'standard'); }
+    const center = { x: wx + (w >> 1), y: wy + (h >> 1) };
+    _landmarks.push({ x: center.x, y: center.y, type, w, h, wx, wy });
+    return center;
+  }
+
+  /* ==================== 迭代19-27: 各gen类型布局生成 ==================== */
+  const _lbSize = 70; /* 布局半径 */
+  _layoutBounds.x0 = startCell.x - _lbSize; _layoutBounds.y0 = startCell.y - _lbSize;
+  _layoutBounds.x1 = startCell.x + _lbSize; _layoutBounds.y1 = startCell.y + _lbSize;
+
+  if (gen === 'corridor') {
+    /* 迭代19: 房间+走廊布局 */
+    _layoutBounds.active = true;
+    const rooms = [];
+    /* 生成4-6个地标房间 */
+    const numLandmarks = 4 + Math.floor(hash3(seed, 1, 2) * 3);
+    const landmarkTypes = ['lobby', 'ballroom', 'maintenance', 'pool_room', 'boiler', 'junction'];
+    for (let i = 0; i < numLandmarks; i++) {
+      let rx, ry, tries = 0, ok = false;
+      while (tries < 30 && !ok) {
+        rx = startCell.x - 50 + Math.floor(hash3(seed, i * 3, tries) * 100);
+        ry = startCell.y - 50 + Math.floor(hash3(seed, i * 5, tries + 100) * 100);
+        ok = true;
+        for (const r of rooms) { if (Math.hypot(rx - r.x, ry - r.y) < 18) { ok = false; break; } }
+        tries++;
+      }
+      if (ok) {
+        const lt = landmarkTypes[i % landmarkTypes.length];
+        const c = _placeLandmark(rx, ry, lt);
+        rooms.push(c);
+      }
+    }
+    /* 用走廊连接所有房间 */
+    for (let i = 1; i < rooms.length; i++) {
+      _connectRooms(rooms[i - 1].x, rooms[i - 1].y, rooms[i].x, rooms[i].y, 1 + Math.floor(hash3(seed, i, 0) * 2));
+    }
+    /* 额外连接创建环线（非线性路径） */
+    if (rooms.length >= 4) {
+      _connectRooms(rooms[0].x, rooms[0].y, rooms[rooms.length - 1].x, rooms[rooms.length - 1].y, 1);
+      _connectRooms(rooms[0].x, rooms[0].y, rooms[Math.floor(rooms.length / 2)].x, rooms[Math.floor(rooms.length / 2)].y, 1);
+    }
+    /* 走廊两侧填充普通房间 */
+    for (let i = 0; i < 8; i++) {
+      const rx = startCell.x - 40 + Math.floor(hash3(seed, i * 11, 77) * 80);
+      const ry = startCell.y - 40 + Math.floor(hash3(seed, i * 13, 88) * 80);
+      const rw = 3 + Math.floor(hash3(seed, i, 99) * 2);
+      const rh = 3 + Math.floor(hash3(seed, i + 50, 99) * 2);
+      _makeRoom(rx, ry, rw, rh, 'standard');
+    }
+    /* 设置spawn在lobby */
+    const lobby = rooms.find(r => _landmarks.find(l => l.x === r.x && l.y === r.y && l.type === 'lobby')) || rooms[0];
+    if (lobby) { startCell.x = lobby.x; startCell.y = lobby.y; }
+    /* 设置exit在离spawn最远的房间 */
+    let maxD = 0, farRoom = rooms[rooms.length - 1] || { x: exitCell.x, y: exitCell.y };
+    for (const r of rooms) {
+      const d = Math.hypot(r.x - startCell.x, r.y - startCell.y);
+      if (d > maxD) { maxD = d; farRoom = r; }
+    }
+    exitCell.x = farRoom.x; exitCell.y = farRoom.y;
+
+  } else if (gen === 'hotel') {
+    /* 迭代20: 酒店主走廊+客房 */
+    _layoutBounds.active = true;
+    const corridorY = startCell.y;
+    const corridorStart = startCell.x - 30, corridorEnd = startCell.x + 40;
+    /* 主走廊 */
+    for (let x = corridorStart; x <= corridorEnd; x++) {
+      _lcSet(x, corridorY, TILE.EMPTY, 0, 0);
+      _lcSet(x, corridorY + 1, TILE.EMPTY, 0, 0);
+      _lcSet(x, corridorY - 1, TILE.WALL, 0, 1.0);
+      _lcSet(x, corridorY + 2, TILE.WALL, 0, 1.0);
+    }
+    /* 客房门和客房 */
+    for (let x = corridorStart + 2; x < corridorEnd; x += 4) {
+      /* 北侧客房 */
+      if (hash3(seed, x, 1) < 0.7) {
+        _lcSet(x, corridorY - 1, TILE.EXIT, F.EXIT, 1.0);
+        const rw = 3 + Math.floor(hash3(seed, x, 2) * 2), rh = 3;
+        _makeRoom(x - 1, corridorY - 1 - rh, rw, rh, 'standard');
+        if (hash3(seed, x, 3) < 0.5) _lcSet(x + 1, corridorY - 1 - 1, TILE.CRATE, F.STAND | F.VAULT, 0.4);
+      }
+      /* 南侧客房 */
+      if (hash3(seed, x, 4) < 0.7) {
+        _lcSet(x, corridorY + 2, TILE.EXIT, F.EXIT, 1.0);
+        const rw = 3 + Math.floor(hash3(seed, x, 5) * 2), rh = 3;
+        _makeRoom(x - 1, corridorY + 3, rw, rh, 'standard');
+        if (hash3(seed, x, 6) < 0.5) _lcSet(x + 1, corridorY + 3 + 1, TILE.CRATE, F.STAND | F.VAULT, 0.4);
+      }
+    }
+    /* 中段ballroom地标 */
+    const ballroomX = corridorStart + Math.floor((corridorEnd - corridorStart) * 0.45);
+    _placeLandmark(ballroomX - 3, corridorY - 8, 'ballroom');
+    _connectRooms(ballroomX, corridorY, ballroomX, corridorY - 5, 2);
+    /* 末端lobby地标 */
+    _placeLandmark(corridorEnd - 2, corridorY - 2, 'lobby');
+    /* 侧走廊连接maintenance */
+    const maintX = corridorStart + Math.floor((corridorEnd - corridorStart) * 0.2);
+    _placeLandmark(maintX - 2, corridorY + 10, 'maintenance');
+    _connectRooms(maintX, corridorY + 1, maintX, corridorY + 9, 1);
+    exitCell.x = corridorEnd - 2; exitCell.y = corridorY;
+
+  } else if (gen === 'parking') {
+    /* 迭代21: 网格状停车场 */
+    _layoutBounds.active = true;
+    const colSpace = 5;
+    for (let y = startCell.y - 35; y < startCell.y + 35; y++) {
+      for (let x = startCell.x - 35; x < startCell.x + 35; x++) {
+        const isColumn = (Math.abs(x - startCell.x) % colSpace === 0 && Math.abs(y - startCell.y) % colSpace === 0);
+        if (isColumn && hash3(seed, x, y) < 0.85) {
+          _lcSet(x, y, TILE.WALL, 0, 1.0);
+        } else {
+          _lcSet(x, y, TILE.EMPTY, 0, 0);
+        }
+      }
+    }
+    /* 停车位隔墙 */
+    for (let y = startCell.y - 35; y < startCell.y + 35; y += colSpace) {
+      for (let x = startCell.x - 35; x < startCell.x + 35; x += 2) {
+        if (hash3(seed, x, y + 2) < 0.3) _lcSet(x, y + 2, TILE.SHELF, F.STAND | F.CLIMB, 0.55);
+      }
+    }
+    /* 角落storage房间 */
+    _makeRoom(startCell.x - 30, startCell.y - 30, 4, 4, 'storage');
+    _makeRoom(startCell.x + 26, startCell.y + 26, 4, 4, 'storage');
+    _makeRoom(startCell.x - 30, startCell.y + 26, 4, 4, 'storage');
+    /* 中心junction地标 */
+    _placeLandmark(startCell.x - 2, startCell.y - 2, 'junction');
+    /* 下沉区域 */
+    for (let y = startCell.y + 10; y < startCell.y + 25; y++) {
+      for (let x = startCell.x - 20; x < startCell.x + 20; x++) {
+        const lc = _lcGet(x, y);
+        if (lc && lc.t === TILE.EMPTY) {
+          _heightVar.set(_lcKey(x, y), -0.3);
+          lc.f |= F.WATER;
+        }
+      }
+    }
+    /* 废弃车辆 */
+    for (let i = 0; i < 8; i++) {
+      const cx = startCell.x - 25 + Math.floor(hash3(seed, i, 1) * 50);
+      const cy = startCell.y - 25 + Math.floor(hash3(seed, i, 2) * 50);
+      const lc = _lcGet(cx, cy);
+      if (lc && lc.t === TILE.EMPTY) _lcSet(cx, cy, TILE.CRATE, F.STAND | F.VAULT, 0.5);
+    }
+    exitCell.x = startCell.x + 30; exitCell.y = startCell.y + 30;
+
+  } else if (gen === 'pillars') {
+    /* 迭代22: 规则柱子+开放空间 */
+    _layoutBounds.active = true;
+    const spacing = 4 + Math.floor(hash3(seed, 1, 1) * 2);
+    for (let y = startCell.y - 40; y < startCell.y + 40; y++) {
+      for (let x = startCell.x - 40; x < startCell.x + 40; x++) {
+        const isPillar = ((x - startCell.x) % spacing === 0 && (y - startCell.y) % spacing === 0);
+        if (isPillar && hash3(seed, x, y) < 0.75) {
+          _lcSet(x, y, TILE.WALL, 0, 1.0);
+        } else {
+          _lcSet(x, y, TILE.EMPTY, 0, 0);
+        }
+      }
+    }
+    /* LOWWALL半隔断 */
+    for (let y = startCell.y - 40; y < startCell.y + 40; y += spacing) {
+      for (let x = startCell.x - 40; x < startCell.x + 40; x++) {
+        if (hash3(seed, x, y + 7) < 0.25) {
+          const lc = _lcGet(x, y);
+          if (!lc || lc.t === TILE.EMPTY) _lcSet(x, y, TILE.LOWWALL, F.STAND | F.VAULT, 0.24);
+        }
+      }
+    }
+    /* 2-3个开放空间+地标 */
+    const lmTypes = ['lobby', 'pool_room', 'maintenance'];
+    for (let i = 0; i < 3; i++) {
+      const ox = startCell.x - 25 + Math.floor(hash3(seed, i, 10) * 50);
+      const oy = startCell.y - 25 + Math.floor(hash3(seed, i, 20) * 50);
+      /* 清除区域内的柱子 */
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+        const lc = _lcGet(ox + dx, oy + dy);
+        if (lc && lc.t === TILE.WALL) _lcSet(ox + dx, oy + dy, TILE.EMPTY, 0, 0);
+      }
+      _placeLandmark(ox - 2, oy - 2, lmTypes[i]);
+    }
+    /* CRATE堆作为掩体 */
+    for (let i = 0; i < 12; i++) {
+      const cx = startCell.x - 30 + Math.floor(hash3(seed, i, 30) * 60);
+      const cy = startCell.y - 30 + Math.floor(hash3(seed, i, 40) * 60);
+      const lc = _lcGet(cx, cy);
+      if (lc && lc.t === TILE.EMPTY) _lcSet(cx, cy, TILE.CRATE, F.STAND | F.VAULT, 0.4);
+    }
+    exitCell.x = startCell.x + 30; exitCell.y = startCell.y + 30;
+
+  } else if (gen === 'maze') {
+    /* 迭代23: 递归回溯迷宫 */
+    _layoutBounds.active = true;
+    const MS = 60, cellS = 2;
+    const gx = Math.floor(MS / cellS), gy = Math.floor(MS / cellS);
+    const grid = [];
+    for (let i = 0; i < gx * gy; i++) grid[i] = 1; /* 1=wall */
+    const ox0 = startCell.x - (MS >> 1), oy0 = startCell.y - (MS >> 1);
+    /* 递归回溯 */
+    const stack = [{ x: 0, y: 0 }];
+    grid[0] = 0;
+    const dirs = [[0, -2], [0, 2], [-2, 0], [2, 0]];
+    while (stack.length) {
+      const cur = stack[stack.length - 1];
+      const shuffled = dirs.slice();
+      for (let si = shuffled.length - 1; si > 0; si--) {
+        const ji = Math.floor(hash3(seed, cur.x * 7 + si * 3, cur.y * 13 + stack.length) * (si + 1));
+        const tmp = shuffled[si]; shuffled[si] = shuffled[ji]; shuffled[ji] = tmp;
+      }
+      let moved = false;
+      for (const [dx, dy] of shuffled) {
+        const nx = cur.x + dx, ny = cur.y + dy;
+        if (nx >= 0 && nx < gx && ny >= 0 && ny < gy && grid[ny * gx + nx] === 1) {
+          grid[ny * gx + nx] = 0;
+          grid[(cur.y + dy / 2) * gx + (cur.x + dx / 2)] = 0;
+          stack.push({ x: nx, y: ny });
+          moved = true;
+          break;
+        }
+      }
+      if (!moved) stack.pop();
+    }
+    /* 循环路径：打通10%死墙 */
+    for (let i = 0; i < gx * gy * 0.1; i++) {
+      const wx = 1 + Math.floor(hash3(seed, i, 1) * (gx - 2));
+      const wy = 1 + Math.floor(hash3(seed, i, 2) * (gy - 2));
+      if (grid[wy * gx + wx] === 1) grid[wy * gx + wx] = 0;
+    }
+    /* 写入布局 */
+    for (let y = 0; y < gy; y++) {
+      for (let x = 0; x < gx; x++) {
+        if (grid[y * gx + x] === 0) {
+          for (let dy = 0; dy < cellS; dy++) for (let dx = 0; dx < cellS; dx++) {
+            _lcSet(ox0 + x * cellS + dx, oy0 + y * cellS + dy, TILE.EMPTY, 0, 0);
+          }
+        }
+      }
+    }
+    /* 死胡同处放3×3小房间 */
+    for (let y = 1; y < gy - 1; y++) {
+      for (let x = 1; x < gx - 1; x++) {
+        if (grid[y * gx + x] === 0) {
+          let openCount = 0;
+          if (grid[(y - 1) * gx + x] === 0) openCount++;
+          if (grid[(y + 1) * gx + x] === 0) openCount++;
+          if (grid[y * gx + (x - 1)] === 0) openCount++;
+          if (grid[y * gx + (x + 1)] === 0) openCount++;
+          if (openCount === 1 && hash3(seed, x, y) < 0.3) {
+            _makeRoom(ox0 + x * cellS - 1, oy0 + y * cellS - 1, 3, 3, 'standard');
+          }
+        }
+      }
+    }
+    /* 2-3个地标房间作为导航点 */
+    _placeLandmark(ox0 + 4, oy0 + 4, 'lobby');
+    _placeLandmark(ox0 + gx * cellS - 8, oy0 + gy * cellS - 8, 'maintenance');
+    if (hash3(seed, 99, 99) < 0.5) _placeLandmark(ox0 + gx * cellS / 2, oy0 + 4, 'pool_room');
+    exitCell.x = ox0 + gx * cellS - 4; exitCell.y = oy0 + gy * cellS - 4;
+
+  } else if (gen === 'pipe') {
+    /* 迭代24: 狭窄服务隧道 */
+    _layoutBounds.active = true;
+    const tunnelW = 1;
+    /* 生成隧道网络 */
+    const nodes = [];
+    for (let i = 0; i < 6; i++) {
+      nodes.push({
+        x: startCell.x - 30 + Math.floor(hash3(seed, i, 1) * 60),
+        y: startCell.y - 30 + Math.floor(hash3(seed, i, 2) * 60)
+      });
+    }
+    /* 连接节点形成隧道 */
+    for (let i = 1; i < nodes.length; i++) {
+      const cells = _connectRooms(nodes[i - 1].x, nodes[i - 1].y, nodes[i].x, nodes[i].y, tunnelW);
+      /* 隧道两侧大量PIPE */
+      for (const c of cells) {
+        for (const [dx, dy] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+          const lc = _lcGet(c.x + dx, c.y + dy);
+          if (lc && lc.t === TILE.WALL && hash3(seed, c.x + dx, c.y + dy) < 0.6) {
+            _lcSet(c.x + dx, c.y + dy, TILE.PIPE, F.CLIMB, 1.0);
+          }
+        }
+      }
+    }
+    /* 交汇处放4×4维护间 */
+    for (const n of nodes) {
+      _makeRoom(n.x - 2, n.y - 2, 4, 4, 'utility');
+    }
+    /* 阀门房间 */
+    _makeRoom(nodes[0].x + 5, nodes[0].y + 5, 3, 3, 'utility');
+    _lcSet(nodes[0].x + 6, nodes[0].y + 6, TILE.CRATE, F.STAND | F.VAULT, 0.4);
+    /* LOWCEIL区域 */
+    for (let i = 0; i < nodes.length - 1; i++) {
+      if (hash3(seed, i, 77) < 0.4) {
+        const cells = _connectRooms(nodes[i].x, nodes[i].y, nodes[i + 1].x, nodes[i + 1].y, 1);
+        for (const c of cells) {
+          const lc = _lcGet(c.x, c.y);
+          if (lc) lc.f |= F.LOWCEIL;
+        }
+      }
+    }
+    /* 蒸汽区域 */
+    for (let i = 0; i < 4; i++) {
+      const sx = startCell.x - 20 + Math.floor(hash3(seed, i, 50) * 40);
+      const sy = startCell.y - 20 + Math.floor(hash3(seed, i, 60) * 40);
+      for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) {
+        const lc = _lcGet(sx + dx, sy + dy);
+        if (lc && lc.t === TILE.EMPTY) { lc.f |= F.WATER; }
+      }
+    }
+    exitCell.x = nodes[nodes.length - 1].x; exitCell.y = nodes[nodes.length - 1].y;
+
+  } else if (gen === 'windows') {
+    /* 迭代25: 大型开放空间+窗户 */
+    _layoutBounds.active = true;
+    /* 外围墙壁(LOWWALL=窗户) */
+    const half = 30;
+    for (let y = -half; y <= half; y++) {
+      for (let x = -half; x <= half; x++) {
+        const ax = startCell.x + x, ay = startCell.y + y;
+        if (Math.abs(x) === half || Math.abs(y) === half) {
+          _lcSet(ax, ay, TILE.LOWWALL, F.STAND | F.VAULT, 0.24);
+        } else {
+          _lcSet(ax, ay, TILE.EMPTY, 0, 0);
+        }
+      }
+    }
+    /* 中央景观（水池） */
+    const poolHalf = 5;
+    for (let y = -poolHalf; y <= poolHalf; y++) {
+      for (let x = -poolHalf; x <= poolHalf; x++) {
+        const ax = startCell.x + x, ay = startCell.y + y;
+        if (Math.abs(x) === poolHalf || Math.abs(y) === poolHalf) {
+          _lcSet(ax, ay, TILE.LOWWALL, F.STAND | F.VAULT, 0.24);
+        } else {
+          const lc = _lcGet(ax, ay);
+          if (lc) { lc.f |= F.WATER; }
+        }
+      }
+    }
+    /* 环绕走廊 */
+    const corridorR = 12;
+    for (let a = 0; a < Math.PI * 2; a += 0.05) {
+      const cx = Math.round(startCell.x + Math.cos(a) * corridorR);
+      const cy = Math.round(startCell.y + Math.sin(a) * corridorR);
+      const lc = _lcGet(cx, cy);
+      if (lc && lc.t !== TILE.LOWWALL) _lcSet(cx, cy, TILE.EMPTY, 0, 0);
+    }
+    /* 四角地标房间 */
+    _placeLandmark(startCell.x - 25, startCell.y - 25, 'lobby');
+    _placeLandmark(startCell.x + 19, startCell.y - 25, 'maintenance');
+    _placeLandmark(startCell.x - 25, startCell.y + 19, 'pool_room');
+    _placeLandmark(startCell.x + 19, startCell.y + 19, 'boiler');
+    exitCell.x = startCell.x + 25; exitCell.y = startCell.y + 25;
+
+  } else if (gen === 'finale') {
+    /* 迭代26: V型走廊+圆形终章房间 */
+    _layoutBounds.active = true;
+    const mid = 0;
+    for (let x = -30; x <= 30; x++) {
+      const dist = Math.abs(x);
+      const corridorWidth = Math.max(1, Math.floor(8 - dist * 0.18));
+      for (let y = -corridorWidth; y <= corridorWidth; y++) {
+        _lcSet(startCell.x + x, startCell.y + y, TILE.EMPTY, 0, 0);
+      }
+      /* 两侧墙壁 */
+      _lcSet(startCell.x + x, startCell.y - corridorWidth - 1, TILE.WALL, 0, 1.0);
+      _lcSet(startCell.x + x, startCell.y + corridorWidth + 1, TILE.WALL, 0, 1.0);
+      /* 办公桌和文件柜 */
+      if (x % 3 === 0 && corridorWidth >= 2) {
+        _lcSet(startCell.x + x, startCell.y - corridorWidth, TILE.CRATE, F.STAND | F.VAULT, 0.4);
+        _lcSet(startCell.x + x, startCell.y + corridorWidth, TILE.SHELF, F.STAND | F.CLIMB, 0.55);
+      }
+    }
+    /* 末端圆形房间(6×6) */
+    const rx = startCell.x + 30, ry = startCell.y;
+    _makeRoom(rx, ry - 3, 6, 6, 'large');
+    /* 中央晶格之门 */
+    _lcSet(rx + 3, ry, TILE.EXIT, F.EXIT, 1.0);
+    /* 四根柱子 */
+    _lcSet(rx + 1, ry - 2, TILE.WALL, 0, 1.0);
+    _lcSet(rx + 4, ry - 2, TILE.WALL, 0, 1.0);
+    _lcSet(rx + 1, ry + 2, TILE.WALL, 0, 1.0);
+    _lcSet(rx + 4, ry + 2, TILE.WALL, 0, 1.0);
+    exitCell.x = rx + 3; exitCell.y = ry;
+    /* 起点净空 */
+    startCell.x = startCell.x - 25;
+
+  } else if (gen === 'grid') {
+    /* 迭代27: 规则网格走廊 */
+    _layoutBounds.active = true;
+    const cellW = 3, gridSize = 15;
+    const ox0 = startCell.x - (gridSize * cellW) / 2, oy0 = startCell.y - (gridSize * cellW) / 2;
+    /* 网格走廊 */
+    for (let gy = 0; gy <= gridSize; gy++) {
+      for (let gx = 0; gx <= gridSize * cellW; gx++) {
+        _lcSet(ox0 + gx, oy0 + gy * cellW, TILE.EMPTY, 0, 0);
+      }
+    }
+    for (let gx = 0; gx <= gridSize; gx++) {
+      for (let gy = 0; gy <= gridSize * cellW; gy++) {
+        _lcSet(ox0 + gx * cellW, oy0 + gy, TILE.EMPTY, 0, 0);
+      }
+    }
+    /* 交叉处柱子 */
+    for (let gy = 0; gy <= gridSize; gy++) for (let gx = 0; gx <= gridSize; gx++) {
+      _lcSet(ox0 + gx * cellW, oy0 + gy * cellW, TILE.WALL, 0, 1.0);
+    }
+    /* 30%网格单元作为房间 */
+    for (let gy = 0; gy < gridSize; gy++) for (let gx = 0; gx < gridSize; gx++) {
+      if (hash3(seed, gx, gy) < 0.30) {
+        /* 打通墙壁形成房间 */
+        for (let dy = 1; dy < cellW; dy++) for (let dx = 1; dx < cellW; dx++) {
+          _lcSet(ox0 + gx * cellW + dx, oy0 + gy * cellW + dy, TILE.EMPTY, 0, 0);
+        }
+        /* 房间内家具 */
+        if (hash3(seed, gx + 10, gy) < 0.5) {
+          _lcSet(ox0 + gx * cellW + 1, oy0 + gy * cellW + 1, TILE.CRATE, F.STAND | F.VAULT, 0.4);
+        }
+      }
+    }
+    /* 中心junction地标 */
+    _placeLandmark(ox0 + (gridSize * cellW) / 2 - 2, oy0 + (gridSize * cellW) / 2 - 2, 'junction');
+    exitCell.x = ox0 + gridSize * cellW - 2; exitCell.y = oy0 + gridSize * cellW - 2;
+  }
+
+  /* ---- 布局生成后更新出生点坐标 ---- */
+  start.x = startCell.x + 0.5;
+  start.y = startCell.y + 0.5;
+
   /* ---- 单格生成（纯函数，无状态） ---- */
   const cell = (ax, ay) => {
     // 出口 / 出生点净空
@@ -6096,6 +6734,14 @@ function generateWorld(level, seed) {
     if (dxe >= -1 && dxe <= 1 && dye >= -1 && dye <= 1) return TILE.EMPTY;
     const dxs = ax - startCell.x, dys = ay - startCell.y;
     if (dxs >= -1 && dxs <= 1 && dys >= -1 && dys <= 1) return TILE.EMPTY;
+
+    /* 迭代19-27: 布局系统检查 — 重写的gen类型使用预计算布局 */
+    if (_layoutBounds.active) {
+      if (ax < _layoutBounds.x0 || ax > _layoutBounds.x1 || ay < _layoutBounds.y0 || ay > _layoutBounds.y1) return TILE.WALL;
+      const lc = _lcGet(ax, ay);
+      if (lc) return lc.t;
+      return TILE.WALL;
+    }
 
     /* Hub 关卡：使用绝对坐标生成，跳过房间系统 */
     if (gen === 'hub') {
@@ -6392,6 +7038,16 @@ function generateWorld(level, seed) {
         type[i] = t;
         height[i] = TILE_DEF[t].h;
         let f = TILE_DEF[t].flags;
+        /* 迭代28: 布局系统高度/flags覆盖 */
+        if (_layoutBounds.active) {
+          const lc = _lcGet(ox + x, ay);
+          if (lc) {
+            if (lc.h !== null) height[i] = lc.h;
+            if (lc.f) f = lc.f;
+          }
+          const hv = _heightVar.get(_lcKey(ox + x, ay));
+          if (hv !== undefined) height[i] = height[i] + hv;
+        }
         if (waterOn && t === TILE.EMPTY && hash3(ox + x, ay, 91) < 0.78) f |= F.WATER;
         flags[i] = f;
       }
@@ -6683,6 +7339,86 @@ function generateWorld(level, seed) {
     }
   }
 
+  /* ==================== 迭代29: 物品放置智能化 ==================== */
+  /* 在地标房间放置额外物资（2-3个），走廊少放物资 */
+  if (_landmarks.length > 0) {
+    for (const lm of _landmarks) {
+      /* 每个地标房间放2-3个物资 */
+      const _lmCount = 2 + Math.floor(seededRand() * 2);
+      for (let si = 0; si < _lmCount; si++) {
+        let _ix, _iy, _tries = 0;
+        do {
+          _ix = lm.x + Math.floor((seededRand() - 0.5) * (lm.w - 1));
+          _iy = lm.y + Math.floor((seededRand() - 0.5) * (lm.h - 1));
+          _tries++;
+          /* 确保在空地上且不在墙角死角 */
+          const _i = _iy * W + _ix;
+          if (_i < 0 || _i >= W * H) continue;
+          if (height[_i] > 0.3) continue;
+          /* 不在墙角：至少两个方向是开放的 */
+          let _open = 0;
+          if (_ix > 0 && height[_iy * W + (_ix - 1)] <= 0.3) _open++;
+          if (_ix < W - 1 && height[_iy * W + (_ix + 1)] <= 0.3) _open++;
+          if (_iy > 0 && height[(_iy - 1) * W + _ix] <= 0.3) _open++;
+          if (_iy < H - 1 && height[(_iy + 1) * W + _ix] <= 0.3) _open++;
+          if (_open < 2) continue;
+          break;
+        } while (_tries < 15);
+        if (_tries < 15) {
+          const _sr = seededRand();
+          const _it = _sr < 0.4 ? 'biscuit' : _sr < 0.7 ? 'water' : 'battery';
+          items.push({
+            type: _it,
+            x: _ix + 0.5 + (seededRand() - 0.5) * 0.3,
+            y: _iy + 0.5 + (seededRand() - 0.5) * 0.3,
+            taken: false,
+            key: 'lm_' + lm.type + '_' + si,
+            bob: seededRand() * 6.28
+          });
+        }
+      }
+    }
+  }
+
+  /* 走廊中很少放置物资 — 移除走廊中的非目标物品（保留objective和note） */
+  if (_layoutBounds.active) {
+    for (let ii = items.length - 1; ii >= 0; ii--) {
+      const _it = items[ii];
+      if (_it.type === 'objective' || _it.type === 'note' || _it.type === 'car') continue;
+      /* 检查位置是否有效 */
+      const _lc = _lcGet(Math.floor(_it.x), Math.floor(_it.y));
+      if (!_lc) {
+        /* 在墙中或无效位置 — 移除 */
+        items.splice(ii, 1);
+      } else if (_lc.t === TILE.EMPTY) {
+        /* 在走廊/普通地面：15%概率保留 */
+        if (seededRand() > 0.15) {
+          items.splice(ii, 1);
+        }
+      }
+    }
+  }
+
+  /* 确保物品不在entity巡逻路径上 — 简单偏移 */
+  for (const _it of items) {
+    for (const _ent of ents) {
+      const _d = Math.hypot(_it.x - _ent.x, _it.y - _ent.y);
+      if (_d < 1.5) {
+        /* 推开物品 */
+        const _ang = Math.atan2(_it.y - _ent.y, _it.x - _ent.x);
+        _it.x = _ent.x + Math.cos(_ang) * 2;
+        _it.y = _ent.y + Math.sin(_ang) * 2;
+        /* 确保不推到墙里 */
+        const _ni = Math.floor(_it.y) * W + Math.floor(_it.x);
+        if (_ni >= 0 && _ni < W * H && height[_ni] > 0.3) {
+          _it.x = _ent.x + Math.cos(_ang + Math.PI) * 2;
+          _it.y = _ent.y + Math.sin(_ang + Math.PI) * 2;
+        }
+        break;
+      }
+    }
+  }
+
   const world = {
     w: W, h: H,
     ox: 0, oy: 0,
@@ -6701,6 +7437,9 @@ function generateWorld(level, seed) {
     scattered: _scattered,
     safeRooms: _safeRooms,
     trapRooms: _trapRooms,
+    landmarks: _landmarks,
+    heightVariation: _heightVar,
+    layoutActive: _layoutBounds.active,
     roomSize: RS,
     start,
     exitPos: { x: exitCell.x + 0.5, y: exitCell.y + 0.5 },
@@ -6730,6 +7469,78 @@ function generateWorld(level, seed) {
   world.ox = Math.floor(start.x) - WIN_HALF;
   world.oy = Math.floor(start.y) - WIN_HALF;
   fillWindow(world.ox, world.oy);
+
+  /* ==================== 迭代30: 地图连贯性验证 ==================== */
+  /* 使用BFS检查spawn到exit的路径连通性，不连通时打通墙壁 */
+  if (_layoutBounds.active) {
+    /* 在布局系统上做BFS — 使用_lcKey一致索引 */
+    const _visited = new Set();
+    const _queue = [];
+    const _sx = Math.floor(startCell.x), _sy = Math.floor(startCell.y);
+    const _sk = _lcKey(_sx, _sy);
+    _queue.push([_sx, _sy]);
+    _visited.add(_sk);
+
+    while (_queue.length > 0) {
+      const [_cx, _cy] = _queue.shift();
+      /* 检查4个方向 */
+      for (const [_dx, _dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const _nx = _cx + _dx, _ny = _cy + _dy;
+        const _nk = _lcKey(_nx, _ny);
+        if (_visited.has(_nk)) continue;
+        /* 如果是布局单元（房间/走廊），加入队列 */
+        if (_layoutCells.has(_nk)) {
+          _visited.add(_nk);
+          const _lc = _layoutCells.get(_nk);
+          /* WALL 不可穿越，不加入队列 */
+          if (!_lc || _lc.t !== TILE.WALL) _queue.push([_nx, _ny]);
+        }
+      }
+    }
+
+    /* 检查exit是否可达 */
+    const _ex = Math.floor(exitCell.x), _ey = Math.floor(exitCell.y);
+    const _exitKey = _lcKey(_ex, _ey);
+    if (!_visited.has(_exitKey)) {
+      /* 不连通 — 从exit到spawn打通一条走廊 */
+      let _cx = _ex, _cy = _ey;
+      const _tx = _sx, _ty = _sy;
+      let _safety = 0;
+      while ((_cx !== _tx || _cy !== _ty) && _safety < 200) {
+        _safety++;
+        if (_cx < _tx) _cx++;
+        else if (_cx > _tx) _cx--;
+        else if (_cy < _ty) _cy++;
+        else if (_cy > _ty) _cy--;
+        const _ck = _lcKey(_cx, _cy);
+        if (!_layoutCells.has(_ck)) {
+          _lcSet(_cx, _cy, TILE.EMPTY, 0, 0);
+          _visited.add(_ck);
+        }
+      }
+    }
+
+    /* 检查所有地标房间是否可达，不可达则打通连接 */
+    for (const lm of _landmarks) {
+      const _lmKey = _lcKey(lm.x, lm.y);
+      if (!_visited.has(_lmKey)) {
+        let _bx = lm.x, _by = lm.y;
+        let _safety = 0;
+        while (!_visited.has(_lcKey(_bx, _by)) && _safety < 100) {
+          _safety++;
+          if (_bx < _sx) _bx++;
+          else if (_bx > _sx) _bx--;
+          else if (_by < _sy) _by++;
+          else if (_by > _sy) _by--;
+          const _ck = _lcKey(_bx, _by);
+          if (!_layoutCells.has(_ck)) {
+            _lcSet(_bx, _by, TILE.EMPTY, 0, 0);
+            _visited.add(_ck);
+          }
+        }
+      }
+    }
+  }
 
   return world;
 }
@@ -8660,7 +9471,13 @@ class Player {
         this.fallFrom = gz;
       }
     } else {
-      this.z = gz;
+      /* 迭代28: 平滑高度过渡 — 小高度差时渐变而非瞬移 */
+      const _dz = gz - this.z;
+      if (Math.abs(_dz) > 0.001 && Math.abs(_dz) < 0.4) {
+        this.z += _dz * Math.min(1, dt * 10);
+      } else {
+        this.z = gz;
+      }
       this.velY = 0;
       this.fallFrom = gz;
     }
@@ -9687,6 +10504,22 @@ const WALL_H = 2.75;
 const CHUNK = 8;
 const POOL = 6;
 
+/* 迭代41: 关卡专属色调系统 — 每种gen类型定义视觉主题 */
+const LEVEL_COLOR_THEME = {
+  corridor:  { fog: 0x2a2418, hemiSky: 0xa89a6a, hemiGround: 0x191510, lampColor: 0xfff5e0, ambient: 0.6,  fogDensity: 0.08 },
+  hotel:     { fog: 0x2a1e10, hemiSky: 0xc8a868, hemiGround: 0x1e1408, lampColor: 0xffe8c0, ambient: 0.7,  fogDensity: 0.06 },
+  parking:   { fog: 0x1a1c22, hemiSky: 0x5a6478, hemiGround: 0x0e1014, lampColor: 0xe0e0f0, ambient: 0.5,  fogDensity: 0.10 },
+  pillars:   { fog: 0x242018, hemiSky: 0xa09060, hemiGround: 0x15110a, lampColor: 0xfff0d0, ambient: 0.55, fogDensity: 0.07 },
+  maze:      { fog: 0x1a1810, hemiSky: 0x80704a, hemiGround: 0x100c06, lampColor: 0xd0c080, ambient: 0.4,  fogDensity: 0.12 },
+  pipe:      { fog: 0x121a14, hemiSky: 0x506a50, hemiGround: 0x0a120a, lampColor: 0x80a080, ambient: 0.35, fogDensity: 0.15 },
+  windows:   { fog: 0x1a2a30, hemiSky: 0xa0c0d0, hemiGround: 0x0a1418, lampColor: 0xffffff, ambient: 0.8,  fogDensity: 0.04 },
+  finale:    { fog: 0x1a0a1a, hemiSky: 0x602050, hemiGround: 0x100410, lampColor: 0xc040a0, ambient: 0.45, fogDensity: 0.10 },
+  grid:      { fog: 0x141820, hemiSky: 0x708898, hemiGround: 0x0a0e14, lampColor: 0xd0e0f0, ambient: 0.6,  fogDensity: 0.08 },
+  hub:       { fog: 0x1a1810, hemiSky: 0xb09878, hemiGround: 0x18140a, lampColor: 0xffd080, ambient: 0.75, fogDensity: 0.05 },
+  rooms:     { fog: 0x221e16, hemiSky: 0x988a60, hemiGround: 0x141008, lampColor: 0xfff0d0, ambient: 0.55, fogDensity: 0.07 },
+  supply:    { fog: 0x14110b, hemiSky: 0x6a5a40, hemiGround: 0x100a06, lampColor: 0xc0a060, ambient: 0.4,  fogDensity: 0.10 }
+};
+
 class ThreeJSRendererBridge {
   constructor(canvas) {
     this.canvas = canvas;
@@ -9866,6 +10699,8 @@ class ThreeJSRendererBridge {
     const THREE = window.THREE;
     /* Convert Uint32Array textures to CanvasTextures */
     this._THREEtex = {};
+    /* 迭代15: 纹理质量降级 — 低端设备使用更小纹理 */
+    this._texScale = (this.quality === 'low') ? 0.5 : (this.quality === 'medium') ? 0.75 : 1.0;
     const toTex = (uint32arr, size) => {
       const c = document.createElement('canvas');
       c.width = size; c.height = size;
@@ -9961,9 +10796,22 @@ class ThreeJSRendererBridge {
     this.quality = name;
     this.budget = QUALITY[name].budget;
     this.baseBudget = QUALITY[name].budget;
-    /* Adjust pixel ratio for quality */
-    const pr = name === 'low' ? 1 : (name === 'medium' ? 1.25 : (name === 'high' ? 1.75 : 2));
+    /* pixel ratio capped at 1.5 max to avoid wasting GPU on high-DPI */
+    const pr = name === 'low' ? 1 : (name === 'medium' ? 1.25 : 1.5);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, pr));
+    /* shadow map resolution by quality: high=2048, medium=1024, low=512 */
+    const sm = name === 'low' ? 512 : (name === 'medium' ? 1024 : 2048);
+    if (this.sunLight) { this.sunLight.shadow.mapSize.set(sm, sm); if (this.sunLight.shadow.map) { this.sunLight.shadow.map.dispose(); this.sunLight.shadow.map = null; } }
+    /* fog far = renderDistance * 0.8 */
+    const rd = QUALITY[name].budget || 36;
+    if (this.scene && this.scene.fog) {
+      if (this.scene.fog.far !== undefined) this.scene.fog.far = rd * 4 * 0.8;
+    }
+    /* camera far plane based on max map size */
+    if (this.camera) {
+      this.camera.far = Math.max(rd * 4 * 2, 200);
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   /* ─────── 节日系统 ─────── */
@@ -10440,11 +11288,28 @@ class ThreeJSRendererBridge {
     this._worldBuilt = false;
     this._lastOx = -999999;
     this._lastOy = -999999;
+    this._forceDoorRebuild = false;
     /* Update textures based on level type */
     if (this._tex && world.level) {
-      const wt = world.level.wallTex || world.level.wallType || 'wallpaper';
-      const ft = world.level.floorTex || world.level.floorType || 'carpet';
-      const ct = world.level.ceilTex || world.level.ceilType || 'panel';
+      /* 迭代42: 关卡专属纹理匹配 — 根据gen类型选择正确纹理组合 */
+      const _genTexMap = {
+        corridor:  { wall: 'wallpaper',           floor: 'carpet_commercial', ceil: 'panel' },
+        hotel:     { wall: 'wallpaper_stripe',    floor: 'carpet_hotel',      ceil: 'panel' },
+        parking:   { wall: 'parking',             floor: 'concrete',          ceil: 'panel' },
+        pillars:   { wall: 'wallpaper_chevron',   floor: 'carpet',            ceil: 'panel' },
+        maze:      { wall: 'wallpaper',           floor: 'carpet_loop',       ceil: 'panel' },
+        pipe:      { wall: 'metal',               floor: 'concrete',          ceil: 'metal' },
+        windows:   { wall: 'pool',                floor: 'tile_pool',         ceil: 'concrete' },
+        finale:    { wall: 'wallpaper',           floor: 'carpet_commercial', ceil: 'pipe' },
+        grid:      { wall: 'wallpaper_stripe',    floor: 'carpet_commercial', ceil: 'panel' },
+        hub:       { wall: 'wallpaper',           floor: 'carpet_hotel',      ceil: 'panel' },
+        rooms:     { wall: 'wallpaper',           floor: 'carpet',            ceil: 'panel' },
+        supply:    { wall: 'concrete',            floor: 'concrete',          ceil: 'panel' }
+      };
+      const _genTex = _genTexMap[world.level.gen] || _genTexMap.rooms;
+      const wt = world.level.wallTex || _genTex.wall || 'wallpaper';
+      const ft = world.level.floorTex || _genTex.floor || 'carpet';
+      const ct = world.level.ceilTex || _genTex.ceil || 'panel';
       /* 迭代32：判断是否启用墙面文字 */
       const _wallTextLevels = ['corridor', 'hotel', 'parking'];
       const _enableWallText = _wallTextLevels.indexOf(world.level.gen) >= 0;
@@ -10581,6 +11446,94 @@ class ThreeJSRendererBridge {
         this._THREEtex.ceil.needsUpdate = true;
       }
     }
+    /* 迭代12+42: 高品质纹理系统 — 对标 Escape the Backrooms, 关卡专属纹理匹配 */
+    if (this._tex && world.level) {
+      /* 迭代42: 使用与上方相同的gen映射确保纹理一致 */
+      const _genTexMap12 = {
+        corridor:  { wall: 'wallpaper',           floor: 'carpet_commercial', ceil: 'panel' },
+        hotel:     { wall: 'wallpaper_stripe',    floor: 'carpet_hotel',      ceil: 'panel' },
+        parking:   { wall: 'parking',             floor: 'concrete',          ceil: 'panel' },
+        pillars:   { wall: 'wallpaper_chevron',   floor: 'carpet',            ceil: 'panel' },
+        maze:      { wall: 'wallpaper',           floor: 'carpet_loop',       ceil: 'panel' },
+        pipe:      { wall: 'metal',               floor: 'concrete',          ceil: 'metal' },
+        windows:   { wall: 'pool',                floor: 'tile_pool',         ceil: 'concrete' },
+        finale:    { wall: 'wallpaper',           floor: 'carpet_commercial', ceil: 'pipe' },
+        grid:      { wall: 'wallpaper_stripe',    floor: 'carpet_commercial', ceil: 'panel' },
+        hub:       { wall: 'wallpaper',           floor: 'carpet_hotel',      ceil: 'panel' },
+        rooms:     { wall: 'wallpaper',           floor: 'carpet',            ceil: 'panel' },
+        supply:    { wall: 'concrete',            floor: 'concrete',          ceil: 'panel' }
+      };
+      const _genTex12 = _genTexMap12[world.level.gen] || _genTexMap12.rooms;
+      const _wt12 = world.level.wallTex || _genTex12.wall || 'wallpaper';
+      const _ft12 = world.level.floorTex || _genTex12.floor || 'carpet';
+      const _ct12 = world.level.ceilTex || _genTex12.ceil || 'panel';
+      const _texSet = this._buildTexSet(_wt12, _ft12, _ct12);
+      /* 更新墙面材质（含法线和粗糙度贴图） */
+      this.matWall.map = _texSet.wallMap;
+      this.matWall.normalMap = _texSet.wallNormal;
+      this.matWall.roughnessMap = _texSet.wallRough;
+      this.matWall.roughness = 1.0;
+      this.matWall.needsUpdate = true;
+      this.matWallText.map = _texSet.wallMap;
+      this.matWallText.normalMap = _texSet.wallNormal;
+      this.matWallText.roughnessMap = _texSet.wallRough;
+      this.matWallText.roughness = 1.0;
+      this.matWallText.needsUpdate = true;
+      /* 更新地面材质 */
+      this.matFloor.map = _texSet.floorMap;
+      this.matFloor.normalMap = _texSet.floorNormal;
+      this.matFloor.roughnessMap = _texSet.floorRough;
+      this.matFloor.roughness = 1.0;
+      this.matFloor.needsUpdate = true;
+      this.matFloorStain.map = _texSet.floorMap;
+      this.matFloorStain.normalMap = _texSet.floorNormal;
+      this.matFloorStain.roughnessMap = _texSet.floorRough;
+      this.matFloorStain.roughness = 1.0;
+      this.matFloorStain.needsUpdate = true;
+      /* 更新天花板材质 */
+      this.matCeil.map = _texSet.ceilMap;
+      this.matCeil.normalMap = _texSet.ceilNormal;
+      this.matCeil.roughnessMap = _texSet.ceilRough;
+      this.matCeil.roughness = 1.0;
+      this.matCeil.needsUpdate = true;
+      /* 缓存基础canvas用于迭代13变体生成 */
+      this._baseWallCanvas = _texSet.wallCanvas;
+      this._baseFloorCanvas = _texSet.floorCanvas;
+      this._baseCeilCanvas = _texSet.ceilCanvas;
+    }
+    /* 迭代41-43: 关卡专属色调+灯光氛围 — 根据gen类型应用主题 */
+    if (world.level && world.level.gen) {
+      const _theme = LEVEL_COLOR_THEME[world.level.gen] || LEVEL_COLOR_THEME.corridor;
+      const THREE = window.THREE;
+      /* 覆盖world的灯光/雾参数为关卡专属值 */
+      if (this.scene.fog) {
+        this.scene.fog.color.setHex(_theme.fog);
+        this._fogBase = _theme.fogDensity * 0.7;
+      }
+      this.scene.background = new THREE.Color(_theme.fog);
+      this.hemi.color.setHex(_theme.hemiSky);
+      this.hemi.groundColor.setHex(_theme.hemiGround);
+      /* 更新灯光池颜色 */
+      for (let i = 0; i < this.lightPool.length; i++) {
+        this.lightPool[i].color.setHex(_theme.lampColor);
+      }
+      /* parking: 5%灯是emergency red */
+      if (world.level.gen === 'parking') {
+        this._emergencyLightIndices = [];
+        for (let i = 0; i < this.lightPool.length; i++) {
+          if (Math.random() < 0.05) {
+            this.lightPool[i].color.setHex(0xff2222);
+            this._emergencyLightIndices.push(i);
+          }
+        }
+      } else {
+        this._emergencyLightIndices = null;
+      }
+      /* 缓存ambient和fogDensity供渲染循环使用 */
+      this._levelAmbient = _theme.ambient;
+      this._levelFogDensity = _theme.fogDensity;
+      this._levelLampColor = _theme.lampColor;
+    }
     /* Clear old meshes */
     for (const m of this.chunkList) {
       this.worldGroup.remove(m);
@@ -10603,7 +11556,9 @@ class ThreeJSRendererBridge {
     this._itemMeshes.length = 0;
     /* Rebuild */
     this._buildWorldMesh();
+    this._buildDetailMeshes();
     this._buildLampFixtures();
+    this._buildLandmarkDecor();
     this._worldBuilt = true;
 
     /* 节日装饰：仅 Hub 关卡 + 节日窗口期 */
@@ -10674,6 +11629,29 @@ class ThreeJSRendererBridge {
       return new THREE.Mesh(geo, mat);
     }
 
+    /* 迭代31: 3D凸出条带辅助函数 — 在墙面外侧添加踢脚线/顶线 */
+    function addStrip3D(g, faceDir, x0, z0, x1, z1, y0, y1, depth, col, topUp) {
+      const c = [col, col, col, col];
+      const yF = topUp ? y1 : y0;
+      if (faceDir === 'N') {
+        quad(g, [x0, y0, z0-depth], [x0, y1, z0-depth], [x1, y1, z0-depth], [x1, y0, z0-depth], 0,0,1,1, c);
+        if (topUp) quad(g, [x0, yF, z0-depth], [x0, yF, z0], [x1, yF, z0], [x1, yF, z0-depth], 0,0,1,1, c);
+        else quad(g, [x0, yF, z0], [x0, yF, z0-depth], [x1, yF, z0-depth], [x1, yF, z0], 0,0,1,1, c);
+      } else if (faceDir === 'S') {
+        quad(g, [x1, y0, z1+depth], [x1, y1, z1+depth], [x0, y1, z1+depth], [x0, y0, z1+depth], 0,0,1,1, c);
+        if (topUp) quad(g, [x0, yF, z1], [x0, yF, z1+depth], [x1, yF, z1+depth], [x1, yF, z1], 0,0,1,1, c);
+        else quad(g, [x1, yF, z1], [x1, yF, z1+depth], [x0, yF, z1+depth], [x0, yF, z1], 0,0,1,1, c);
+      } else if (faceDir === 'W') {
+        quad(g, [x0-depth, y0, z1], [x0-depth, y1, z1], [x0-depth, y1, z0], [x0-depth, y0, z0], 0,0,1,1, c);
+        if (topUp) quad(g, [x0-depth, yF, z0], [x0-depth, yF, z1], [x0, yF, z1], [x0, yF, z0], 0,0,1,1, c);
+        else quad(g, [x0, yF, z0], [x0, yF, z1], [x0-depth, yF, z1], [x0-depth, yF, z0], 0,0,1,1, c);
+      } else if (faceDir === 'E') {
+        quad(g, [x1+depth, y0, z0], [x1+depth, y1, z0], [x1+depth, y1, z1], [x1+depth, y0, z1], 0,0,1,1, c);
+        if (topUp) quad(g, [x1, yF, z0], [x1, yF, z1], [x1+depth, yF, z1], [x1+depth, yF, z0], 0,0,1,1, c);
+        else quad(g, [x1+depth, yF, z0], [x1+depth, yF, z1], [x1, yF, z1], [x1, yF, z0], 0,0,1,1, c);
+      }
+    }
+
     const solidAt = (lx, ly) => {
       if (lx < 0 || ly < 0 || lx >= W || ly >= H) return true;
       return world.height[ly * W + lx] > 0.6;
@@ -10687,6 +11665,8 @@ class ThreeJSRendererBridge {
     const px = Math.floor(W / 2);
     const py = Math.floor(H / 2);
     const VIEW_R = 36; /* cells to render around player */
+    /* 迭代32：壁龛灯光计数器 */
+    this._nicheLightCount = 0;
 
     for (let cy = Math.max(0, py - VIEW_R); cy < Math.min(H, py + VIEW_R); cy += CHUNK) {
       for (let cx = Math.max(0, px - VIEW_R); cx < Math.min(W, px + VIEW_R); cx += CHUNK) {
@@ -10703,62 +11683,191 @@ class ThreeJSRendererBridge {
             const wx1 = wx + CELL, wz1 = wz + CELL;
             const isWall = solidAt(lx, ly);
             const tileType = world.type[ly * W + lx];
-            /* 迭代16：储物柜渲染 — 深色金属柜体 */
+            /* 迭代16：储物柜渲染 — 仅渲染地板和薄底座，详细模型由_buildDetailMeshes提供 */
             if (tileType === TILE.LOCKER) {
-              const lh = 0.95 * WALL_H; /* 储物柜高度 */
+              const lh = 0.05; /* 薄底座高度，不遮挡详细模型 */
               const lockerCol = [0.15, 0.16, 0.18]; /* 深色金属 */
-              /* 柜体四面 */
-              if (!solidAt(lx, ly - 1) || true) {
+              /* 地板 */
+              quad(gf, [wx, 0, wz1], [wx1, 0, wz1], [wx1, 0, wz], [wx, 0, wz], 0, 0, 1, 1, [0.9, 0.9, 0.9, 0.9]);
+              /* 天花板 */
+              quad(gc, [wx, WALL_H, wz], [wx1, WALL_H, wz], [wx1, WALL_H, wz1], [wx, WALL_H, wz1], 0, 0, 1, 1, [0.85, 0.85, 0.85, 0.85]);
+              /* 薄底座 — 仅在暴露面渲染 */
+              if (!solidAt(lx, ly - 1)) {
                 quad(gw, [wx, 0, wz], [wx, lh, wz], [wx1, lh, wz], [wx1, 0, wz], 0, 0, 1, 1, [lockerCol[0], lockerCol[1], lockerCol[2], lockerCol[0]]);
               }
-              if (!solidAt(lx, ly + 1) || true) {
+              if (!solidAt(lx, ly + 1)) {
                 quad(gw, [wx1, 0, wz1], [wx1, lh, wz1], [wx, lh, wz1], [wx, 0, wz1], 0, 0, 1, 1, [lockerCol[0], lockerCol[1], lockerCol[2], lockerCol[0]]);
               }
-              if (!solidAt(lx - 1, ly) || true) {
+              if (!solidAt(lx - 1, ly)) {
                 quad(gw, [wx, 0, wz1], [wx, lh, wz1], [wx, lh, wz], [wx, 0, wz], 0, 0, 1, 1, [lockerCol[0], lockerCol[1], lockerCol[2], lockerCol[0]]);
               }
-              if (!solidAt(lx + 1, ly) || true) {
+              if (!solidAt(lx + 1, ly)) {
                 quad(gw, [wx1, 0, wz], [wx1, lh, wz], [wx1, lh, wz1], [wx1, 0, wz1], 0, 0, 1, 1, [lockerCol[0], lockerCol[1], lockerCol[2], lockerCol[0]]);
               }
-              /* 顶部 */
-              quad(gw, [wx, lh, wz], [wx1, lh, wz], [wx1, lh, wz1], [wx, lh, wz1], 0, 0, 1, 1, [lockerCol[0]*0.8, lockerCol[1]*0.8, lockerCol[2]*0.8, lockerCol[0]*0.8]);
-              /* 半开的门 — 在面向负z方向的面上渲染一个偏移的薄片 */
-              const doorW = CELL * 0.35;
-              quad(gw, [wx + 0.02, 0, wz - doorW], [wx + 0.02, lh * 0.9, wz - doorW], [wx + 0.02, lh * 0.9, wz], [wx + 0.02, 0, wz], 0, 0, 1, 1, [0.12, 0.13, 0.15, 0.12]);
+            } else if (tileType === TILE.EXIT) {
+              /* 迭代33：门框和门头 — EXIT tile渲染为门洞而非实心墙 */
+              const _doorH = 2.1; /* 门洞高度 */
+              const _frameW = 0.1; /* 门框宽度 */
+              const _frameD = 0.1; /* 门框深度 */
+              const _frameCol = [0.25, 0.18, 0.12]; /* 深木色门框 */
+              /* 地板和天花板 */
+              quad(gf, [wx, 0, wz1], [wx1, 0, wz1], [wx1, 0, wz], [wx, 0, wz], 0, 0, 1, 1, [0.9, 0.9, 0.9, 0.9]);
+              quad(gc, [wx, WALL_H, wz], [wx1, WALL_H, wz], [wx1, WALL_H, wz1], [wx, WALL_H, wz1], 0, 0, 1, 1, [0.85, 0.85, 0.85, 0.85]);
+              /* 门框柱 — 两侧 */
+              quad(gw, [wx, 0, wz], [wx, _doorH, wz], [wx + _frameW, _doorH, wz], [wx + _frameW, 0, wz], 0, 0, 1, 1, [_frameCol[0], _frameCol[1], _frameCol[2], _frameCol[0]]);
+              quad(gw, [wx1 - _frameW, 0, wz], [wx1 - _frameW, _doorH, wz], [wx1, _doorH, wz], [wx1, 0, wz], 0, 0, 1, 1, [_frameCol[0], _frameCol[1], _frameCol[2], _frameCol[0]]);
+              quad(gw, [wx, 0, wz1], [wx, _doorH, wz1], [wx + _frameW, _doorH, wz1], [wx + _frameW, 0, wz1], 0, 0, 1, 1, [_frameCol[0], _frameCol[1], _frameCol[2], _frameCol[0]]);
+              quad(gw, [wx1 - _frameW, 0, wz1], [wx1 - _frameW, _doorH, wz1], [wx1, _doorH, wz1], [wx1, 0, wz1], 0, 0, 1, 1, [_frameCol[0], _frameCol[1], _frameCol[2], _frameCol[0]]);
+              /* 门头横梁 */
+              quad(gw, [wx, _doorH, wz], [wx1, _doorH, wz], [wx1, _doorH, wz1], [wx, _doorH, wz1], 0, 0, 1, 1, [_frameCol[0] * 0.9, _frameCol[1] * 0.9, _frameCol[2] * 0.9, _frameCol[0] * 0.9]);
+              quad(gw, [wx, _doorH, wz - _frameD], [wx1, _doorH, wz - _frameD], [wx1, _doorH, wz], [wx, _doorH, wz], 0, 0, 1, 1, [_frameCol[0], _frameCol[1], _frameCol[2], _frameCol[0]]);
+              quad(gw, [wx, _doorH, wz1], [wx1, _doorH, wz1], [wx1, _doorH, wz1 + _frameD], [wx, _doorH, wz1 + _frameD], 0, 0, 1, 1, [_frameCol[0], _frameCol[1], _frameCol[2], _frameCol[0]]);
+              /* 门洞上方墙体（门头到天花板） */
+              quad(gw, [wx, _doorH, wz], [wx, WALL_H, wz], [wx1, WALL_H, wz], [wx1, _doorH, wz], 0, 0, 1, 1, [0.6, 0.6, 0.6, 0.6]);
+              quad(gw, [wx1, _doorH, wz1], [wx1, WALL_H, wz1], [wx, WALL_H, wz1], [wx, _doorH, wz1], 0, 0, 1, 1, [0.6, 0.6, 0.6, 0.6]);
+              /* 门板（可旋转的独立mesh） */
+              const _doorKey = (lx + ox) + ',' + (ly + oy);
+              const _doorClosed = world.doorStates && world.doorStates[_doorKey];
+              const _doorPanelW = CELL - _frameW * 2;
+              const _doorPanelH = _doorH - 0.05;
+              const _doorGeo = new THREE.BoxGeometry(_doorPanelW, _doorPanelH, 0.04);
+              const _doorMat = new THREE.MeshStandardMaterial({ color: 0x5a3a2a, roughness: 0.85, metalness: 0.05 });
+              const _doorMesh = new THREE.Mesh(_doorGeo, _doorMat);
+              /* 门板以左侧为铰链 */
+              const _doorPivot = new THREE.Group();
+              _doorPivot.position.set(wx + _frameW, _doorPanelH / 2 + 0.025, wz);
+              _doorMesh.position.set(_doorPanelW / 2, 0, 0);
+              _doorPivot.add(_doorMesh);
+              /* 门把手 — 金色小球 */
+              const _handleGeo = new THREE.SphereGeometry(0.03, 8, 6);
+              const _handleMat = new THREE.MeshStandardMaterial({ color: 0xffcc44, emissive: 0x554400, emissiveIntensity: 0.3, metalness: 0.8, roughness: 0.3 });
+              const _handle = new THREE.Mesh(_handleGeo, _handleMat);
+              _handle.position.set(_doorPanelW - 0.1, 0, 0.04);
+              _doorPivot.add(_handle);
+              /* 旋转：关闭=0度，打开=85度 */
+              _doorPivot.rotation.y = _doorClosed ? 0 : -Math.PI * 85 / 180;
+              this.worldGroup.add(_doorPivot);
+              this.chunkList.push(_doorPivot);
             } else if (isWall) {
-              /* 迭代32：5%概率使用带文字的墙面 */
-              const _useWT = _wtEnabled && _wtRng() < 0.05;
+              /* 迭代13: 10% wallText + 5% damaged变体 + 变体色调 */
+              const _wtRoll = _wtRng();
+              const _useWT = _wtEnabled && _wtRoll < 0.10;
+              const _useDmg = !_useWT && _wtRoll >= 0.10 && _wtRoll < 0.15;
               const _gwall = _useWT ? gwt : gw;
+              /* 迭代13: 变体色调 ±10% */
+              const _wHash = ((lx * 73856093) ^ (ly * 19349663) ^ ((world.level ? (world.level.id || 0) : 0) * 83492791)) >>> 0;
+              const _wTone = 1.0 + ((_wHash % 100) - 50) / 500;
+              const _wDmg = _useDmg ? 0.75 : 1.0;
+              const _wc = 0.70 * _wTone * _wDmg;
+              const _wc2 = 0.45 * _wTone * _wDmg;
               if (!solidAt(lx, ly - 1)) {
-                quad(_gwall, [wx, 0, wz], [wx, WALL_H, wz], [wx1, WALL_H, wz], [wx1, 0, wz], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
-                /* 墙基踢脚线（底部暗色条带） */
-                const bsH = 0.08;
-                quad(_gwall, [wx, 0, wz], [wx, bsH, wz], [wx1, bsH, wz], [wx1, 0, wz], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
+                quad(_gwall, [wx, 0, wz], [wx, WALL_H, wz], [wx1, WALL_H, wz], [wx1, 0, wz], 0, 0, 1, 1, [_wc, 1, 1, _wc]);
+                /* 迭代31：3D踢脚线（0.15高×0.05深）+ 顶线（0.1高×0.08深） */
+                addStrip3D(_gwall, 'N', wx, wz, wx1, wz1, 0, 0.15, 0.05, _wc * 0.85, true);
+                addStrip3D(_gwall, 'N', wx, wz, wx1, wz1, WALL_H - 0.1, WALL_H, 0.08, Math.min(1, _wc * 1.05), false);
               }
               if (!solidAt(lx, ly + 1)) {
-                quad(_gwall, [wx1, 0, wz1], [wx1, WALL_H, wz1], [wx, WALL_H, wz1], [wx, 0, wz1], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
-                quad(_gwall, [wx1, 0, wz1], [wx1, 0.08, wz1], [wx, 0.08, wz1], [wx, 0, wz1], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
+                quad(_gwall, [wx1, 0, wz1], [wx1, WALL_H, wz1], [wx, WALL_H, wz1], [wx, 0, wz1], 0, 0, 1, 1, [_wc, 1, 1, _wc]);
+                addStrip3D(_gwall, 'S', wx, wz, wx1, wz1, 0, 0.15, 0.05, _wc * 0.85, true);
+                addStrip3D(_gwall, 'S', wx, wz, wx1, wz1, WALL_H - 0.1, WALL_H, 0.08, Math.min(1, _wc * 1.05), false);
               }
               if (!solidAt(lx - 1, ly)) {
-                quad(_gwall, [wx, 0, wz1], [wx, WALL_H, wz1], [wx, WALL_H, wz], [wx, 0, wz], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
-                quad(_gwall, [wx, 0, wz1], [wx, 0.08, wz1], [wx, 0.08, wz], [wx, 0, wz], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
+                quad(_gwall, [wx, 0, wz1], [wx, WALL_H, wz1], [wx, WALL_H, wz], [wx, 0, wz], 0, 0, 1, 1, [_wc, 1, 1, _wc]);
+                addStrip3D(_gwall, 'W', wx, wz, wx1, wz1, 0, 0.15, 0.05, _wc * 0.85, true);
+                addStrip3D(_gwall, 'W', wx, wz, wx1, wz1, WALL_H - 0.1, WALL_H, 0.08, Math.min(1, _wc * 1.05), false);
               }
               if (!solidAt(lx + 1, ly)) {
-                quad(_gwall, [wx1, 0, wz], [wx1, WALL_H, wz], [wx1, WALL_H, wz1], [wx1, 0, wz1], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
-                quad(_gwall, [wx1, 0, wz], [wx1, 0.08, wz], [wx1, 0.08, wz1], [wx1, 0, wz1], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
+                quad(_gwall, [wx1, 0, wz], [wx1, WALL_H, wz], [wx1, WALL_H, wz1], [wx1, 0, wz1], 0, 0, 1, 1, [_wc, 1, 1, _wc]);
+                addStrip3D(_gwall, 'E', wx, wz, wx1, wz1, 0, 0.15, 0.05, _wc * 0.85, true);
+                addStrip3D(_gwall, 'E', wx, wz, wx1, wz1, WALL_H - 0.1, WALL_H, 0.08, Math.min(1, _wc * 1.05), false);
+              }
+              /* 迭代32：壁柱系统 — 长直墙面（3+格）每隔3格添加壁柱 */
+              const _pilC = _wc * 0.95; /* 壁柱颜色略暗 */
+              const _pilD = 0.1; /* 壁柱凸出深度 */
+              const _pilW = 0.15; /* 壁柱宽度 */
+              /* 北面：墙沿x延伸 */
+              if (!solidAt(lx, ly - 1) && lx % 3 === 0 &&
+                  ((solidAt(lx - 1, ly) && !solidAt(lx - 1, ly - 1)) || (solidAt(lx + 1, ly) && !solidAt(lx + 1, ly - 1)))) {
+                const _pcx = wx + CELL / 2;
+                addStrip3D(_gwall, 'N', _pcx - _pilW/2, wz, _pcx + _pilW/2, wz, 0.15, WALL_H - 0.1, _pilD, _pilC, false);
+                /* 壁龛：20%概率 */
+                if (((_wHash >>> 7) % 5) === 0 && this._nicheLightCount < 4) {
+                  this._nicheLightCount++;
+                  const _nl = new THREE.PointLight(0xffd080, 0.3, 3 * CELL, 1.5);
+                  _nl.position.set(_pcx, WALL_H * 0.5, wz - _pilD - 0.05);
+                  this.worldGroup.add(_nl);
+                  this.chunkList.push(_nl);
+                  /* 壁龛暗色凹槽 */
+                  quad(_gwall, [_pcx - 0.2, WALL_H * 0.3, wz - 0.02], [_pcx - 0.2, WALL_H * 0.9, wz - 0.02], [_pcx + 0.2, WALL_H * 0.9, wz - 0.02], [_pcx + 0.2, WALL_H * 0.3, wz - 0.02], 0, 0, 1, 1, [0.15, 0.15, 0.15, 0.15]);
+                }
+              }
+              /* 南面 */
+              if (!solidAt(lx, ly + 1) && lx % 3 === 0 &&
+                  ((solidAt(lx - 1, ly) && !solidAt(lx - 1, ly + 1)) || (solidAt(lx + 1, ly) && !solidAt(lx + 1, ly + 1)))) {
+                const _pcx = wx + CELL / 2;
+                addStrip3D(_gwall, 'S', _pcx - _pilW/2, wz1, _pcx + _pilW/2, wz1, 0.15, WALL_H - 0.1, _pilD, _pilC, false);
+                if (((_wHash >>> 11) % 5) === 0 && this._nicheLightCount < 4) {
+                  this._nicheLightCount++;
+                  const _nl = new THREE.PointLight(0xffd080, 0.3, 3 * CELL, 1.5);
+                  _nl.position.set(_pcx, WALL_H * 0.5, wz1 + _pilD + 0.05);
+                  this.worldGroup.add(_nl);
+                  this.chunkList.push(_nl);
+                  quad(_gwall, [_pcx + 0.2, WALL_H * 0.3, wz1 + 0.02], [_pcx + 0.2, WALL_H * 0.9, wz1 + 0.02], [_pcx - 0.2, WALL_H * 0.9, wz1 + 0.02], [_pcx - 0.2, WALL_H * 0.3, wz1 + 0.02], 0, 0, 1, 1, [0.15, 0.15, 0.15, 0.15]);
+                }
+              }
+              /* 西面：墙沿z延伸 */
+              if (!solidAt(lx - 1, ly) && ly % 3 === 0 &&
+                  ((solidAt(lx, ly - 1) && !solidAt(lx - 1, ly - 1)) || (solidAt(lx, ly + 1) && !solidAt(lx - 1, ly + 1)))) {
+                const _pcz = wz + CELL / 2;
+                addStrip3D(_gwall, 'W', wx, _pcz - _pilW/2, wx1, _pcz + _pilW/2, 0.15, WALL_H - 0.1, _pilD, _pilC, false);
+                if (((_wHash >>> 13) % 5) === 0 && this._nicheLightCount < 4) {
+                  this._nicheLightCount++;
+                  const _nl = new THREE.PointLight(0xffd080, 0.3, 3 * CELL, 1.5);
+                  _nl.position.set(wx - _pilD - 0.05, WALL_H * 0.5, _pcz);
+                  this.worldGroup.add(_nl);
+                  this.chunkList.push(_nl);
+                  quad(_gwall, [wx - 0.02, WALL_H * 0.3, _pcz + 0.2], [wx - 0.02, WALL_H * 0.9, _pcz + 0.2], [wx - 0.02, WALL_H * 0.9, _pcz - 0.2], [wx - 0.02, WALL_H * 0.3, _pcz - 0.2], 0, 0, 1, 1, [0.15, 0.15, 0.15, 0.15]);
+                }
+              }
+              /* 东面 */
+              if (!solidAt(lx + 1, ly) && ly % 3 === 0 &&
+                  ((solidAt(lx, ly - 1) && !solidAt(lx + 1, ly - 1)) || (solidAt(lx, ly + 1) && !solidAt(lx + 1, ly + 1)))) {
+                const _pcz = wz + CELL / 2;
+                addStrip3D(_gwall, 'E', wx, _pcz - _pilW/2, wx1, _pcz + _pilW/2, 0.15, WALL_H - 0.1, _pilD, _pilC, false);
+                if (((_wHash >>> 17) % 5) === 0 && this._nicheLightCount < 4) {
+                  this._nicheLightCount++;
+                  const _nl = new THREE.PointLight(0xffd080, 0.3, 3 * CELL, 1.5);
+                  _nl.position.set(wx1 + _pilD + 0.05, WALL_H * 0.5, _pcz);
+                  this.worldGroup.add(_nl);
+                  this.chunkList.push(_nl);
+                  quad(_gwall, [wx1 + 0.02, WALL_H * 0.3, _pcz - 0.2], [wx1 + 0.02, WALL_H * 0.9, _pcz - 0.2], [wx1 + 0.02, WALL_H * 0.9, _pcz + 0.2], [wx1 + 0.02, WALL_H * 0.3, _pcz + 0.2], 0, 0, 1, 1, [0.15, 0.15, 0.15, 0.15]);
+                }
               }
             } else {
-              /* Corner shading + 地板边缘暗化（伪AO） */
-              const aoN = solidAt(lx, ly - 1) ? 0.55 : 1;
-              const aoS = solidAt(lx, ly + 1) ? 0.55 : 1;
-              const aoW = solidAt(lx - 1, ly) ? 0.55 : 1;
-              const aoE = solidAt(lx + 1, ly) ? 0.55 : 1;
-              const cs = [(aoN * aoW), (aoN * aoE), (aoS * aoE), (aoS * aoW)];
+              /* 迭代14: 增强环境遮蔽 — 墙角0.65, 边缘0.85, 中央1.0 */
+              const wallN = solidAt(lx, ly - 1);
+              const wallS = solidAt(lx, ly + 1);
+              const wallW = solidAt(lx - 1, ly);
+              const wallE = solidAt(lx + 1, ly);
+              const _aoN = wallN ? 0.85 : 1;
+              const _aoS = wallS ? 0.85 : 1;
+              const _aoW = wallW ? 0.85 : 1;
+              const _aoE = wallE ? 0.85 : 1;
+              const aoNW = (wallN && wallW) ? 0.65 : (_aoN * _aoW);
+              const aoNE = (wallN && wallE) ? 0.65 : (_aoN * _aoE);
+              const aoSE = (wallS && wallE) ? 0.65 : (_aoS * _aoE);
+              const aoSW = (wallS && wallW) ? 0.65 : (_aoS * _aoW);
+              /* 迭代13: 纹理变体 — 基于区域hash的色调变化 ±10% */
+              const _vHash = ((lx * 73856093) ^ (ly * 19349663) ^ ((world.level ? (world.level.id || 0) : 0) * 83492791)) >>> 0;
+              const _vTone = 1.0 + ((_vHash % 100) - 50) / 500;
+              const cs = [aoNW * _vTone, aoNE * _vTone, aoSE * _vTone, aoSW * _vTone];
               /* 迭代33：8%概率使用带痕迹的地面 */
               const _useFS = _fsEnabled && _wtRng() < 0.08;
-              quad(_useFS ? gfs : gf, [wx, 0, wz1], [wx1, 0, wz1], [wx1, 0, wz], [wx, 0, wz], 0, 0, 1, 1, cs);
-              /* 天花板边缘暗化 */
-              const cs2 = [(aoN * aoW * 0.9), (aoN * aoE * 0.9), (aoS * aoE * 0.9), (aoS * aoW * 0.9)];
+              /* 迭代28：垂直变化 — 地板Y根据height数组偏移 */
+              const _fH = (world.height[ly * W + lx] || 0) * CELL;
+              quad(_useFS ? gfs : gf, [wx, _fH, wz1], [wx1, _fH, wz1], [wx1, _fH, wz], [wx, _fH, wz], 0, 0, 1, 1, cs);
+              /* 迭代14: 天花板边缘暗化 + 变体色调 */
+              const cs2 = [aoNW * 0.9 * _vTone, aoNE * 0.9 * _vTone, aoSE * 0.9 * _vTone, aoSW * 0.9 * _vTone];
               quad(gc, [wx, WALL_H, wz], [wx1, WALL_H, wz], [wx1, WALL_H, wz1], [wx, WALL_H, wz1], 0, 0, 1, 1, cs2);
               if (lampAt(lx, ly)) {
                 const p = 0.30;
@@ -10768,7 +11877,7 @@ class ThreeJSRendererBridge {
               /* 水面：在有 WATER 标记的格子上方渲染透明蓝色平面 */
               const fi = ly * W + lx;
               if (world.flags[fi] & F.WATER) {
-                const wh = 0.42; /* 水面高度 */
+                const wh = _fH + 0.42; /* 水面高度 = 地板高度 + 水位 */
                 quad(gwat, [wx, wh, wz1], [wx1, wh, wz1], [wx1, wh, wz], [wx, wh, wz], 0, 0, 1, 1, [0.8, 0.9, 1, 0.8]);
               }
             }
@@ -10780,6 +11889,9 @@ class ThreeJSRendererBridge {
         });
       }
     }
+
+    /* 迭代45: 关卡专属装饰物 */
+    this._buildLevelDecor();
 
     /* Collect lamp positions for light pool — only within VIEW_R of player */
     this._lamps = [];
@@ -10857,53 +11969,1957 @@ class ThreeJSRendererBridge {
       }
     }
   }
+
+  /* 迭代45: 关卡专属环境装饰 */
+  _buildLevelDecor() {
+    const THREE = window.THREE;
+    const world = this._world;
+    if (!world) return;
+    const ox = world.ox, oy = world.oy;
+    const W = world.w, H = world.h;
+    const px = Math.floor(W / 2), py = Math.floor(H / 2);
+    const VIEW_R = 36;
+    const gen = world.level ? world.level.gen : '';
+    const levelId = world.level ? (world.level.id || 0) : 0;
+    const _rng = mulberry32(levelId * 7919 + 42);
+
+    const solidAt = (lx, ly) => {
+      if (lx < 0 || ly < 0 || lx >= W || ly >= H) return true;
+      return world.height[ly * W + lx] > 0.6;
+    };
+
+    if (this._levelDecorMeshes) {
+      for (const m of this._levelDecorMeshes) {
+        this.worldGroup.remove(m);
+        if (m.traverse) m.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(mt => mt.dispose()); else c.material.dispose(); } });
+        else { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }
+      }
+    }
+    this._levelDecorMeshes = [];
+
+    for (let ly = Math.max(0, py - VIEW_R); ly < Math.min(H, py + VIEW_R); ly++) {
+      for (let lx = Math.max(0, px - VIEW_R); lx < Math.min(W, px + VIEW_R); lx++) {
+        if (solidAt(lx, ly)) continue;
+        const dist = Math.hypot(lx - px, ly - py);
+        if (dist > VIEW_R) continue;
+        const wx = (lx + ox) * CELL, wz = (ly + oy) * CELL;
+        const cx = wx + CELL / 2, cz = wz + CELL / 2;
+        const _hash = ((lx * 73856093) ^ (ly * 19349663) ^ (levelId * 83492791)) >>> 0;
+
+        if (gen === 'corridor') {
+          /* 5%概率挂画框，3%概率挂钟 */
+          if (_hash % 100 < 5) {
+            const frame = new THREE.Group();
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.8 });
+            const top = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.03, 0.03), frameMat);
+            top.position.y = 0.25; frame.add(top);
+            const bot = top.clone(); bot.position.y = -0.25; frame.add(bot);
+            const lf = top.clone(); lf.rotation.z = Math.PI/2; lf.position.set(-0.2, 0, 0); lf.scale.set(1.25,1,1); frame.add(lf);
+            const rt = lf.clone(); rt.position.set(0.2, 0, 0); frame.add(rt);
+            const canvas = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.44),
+              new THREE.MeshStandardMaterial({ color: 0x6a5a3a, roughness: 0.95 }));
+            canvas.position.z = 0.01; frame.add(canvas);
+            if (!solidAt(lx, ly - 1)) { frame.position.set(cx, WALL_H * 0.55, wz - 0.02); }
+            else if (!solidAt(lx + 1, ly)) { frame.position.set(wx + CELL - 0.02, WALL_H * 0.55, cz); frame.rotation.y = Math.PI / 2; }
+            else if (!solidAt(lx, ly + 1)) { frame.position.set(cx, WALL_H * 0.55, wz + CELL + 0.02); frame.rotation.y = Math.PI; }
+            else if (!solidAt(lx - 1, ly)) { frame.position.set(wx - 0.02, WALL_H * 0.55, cz); frame.rotation.y = -Math.PI / 2; }
+            else continue;
+            this.worldGroup.add(frame); this._levelDecorMeshes.push(frame);
+          } else if (_hash % 100 < 8) {
+            /* 挂钟 */
+            const clock = new THREE.Group();
+            const face = new THREE.Mesh(new THREE.CircleGeometry(0.12, 16),
+              new THREE.MeshStandardMaterial({ color: 0xe0e0d0, roughness: 0.5 }));
+            clock.add(face);
+            const hand = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.08, 0.005),
+              new THREE.MeshBasicMaterial({ color: 0x111111 }));
+            hand.position.set(0, 0.02, 0.01); clock.add(hand);
+            if (!solidAt(lx, ly - 1)) { clock.position.set(cx, WALL_H * 0.6, wz - 0.02); }
+            else if (!solidAt(lx + 1, ly)) { clock.position.set(wx + CELL - 0.02, WALL_H * 0.6, cz); clock.rotation.y = Math.PI / 2; }
+            else if (!solidAt(lx, ly + 1)) { clock.position.set(cx, WALL_H * 0.6, wz + CELL + 0.02); clock.rotation.y = Math.PI; }
+            else if (!solidAt(lx - 1, ly)) { clock.position.set(wx - 0.02, WALL_H * 0.6, cz); clock.rotation.y = -Math.PI / 2; }
+            else continue;
+            this.worldGroup.add(clock); this._levelDecorMeshes.push(clock);
+          }
+        } else if (gen === 'hotel') {
+          /* 5%概率行李架 */
+          if (_hash % 100 < 5 && !solidAt(lx, ly - 1)) {
+            const rack = new THREE.Group();
+            const rackMat = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.85 });
+            const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.03, 0.2), rackMat);
+            shelf.position.y = 0.35; rack.add(shelf);
+            [[-0.22, -0.08], [0.22, -0.08], [-0.22, 0.08], [0.22, 0.08]].forEach(([x, z]) => {
+              const leg = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.35, 0.03), rackMat);
+              leg.position.set(x, 0.175, z); rack.add(leg);
+            });
+            rack.position.set(cx, 0, wz - 0.1);
+            this.worldGroup.add(rack); this._levelDecorMeshes.push(rack);
+          }
+        } else if (gen === 'parking') {
+          /* 角落交通锥 */
+          if (_hash % 100 < 3) {
+            const cone = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 8),
+              new THREE.MeshStandardMaterial({ color: 0xff6600, roughness: 0.6 }));
+            cone.position.set(cx, 0.15, cz);
+            this.worldGroup.add(cone); this._levelDecorMeshes.push(cone);
+          }
+        } else if (gen === 'pipe') {
+          /* 3%概率锈蚀标语牌 */
+          if (_hash % 100 < 3) {
+            const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.2),
+              new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 0.9, side: THREE.DoubleSide }));
+            sign.position.set(cx, WALL_H * 0.5, wz - 0.02);
+            this.worldGroup.add(sign); this._levelDecorMeshes.push(sign);
+          }
+        } else if (gen === 'windows') {
+          /* 窗台枯萎植物 */
+          if (_hash % 100 < 5) {
+            const plant = new THREE.Group();
+            const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.04, 0.1, 8),
+              new THREE.MeshStandardMaterial({ color: 0x6a5a4a, roughness: 0.8 }));
+            pot.position.y = 0.05; plant.add(pot);
+            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.2, 4),
+              new THREE.MeshStandardMaterial({ color: 0x3a3a20, roughness: 0.95 }));
+            stem.position.y = 0.2; plant.add(stem);
+            plant.position.set(cx, 0, cz);
+            this.worldGroup.add(plant); this._levelDecorMeshes.push(plant);
+          }
+        } else if (gen === 'finale') {
+          /* 3%概率神秘符号 */
+          if (_hash % 100 < 3) {
+            const symCanvas = document.createElement('canvas');
+            symCanvas.width = 64; symCanvas.height = 64;
+            const sg = symCanvas.getContext('2d');
+            sg.fillStyle = 'rgba(80,10,60,0.8)';
+            sg.font = '40px serif';
+            const _symbols = ['☥', '⚜', '✡', '⚛', '✦', '⛧'];
+            sg.fillText(_symbols[_hash % _symbols.length], 12, 48);
+            const symTex = new THREE.CanvasTexture(symCanvas);
+            const sym = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 0.25),
+              new THREE.MeshBasicMaterial({ map: symTex, transparent: true, side: THREE.DoubleSide }));
+            if (!solidAt(lx, ly - 1)) { sym.position.set(cx, WALL_H * 0.6, wz - 0.02); }
+            else if (!solidAt(lx + 1, ly)) { sym.position.set(wx + CELL - 0.02, WALL_H * 0.6, cz); sym.rotation.y = Math.PI / 2; }
+            else if (!solidAt(lx, ly + 1)) { sym.position.set(cx, WALL_H * 0.6, wz + CELL + 0.02); sym.rotation.y = Math.PI; }
+            else if (!solidAt(lx - 1, ly)) { sym.position.set(wx - 0.02, WALL_H * 0.6, cz); sym.rotation.y = -Math.PI / 2; }
+            else continue;
+            this.worldGroup.add(sym); this._levelDecorMeshes.push(sym);
+          }
+        } else if (gen === 'grid') {
+          /* 5%概率电脑屏幕 */
+          if (_hash % 100 < 5) {
+            const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.2),
+              new THREE.MeshStandardMaterial({ color: 0x0a0a1a, emissive: 0x102040, emissiveIntensity: 0.4, side: THREE.DoubleSide }));
+            screen.position.set(cx, 0.8, cz - 0.1);
+            this.worldGroup.add(screen); this._levelDecorMeshes.push(screen);
+            const screenLight = new THREE.PointLight(0x2040a0, 0.2, 2, 2);
+            screenLight.position.set(cx, 0.8, cz);
+            this.worldGroup.add(screenLight); this._levelDecorMeshes.push(screenLight);
+          }
+        }
+      }
+    }
+  }
+
   _buildLampFixtures() {
     const THREE = window.THREE;
     /* 清除旧灯具 */
     if (this._lampFixtures) {
       for (const m of this._lampFixtures) {
         this.scene.remove(m);
-        if (m.geometry) m.geometry.dispose();
-        if (m.material) m.material.dispose();
+        if (m.traverse) m.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(mt => mt.dispose()); else c.material.dispose(); } });
+        else { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }
       }
     }
     this._lampFixtures = [];
     if (!this._lamps || !this._lamps.length) return;
 
-    const fixtureGeo = new THREE.BoxGeometry(0.35, 0.06, 0.35);
-    const fixtureMat = new THREE.MeshBasicMaterial({ color: 0xfff5d0 });
-    const frameGeo = new THREE.BoxGeometry(0.40, 0.08, 0.40);
-    const frameMat = new THREE.MeshPhongMaterial({ color: 0x888880, shininess: 15 });
+    const world = this._world;
+    const wtype = (world && world.level) ? world.level.gen : '';
 
     for (const lamp of this._lamps) {
-      /* 灯罩框架 */
-      const frame = new THREE.Mesh(frameGeo, frameMat);
-      frame.position.set(lamp.x, WALL_H - 0.04, lamp.z);
-      this.scene.add(frame);
-      this._lampFixtures.push(frame);
-      /* 发光面板 */
-      const panel = new THREE.Mesh(fixtureGeo, fixtureMat);
-      panel.position.set(lamp.x, WALL_H - 0.06, lamp.z);
-      this.scene.add(panel);
-      this._lampFixtures.push(panel);
+      let fixture;
+      const r = Math.random();
+      if (wtype === 'parking' || wtype === 'maintenance' || wtype === 'pipe') {
+        fixture = this._makeEmergencyLight();
+      } else if (r < 0.05) {
+        /* 5%概率 wall light */
+        fixture = this._makeWallLight();
+      } else {
+        fixture = this._makeCeilingLight();
+      }
+      fixture.position.set(lamp.x, WALL_H - 0.1, lamp.z);
+      this.scene.add(fixture);
+      this._lampFixtures.push(fixture);
+    }
+  }
+
+  /* ============================================================
+     迭代34-40: 3D细节建模系统 — 对标 Escape the Backrooms
+     ============================================================ */
+
+  /* 迭代34: 桌子 */
+  _makeDesk() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3a2a, roughness: 0.8, metalness: 0.05 });
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4e, roughness: 0.6, metalness: 0.4 });
+    /* 桌面 */
+    const top = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.05, 0.4), woodMat);
+    top.position.set(0, 0.75, 0); g.add(top);
+    /* 4条桌腿 */
+    const legGeo = new THREE.BoxGeometry(0.05, 0.75, 0.05);
+    [[-0.35, -0.17], [0.35, -0.17], [-0.35, 0.17], [0.35, 0.17]].forEach(([x, z]) => {
+      const leg = new THREE.Mesh(legGeo, metalMat);
+      leg.position.set(x, 0.375, z); g.add(leg);
+    });
+    /* 抽屉 */
+    const drawer = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.05), woodMat);
+    drawer.position.set(0, 0.6, -0.17); g.add(drawer);
+    const handle = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 4), metalMat);
+    handle.position.set(0, 0.6, -0.19); g.add(handle);
+    return g;
+  }
+
+  /* 迭代34: 椅子 */
+  _makeChair() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.85, metalness: 0.05 });
+    /* 座面 */
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.4), woodMat);
+    seat.position.set(0, 0.45, 0); g.add(seat);
+    /* 4条腿 */
+    const legGeo = new THREE.BoxGeometry(0.04, 0.45, 0.04);
+    [[-0.17, -0.17], [0.17, -0.17], [-0.17, 0.17], [0.17, 0.17]].forEach(([x, z]) => {
+      const leg = new THREE.Mesh(legGeo, woodMat);
+      leg.position.set(x, 0.225, z); g.add(leg);
+    });
+    /* 靠背 */
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.03), woodMat);
+    back.position.set(0, 0.72, -0.18); g.add(back);
+    return g;
+  }
+
+  /* 迭代34: 货架 */
+  _makeShelf() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x4a3525, roughness: 0.85, metalness: 0.05 });
+    /* 侧板 */
+    const sideGeo = new THREE.BoxGeometry(0.04, 1.8, 0.3);
+    const sL = new THREE.Mesh(sideGeo, mat); sL.position.set(-0.38, 0.9, 0); g.add(sL);
+    const sR = new THREE.Mesh(sideGeo, mat); sR.position.set(0.38, 0.9, 0); g.add(sR);
+    /* 4层隔板 */
+    const shelfGeo = new THREE.BoxGeometry(0.8, 0.03, 0.3);
+    for (let i = 0; i < 4; i++) {
+      const shelf = new THREE.Mesh(shelfGeo, mat);
+      shelf.position.set(0, 0.15 + i * 0.5, 0); g.add(shelf);
+    }
+    /* 背板 */
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.02), mat);
+    back.position.set(0, 0.9, -0.14); g.add(back);
+    return g;
+  }
+
+  /* 迭代35: 文件柜 */
+  _makeCabinet() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.6, metalness: 0.4 });
+    /* 柜体 */
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.3, 0.5), mat);
+    body.position.set(0, 0.65, 0); g.add(body);
+    /* 3个抽屉线 */
+    const lineMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1e, roughness: 0.8 });
+    for (let i = 0; i < 3; i++) {
+      const line = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.02, 0.01), lineMat);
+      line.position.set(0, 0.3 + i * 0.35, 0.25); g.add(line);
+    }
+    /* 标签牌 */
+    const label = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.04, 0.01),
+      new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.5 }));
+    label.position.set(0, 1.15, 0.26); g.add(label);
+    /* 把手 */
+    const handleMat = new THREE.MeshStandardMaterial({ color: 0x888890, metalness: 0.6, roughness: 0.3 });
+    for (let i = 0; i < 3; i++) {
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.02, 0.02), handleMat);
+      handle.position.set(0, 0.15 + i * 0.35, 0.26); g.add(handle);
+    }
+    return g;
+  }
+
+  /* 迭代35: 桶 */
+  _makeBarrel() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x4a3530, roughness: 0.7, metalness: 0.3 });
+    /* 桶身 */
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.28, 0.9, 12), mat);
+    body.position.set(0, 0.45, 0); g.add(body);
+    /* 2道箍 */
+    const ringMat = new THREE.MeshStandardMaterial({ color: 0x2a2520, roughness: 0.5, metalness: 0.5 });
+    const ringGeo = new THREE.TorusGeometry(0.3, 0.02, 6, 16);
+    const r1 = new THREE.Mesh(ringGeo, ringMat); r1.position.set(0, 0.7, 0); r1.rotation.x = Math.PI / 2; g.add(r1);
+    const r2 = new THREE.Mesh(ringGeo, ringMat); r2.position.set(0, 0.2, 0); r2.rotation.x = Math.PI / 2; g.add(r2);
+    return g;
+  }
+
+  /* 迭代36: 3D管道 */
+  _makePipe3D(variant) {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    let color = 0x5a5a5e;
+    if (variant === 'steam') color = 0x8a3a2a;
+    else if (variant === 'drain') color = 0x2a4a3a;
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.4 });
+    /* 管道主体 — 沿墙面延伸 */
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, CELL, 8), mat);
+    pipe.position.set(0, WALL_H * 0.65, 0); pipe.rotation.z = Math.PI / 2; g.add(pipe);
+    /* 阀门 */
+    const valve = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.15, 8), mat);
+    valve.position.set(0, WALL_H * 0.65, 0); g.add(valve);
+    /* 手轮 */
+    const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.02, 6, 12), mat);
+    wheel.position.set(0, WALL_H * 0.65 + 0.15, 0); g.add(wheel);
+    /* 支架 */
+    const bracketMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.7, metalness: 0.3 });
+    for (let i = -1; i <= 1; i += 2) {
+      const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.1, 0.12), bracketMat);
+      bracket.position.set(i * CELL * 0.35, WALL_H * 0.65, 0.08); g.add(bracket);
+    }
+    return g;
+  }
+
+  /* 迭代37: 吸顶灯 */
+  _makeCeilingLight() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    /* 灯管 */
+    const tube = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 0.15),
+      new THREE.MeshBasicMaterial({ color: 0xfff5d0 }));
+    g.add(tube);
+    /* 灯罩 */
+    const shade = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.05, 0.2),
+      new THREE.MeshStandardMaterial({ color: 0x888880, roughness: 0.5, metalness: 0.3 }));
+    shade.position.y = -0.04; g.add(shade);
+    /* 支架 */
+    const bracketMat = new THREE.MeshStandardMaterial({ color: 0x666660, metalness: 0.5, roughness: 0.4 });
+    const b1 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.1, 6), bracketMat);
+    b1.position.set(-0.2, 0.07, 0); g.add(b1);
+    const b2 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.1, 6), bracketMat);
+    b2.position.set(0.2, 0.07, 0); g.add(b2);
+    return g;
+  }
+
+  /* 迭代37: 壁灯 */
+  _makeWallLight() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    /* 灯座 */
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.05),
+      new THREE.MeshStandardMaterial({ color: 0x444440, roughness: 0.6, metalness: 0.3 }));
+    g.add(base);
+    /* 灯罩 — 半圆锥向下倾斜 */
+    const shade = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.15, 8, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0xffe9b8, emissive: 0xffaa44, emissiveIntensity: 0.3, side: THREE.DoubleSide }));
+    shade.position.set(0, -0.1, 0.06); shade.rotation.x = -Math.PI * 0.2; g.add(shade);
+    return g;
+  }
+
+  /* 迭代37: 应急灯 */
+  _makeEmergencyLight() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    /* 盒体 */
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.7 }));
+    g.add(box);
+    /* 红色发光部分 */
+    const led = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.02),
+      new THREE.MeshBasicMaterial({ color: 0xff2222 }));
+    led.position.set(0, 0, 0.05); g.add(led);
+    return g;
+  }
+
+  /* 迭代38: 柱子 */
+  _makeColumn(decorative) {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x6a6a6a, roughness: 0.9, metalness: 0.02 });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.95, metalness: 0.02 });
+    /* 柱基 */
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 0.25), darkMat);
+    base.position.y = 0.125; g.add(base);
+    /* 柱身 */
+    const shaftH = WALL_H - 0.5;
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.2, shaftH, 0.2), mat);
+    shaft.position.y = 0.25 + shaftH / 2; g.add(shaft);
+    /* 柱头 */
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.3), darkMat);
+    cap.position.y = WALL_H - 0.125; g.add(cap);
+    /* 装饰凹槽（ballroom） */
+    if (decorative) {
+      const groove = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, 0.05),
+        new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.95 }));
+      groove.position.set(0, 0.25 + shaftH * 0.5, 0.1); g.add(groove);
+      const groove2 = groove.clone(); groove2.position.z = -0.1; g.add(groove2);
+    }
+    return g;
+  }
+
+  /* 迭代39: 窗户（半墙+窗框+玻璃） */
+  _makeWindow3D() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.6, metalness: 0.4 });
+    /* 半墙 */
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(CELL, 1.2, CELL),
+      new THREE.MeshStandardMaterial({ color: 0x6a6a6a, roughness: 0.85 }));
+    wall.position.y = 0.6; g.add(wall);
+    /* 窗框 — 2×3网格 */
+    const frameThick = 0.05;
+    const winY = 1.2;
+    const winH = 0.8;
+    /* 水平框 — 4条=3行 */
+    for (let i = 0; i <= 3; i++) {
+      const fy = winY + (winH * i / 3);
+      const f = new THREE.Mesh(new THREE.BoxGeometry(CELL, frameThick, 0.1), frameMat);
+      f.position.set(0, fy, 0); g.add(f);
+    }
+    /* 垂直框 — 3条=2列 */
+    for (let i = 0; i <= 2; i++) {
+      const fx = (i - 1) * CELL / 2;
+      const f = new THREE.Mesh(new THREE.BoxGeometry(frameThick, winH, 0.1), frameMat);
+      f.position.set(fx, winY + winH / 2, 0); g.add(f);
+    }
+    /* 玻璃 */
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(CELL, winH),
+      new THREE.MeshStandardMaterial({ color: 0x88aabb, transparent: true, opacity: 0.15, roughness: 0.1, metalness: 0.3, side: THREE.DoubleSide }));
+    glass.position.set(0, winY + winH / 2, 0); g.add(glass);
+    /* 暗色背景平面 — 模拟窗外黑夜 */
+    const bg = new THREE.Mesh(new THREE.PlaneGeometry(CELL, winH),
+      new THREE.MeshBasicMaterial({ color: 0x0a1020 }));
+    bg.position.set(0, winY + winH / 2, -0.03); g.add(bg);
+    return g;
+  }
+
+  /* 迭代39: 通风口 */
+  _makeVent3D() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.6, metalness: 0.4 });
+    /* 凹入的方框 */
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.02), mat);
+    g.add(frame);
+    /* 百叶窗 — 5条斜向薄片 */
+    const slatMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.7, metalness: 0.3, side: THREE.DoubleSide });
+    for (let i = 0; i < 5; i++) {
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.04, 0.01), slatMat);
+      slat.position.set(0, -0.15 + i * 0.075, 0.01);
+      slat.rotation.x = Math.PI / 6; g.add(slat);
+    }
+    return g;
+  }
+
+  /* 迭代34-39: 构建所有3D细节物体 */
+  _buildDetailMeshes() {
+    const THREE = window.THREE;
+    const world = this._world;
+    if (!world) return;
+    const ox = world.ox, oy = world.oy;
+    const W = world.w, H = world.h;
+    const px = Math.floor(W / 2), py = Math.floor(H / 2);
+    const VIEW_R = 36;
+    const _gen = world.level ? world.level.gen : '';
+
+    /* 清除旧细节物体 */
+    if (this._detailMeshes) {
+      for (const m of this._detailMeshes) {
+        this.worldGroup.remove(m);
+        if (m.traverse) m.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(mt => mt.dispose()); else c.material.dispose(); } });
+        else { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }
+      }
+    }
+    this._detailMeshes = [];
+    this._dripCount = 0;
+
+    const solidAt = (lx, ly) => {
+      if (lx < 0 || ly < 0 || lx >= W || ly >= H) return true;
+      return world.height[ly * W + lx] > 0.6;
+    };
+
+    for (let ly = Math.max(0, py - VIEW_R); ly < Math.min(H, py + VIEW_R); ly++) {
+      for (let lx = Math.max(0, px - VIEW_R); lx < Math.min(W, px + VIEW_R); lx++) {
+        const dist = Math.hypot(lx - px, ly - py);
+        if (dist > VIEW_R) continue;
+        const tileType = world.type[ly * W + lx];
+        const wx = (lx + ox) * CELL, wz = (ly + oy) * CELL;
+        const cx = wx + CELL / 2, cz = wz + CELL / 2;
+
+        if (tileType === TILE.CRATE) {
+          /* 迭代34：CRATE tile有40%desk, 20%chair, 40%crate */
+          const _rng = ((lx * 73856093) ^ (ly * 19349663) ^ ((world.level ? (world.level.id || 0) : 0) * 83492791)) >>> 0;
+          const _roll = _rng % 100;
+          if (dist < 25) {
+            let obj = null;
+            if (_roll < 40) { obj = this._makeDesk(); }
+            else if (_roll < 60) { obj = this._makeChair(); }
+            else {
+              /* 保持crate */
+              obj = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.5),
+                new THREE.MeshStandardMaterial({ color: 0x6b5a3a, roughness: 0.9 }));
+              obj.position.y = 0.2;
+            }
+            if (obj) {
+              obj.position.set(cx, obj.position.y, cz);
+              /* 朝向最近空地 */
+              if (!solidAt(lx, ly - 1)) obj.rotation.y = 0;
+              else if (!solidAt(lx + 1, ly)) obj.rotation.y = Math.PI / 2;
+              else if (!solidAt(lx, ly + 1)) obj.rotation.y = Math.PI;
+              else if (!solidAt(lx - 1, ly)) obj.rotation.y = -Math.PI / 2;
+              this.worldGroup.add(obj);
+              this._detailMeshes.push(obj);
+            }
+          }
+        } else if (tileType === TILE.SHELF) {
+          /* 迭代34：SHELF tile渲染为货架 */
+          if (dist < 25) {
+            const shelf = this._makeShelf();
+            shelf.position.set(cx, 0, cz);
+            if (!solidAt(lx, ly - 1)) shelf.rotation.y = 0;
+            else if (!solidAt(lx + 1, ly)) shelf.rotation.y = Math.PI / 2;
+            else if (!solidAt(lx, ly + 1)) shelf.rotation.y = Math.PI;
+            else if (!solidAt(lx - 1, ly)) shelf.rotation.y = -Math.PI / 2;
+            this.worldGroup.add(shelf);
+            this._detailMeshes.push(shelf);
+          }
+        } else if (tileType === TILE.PIPE) {
+          /* 迭代36：3D管道 */
+          if (dist < 25) {
+            let variant = 'water';
+            const _pHash = ((lx * 31 + ly * 17) ^ ((world.level ? (world.level.id || 0) : 0) * 991)) >>> 0;
+            if (_pHash % 3 === 0) variant = 'steam';
+            else if (_pHash % 3 === 1) variant = 'drain';
+            const pipe = this._makePipe3D(variant);
+            pipe.position.set(cx, 0, cz);
+            if (!solidAt(lx, ly - 1)) pipe.rotation.y = 0;
+            else if (!solidAt(lx + 1, ly)) pipe.rotation.y = Math.PI / 2;
+            else if (!solidAt(lx, ly + 1)) pipe.rotation.y = Math.PI;
+            else if (!solidAt(lx - 1, ly)) pipe.rotation.y = -Math.PI / 2;
+            this.worldGroup.add(pipe);
+            this._detailMeshes.push(pipe);
+            /* 管道滴水 — 某些管道末端蓝色小光点（总数<3） */
+            if (!this._dripCount) this._dripCount = 0;
+            if (_pHash % 7 === 0 && this._dripCount < 3) {
+              this._dripCount++;
+              const drip = new THREE.PointLight(0x4080a0, 0.2, 2, 2);
+              drip.position.set(cx, WALL_H * 0.3, cz);
+              this.worldGroup.add(drip);
+              this._detailMeshes.push(drip);
+            }
+          }
+        } else if (tileType === TILE.VENT) {
+          /* 迭代39：通风口 */
+          if (dist < 25) {
+            const vent = this._makeVent3D();
+            /* 放在墙面上 */
+            if (!solidAt(lx, ly - 1)) { vent.position.set(cx, WALL_H * 0.6, wz); }
+            else if (!solidAt(lx + 1, ly)) { vent.position.set(wx1, WALL_H * 0.6, cz); vent.rotation.y = Math.PI / 2; }
+            else if (!solidAt(lx, ly + 1)) { vent.position.set(cx, WALL_H * 0.6, wz + CELL); vent.rotation.y = Math.PI; }
+            else if (!solidAt(lx - 1, ly)) { vent.position.set(wx, WALL_H * 0.6, cz); vent.rotation.y = -Math.PI / 2; }
+            else { vent.position.set(cx, WALL_H * 0.6, cz); }
+            this.worldGroup.add(vent);
+            this._detailMeshes.push(vent);
+          }
+        } else if (tileType === TILE.LOWWALL) {
+          /* 迭代39：半墙+窗户 */
+          if (dist < 25) {
+            const win = this._makeWindow3D();
+            win.position.set(cx, 0, cz);
+            this.worldGroup.add(win);
+            this._detailMeshes.push(win);
+          }
+        } else if (tileType === TILE.LOCKER) {
+          /* 迭代35：LOCKER tile渲染为金属柜 */
+          if (dist < 25) {
+            const _lHash = ((lx * 31 + ly * 17) ^ ((world.level ? (world.level.id || 0) : 0) * 991)) >>> 0;
+            let obj = null;
+            if (_gen === 'parking' || _gen === 'warehouse') {
+              obj = this._makeBarrel();
+            } else if (_gen === 'hotel' || _gen === 'corridor' || _gen === 'office') {
+              obj = this._makeCabinet();
+            } else {
+              /* 默认金属储物柜 */
+              obj = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.8, 0.6),
+                new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.6, metalness: 0.4 }));
+              obj.position.y = 0.9;
+              /* 门缝线 */
+              const line = new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.7, 0.02),
+                new THREE.MeshStandardMaterial({ color: 0x111111 }));
+              line.position.set(0, 0, 0.31); obj.add(line);
+              /* 通风孔 */
+              for (let i = 0; i < 3; i++) {
+                const vent = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.01),
+                  new THREE.MeshStandardMaterial({ color: 0x111111 }));
+                vent.position.set(0, 0.5 + i * 0.3, 0.31); obj.add(vent);
+              }
+            }
+            if (obj) {
+              obj.position.set(cx, obj.position.y || 0, cz);
+              this.worldGroup.add(obj);
+              this._detailMeshes.push(obj);
+            }
+          }
+        } else if (tileType === TILE.WALL && (_gen === 'parking' || _gen === 'pillars' || _gen === 'grid')) {
+          /* 迭代38：独立柱子 — 四面都是空地的WALL tile渲染为柱子 */
+          if (dist < 25 && !solidAt(lx, ly-1) && !solidAt(lx, ly+1) && !solidAt(lx-1, ly) && !solidAt(lx+1, ly)) {
+            const isBallroom = (world.landmarks || []).some(lm => lm.type === 'ballroom' &&
+              Math.abs(lm.x - (lx + ox)) < lm.w && Math.abs(lm.y - (ly + oy)) < lm.h);
+            const col = this._makeColumn(isBallroom);
+            col.position.set(cx, 0, cz);
+            this.worldGroup.add(col);
+            this._detailMeshes.push(col);
+          }
+        }
+        /* 散落的bucket渲染为横放桶（迭代35） */
+      }
+    }
+
+    /* 迭代35：散落bucket渲染为横放桶 */
+    if (world.scattered && world.scattered.length) {
+      for (const item of world.scattered) {
+        if (item.type !== 'bucket') continue;
+        const dx = item.x - (px + ox), dy = item.y - (py + oy);
+        if (Math.abs(dx) > VIEW_R || Math.abs(dy) > VIEW_R) continue;
+        const barrel = this._makeBarrel();
+        barrel.position.set(item.x * CELL, 0.3, item.y * CELL);
+        barrel.rotation.z = Math.PI / 2;
+        barrel.rotation.y = item.rot;
+        this.worldGroup.add(barrel);
+        this._detailMeshes.push(barrel);
+      }
+    }
+
+  }
+
+  /* 迭代40: 地标房间专属3D元素 */
+  _buildLandmarkDecor() {
+    const THREE = window.THREE;
+    const world = this._world;
+    if (!world || !world.landmarks || !world.landmarks.length) return;
+    const px = Math.floor(world.w / 2), py = Math.floor(world.h / 2);
+    const VIEW_R = 36;
+
+    if (this._landmarkMeshes) {
+      for (const m of this._landmarkMeshes) {
+        this.worldGroup.remove(m);
+        if (m.traverse) m.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(mt => mt.dispose()); else c.material.dispose(); } });
+        else { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }
+      }
+    }
+    this._landmarkMeshes = [];
+
+    for (const lm of world.landmarks) {
+      const dx = lm.x - (px + world.ox), dy = lm.y - (py + world.oy);
+      if (Math.abs(dx) > VIEW_R || Math.abs(dy) > VIEW_R) continue;
+      const cx = lm.x * CELL, cz = lm.y * CELL;
+
+      if (lm.type === 'ballroom') {
+        /* 中央吊灯 */
+        const chand = new THREE.Group();
+        const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.4, 4),
+          new THREE.MeshStandardMaterial({ color: 0x444440, metalness: 0.6, roughness: 0.4 }));
+        chain.position.y = WALL_H - 0.2; chand.add(chain);
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8),
+          new THREE.MeshStandardMaterial({ color: 0xffd080, emissive: 0xffaa44, emissiveIntensity: 0.4 }));
+        ball.position.y = WALL_H - 0.5; chand.add(ball);
+        for (let i = 0; i < 4; i++) {
+          const ang = (i / 4) * Math.PI * 2;
+          const small = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 4),
+            new THREE.MeshBasicMaterial({ color: 0xffe0a0 }));
+          small.position.set(Math.cos(ang) * 0.2, WALL_H - 0.55, Math.sin(ang) * 0.2);
+          chand.add(small);
+        }
+        chand.position.set(cx, 0, cz);
+        this.worldGroup.add(chand);
+        this._landmarkMeshes.push(chand);
+        /* 吊灯灯光 */
+        const cl = new THREE.PointLight(0xffd080, 1.2, 8 * CELL, 1.5);
+        cl.position.set(cx, WALL_H - 0.5, cz);
+        this.worldGroup.add(cl);
+        this._landmarkMeshes.push(cl);
+        /* 四角壁灯 */
+        for (let i = 0; i < 4; i++) {
+          const ang = (i / 4) * Math.PI * 2 + Math.PI / 4;
+          const wl = this._makeWallLight();
+          wl.position.set(cx + Math.cos(ang) * (lm.w * CELL / 2 - 0.1), WALL_H * 0.6, cz + Math.sin(ang) * (lm.h * CELL / 2 - 0.1));
+          wl.rotation.y = ang + Math.PI;
+          this.worldGroup.add(wl);
+          this._landmarkMeshes.push(wl);
+        }
+      } else if (lm.type === 'lobby') {
+        /* 接待台 — L型 */
+        const deskMat = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.8 });
+        const top1 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.05, 0.5), deskMat);
+        top1.position.set(cx, 0.75, cz - 0.3); this.worldGroup.add(top1); this._landmarkMeshes.push(top1);
+        const front1 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.8, 0.03), deskMat);
+        front1.position.set(cx, 0.4, cz - 0.55); this.worldGroup.add(front1); this._landmarkMeshes.push(front1);
+        /* 小台灯 */
+        const lamp = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.15, 8),
+          new THREE.MeshBasicMaterial({ color: 0xffe9b8 }));
+        lamp.position.set(cx + 0.4, 0.9, cz - 0.3); this.worldGroup.add(lamp); this._landmarkMeshes.push(lamp);
+        const ll = new THREE.PointLight(0xffe9b8, 0.5, 3 * CELL, 1.5);
+        ll.position.set(cx + 0.4, 0.9, cz - 0.3); this.worldGroup.add(ll); this._landmarkMeshes.push(ll);
+        /* 更大的吸顶灯 */
+        const ceil = this._makeCeilingLight();
+        ceil.scale.set(1.5, 1, 1.5);
+        ceil.position.set(cx, WALL_H - 0.1, cz);
+        this.worldGroup.add(ceil); this._landmarkMeshes.push(ceil);
+      } else if (lm.type === 'maintenance') {
+        /* 配电柜 */
+        const cab = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.4),
+          new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.6, metalness: 0.4 }));
+        cab.position.set(cx - 0.5, 0.9, cz); this.worldGroup.add(cab); this._landmarkMeshes.push(cab);
+        /* 开关 — 小发光方块 */
+        const swMat = new THREE.MeshBasicMaterial({ color: 0x22ff22 });
+        for (let i = 0; i < 6; i++) {
+          const sw = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.02), swMat);
+          sw.position.set(cx - 0.5 + (i % 3 - 1) * 0.15, 0.5 + Math.floor(i / 3) * 0.4, cz + 0.21);
+          this.worldGroup.add(sw); this._landmarkMeshes.push(sw);
+        }
+      } else if (lm.type === 'boiler') {
+        /* 锅炉主体 */
+        const boiler = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.5, 12),
+          new THREE.MeshStandardMaterial({ color: 0x4a3530, roughness: 0.7, metalness: 0.3 }));
+        boiler.position.set(cx, 0.75, cz); this.worldGroup.add(boiler); this._landmarkMeshes.push(boiler);
+        /* 顶部管道 */
+        const topPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8),
+          new THREE.MeshStandardMaterial({ color: 0x5a5a5e, metalness: 0.4, roughness: 0.6 }));
+        topPipe.position.set(cx, 1.7, cz); this.worldGroup.add(topPipe); this._landmarkMeshes.push(topPipe);
+        /* 压力表 */
+        const gauge = new THREE.Mesh(new THREE.CircleGeometry(0.1, 12),
+          new THREE.MeshBasicMaterial({ color: 0xdddddd }));
+        gauge.position.set(cx + 0.6, 1.0, cz); this.worldGroup.add(gauge); this._landmarkMeshes.push(gauge);
+        const needle = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.01, 0.01),
+          new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+        needle.position.set(cx + 0.64, 1.0, cz); needle.rotation.z = 0.3;
+        this.worldGroup.add(needle); this._landmarkMeshes.push(needle);
+      } else if (lm.type === 'pool_room') {
+        /* 台球桌 */
+        const tableMat = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.8 });
+        const feltMat = new THREE.MeshStandardMaterial({ color: 0x0a6a2a, roughness: 0.9 });
+        const top = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.6), tableMat);
+        top.position.set(cx, 0.8, cz); this.worldGroup.add(top); this._landmarkMeshes.push(top);
+        const felt = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.02, 0.5), feltMat);
+        felt.position.set(cx, 0.83, cz); this.worldGroup.add(felt); this._landmarkMeshes.push(felt);
+        /* 6条桌腿 */
+        const legGeo = new THREE.BoxGeometry(0.06, 0.8, 0.06);
+        [[-0.5, -0.25], [0.5, -0.25], [-0.5, 0.25], [0.5, 0.25], [0, -0.25], [0, 0.25]].forEach(([x, z]) => {
+          const leg = new THREE.Mesh(legGeo, tableMat);
+          leg.position.set(cx + x, 0.4, cz + z); this.worldGroup.add(leg); this._landmarkMeshes.push(leg);
+        });
+        /* 台球 — 4-6个小球 */
+        const ballColors = [0xff0000, 0x0066ff, 0xffcc00, 0x00cc00, 0xcc00cc, 0xff6600];
+        const numBalls = 4 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < numBalls; i++) {
+          const ball = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6),
+            new THREE.MeshStandardMaterial({ color: ballColors[i % ballColors.length], roughness: 0.3, metalness: 0.1 }));
+          ball.position.set(cx + (Math.random() - 0.5) * 0.8, 0.88, cz + (Math.random() - 0.5) * 0.3);
+          this.worldGroup.add(ball); this._landmarkMeshes.push(ball);
+        }
+      } else if (lm.type === 'junction') {
+        /* 中央指示牌 */
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.5, 0.05),
+          new THREE.MeshStandardMaterial({ color: 0x4a4a4e, metalness: 0.4, roughness: 0.6 }));
+        post.position.set(cx, 0.75, cz); this.worldGroup.add(post); this._landmarkMeshes.push(post);
+        const sign = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.02),
+          new THREE.MeshStandardMaterial({ color: 0x2a4a2a, roughness: 0.8 }));
+        sign.position.set(cx, 1.4, cz); this.worldGroup.add(sign); this._landmarkMeshes.push(sign);
+        /* 天花板4盏灯指向四方 */
+        for (let i = 0; i < 4; i++) {
+          const ang = (i / 4) * Math.PI * 2;
+          const lt = this._makeCeilingLight();
+          lt.position.set(cx + Math.cos(ang) * 1.0, WALL_H - 0.1, cz + Math.sin(ang) * 1.0);
+          this.worldGroup.add(lt); this._landmarkMeshes.push(lt);
+        }
+      }
     }
   }
 
   _rebuildWorldIfNeeded() {
     const world = this._world;
     if (!world) return;
-    if (world.ox !== this._lastOx || world.oy !== this._lastOy) {
+    if (this._forceDoorRebuild || world.ox !== this._lastOx || world.oy !== this._lastOy) {
+      this._forceDoorRebuild = false;
       this._lastOx = world.ox;
       this._lastOy = world.oy;
-      /* Clear old meshes */
+      /* Clear old chunk meshes */
       for (const m of this.chunkList) {
         this.worldGroup.remove(m);
-        m.geometry.dispose();
+        if (m.traverse) m.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(mt => mt.dispose()); else c.material.dispose(); } });
+        else { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }
       }
       this.chunkList.length = 0;
+      /* Clear old detail meshes */
+      for (const m of this._detailMeshes) {
+        this.worldGroup.remove(m);
+        if (m.traverse) m.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(mt => mt.dispose()); else c.material.dispose(); } });
+        else { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }
+      }
+      this._detailMeshes.length = 0;
+      /* Clear old lamp fixtures — they are on this.scene, not worldGroup */
+      for (const m of this._lampFixtures) {
+        this.scene.remove(m);
+        if (m.traverse) m.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(mt => mt.dispose()); else c.material.dispose(); } });
+        else { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }
+      }
+      this._lampFixtures.length = 0;
+      /* Clear old landmark meshes */
+      for (const m of this._landmarkMeshes) {
+        this.worldGroup.remove(m);
+        if (m.traverse) m.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(mt => mt.dispose()); else c.material.dispose(); } });
+        else { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }
+      }
+      this._landmarkMeshes.length = 0;
+      /* 迭代45: Clear old level decor meshes */
+      if (this._levelDecorMeshes) {
+        for (const m of this._levelDecorMeshes) {
+          this.worldGroup.remove(m);
+          if (m.traverse) m.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(mt => mt.dispose()); else c.material.dispose(); } });
+          else { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }
+        }
+        this._levelDecorMeshes.length = 0;
+      }
+      /* Rebuild everything */
       this._buildWorldMesh();
+      this._buildDetailMeshes();
+      this._buildLampFixtures();
+      this._buildLandmarkDecor();
     }
   }
+
+
+  /* ============================================================
+     迭代1-15: 高品质贴图系统升级 — 对标 Escape the Backrooms
+     ============================================================ */
+
+  /* ---------- 迭代1: 纹理系统架构基础 ---------- */
+  _texLib = {};
+
+  _makeCanvasTex(size) {
+    const c = document.createElement('canvas');
+    c.width = size; c.height = size;
+    return c;
+  }
+
+  /* 多层值噪声 — 有机纹理噪声，支持无缝平铺 */
+  _noise2D(canvas, scale, intensity, seamless) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const img = ctx.getImageData(0, 0, w, h);
+    const d = img.data;
+    const step = Math.max(1, Math.floor(w / scale));
+    const cols = Math.ceil(w / step) + 2;
+    const rows = Math.ceil(h / step) + 2;
+    const grid = new Float32Array(cols * rows);
+    for (let i = 0; i < grid.length; i++) grid[i] = Math.random() - 0.5;
+    for (let py = 0; py < h; py++) {
+      for (let px = 0; px < w; px++) {
+        const gx = px / step, gy = py / step;
+        const x0 = Math.floor(gx), y0 = Math.floor(gy);
+        const fx = gx - x0, fy = gy - y0;
+        const sx = fx * fx * (3 - 2 * fx);
+        const sy = fy * fy * (3 - 2 * fy);
+        let v00, v10, v01, v11;
+        if (seamless) {
+          const cx0 = x0 % (w / step | 0), cy0 = y0 % (h / step | 0);
+          v00 = grid[cy0 * cols + cx0];
+          v10 = grid[cy0 * cols + ((cx0 + 1) % (w / step | 0))];
+          v01 = grid[((cy0 + 1) % (h / step | 0)) * cols + cx0];
+          v11 = grid[((cy0 + 1) % (h / step | 0)) * cols + ((cx0 + 1) % (w / step | 0))];
+        } else {
+          v00 = grid[y0 * cols + x0];
+          v10 = grid[y0 * cols + x0 + 1];
+          v01 = grid[(y0 + 1) * cols + x0];
+          v11 = grid[(y0 + 1) * cols + x0 + 1];
+        }
+        const n = (v00 * (1 - sx) + v10 * sx) * (1 - sy) +
+                   (v01 * (1 - sx) + v11 * sx) * sy;
+        const val = n * intensity;
+        const i = (py * w + px) * 4;
+        d[i] = Math.max(0, Math.min(255, d[i] + val));
+        d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + val));
+        d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + val));
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  /* 确保边缘无缝平铺 */
+  _seamlessTile(canvas) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const bw = Math.max(2, Math.floor(w * 0.05));
+    const imgL = ctx.getImageData(0, 0, bw, h);
+    const imgR = ctx.getImageData(w - bw, 0, bw, h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < bw; x++) {
+        const i = (y * bw + x) * 4;
+        const t = x / bw;
+        imgL.data[i]   = imgL.data[i]   * (1 - t * 0.5) + imgR.data[i]   * (t * 0.5);
+        imgL.data[i+1] = imgL.data[i+1] * (1 - t * 0.5) + imgR.data[i+1] * (t * 0.5);
+        imgL.data[i+2] = imgL.data[i+2] * (1 - t * 0.5) + imgR.data[i+2] * (t * 0.5);
+      }
+    }
+    ctx.putImageData(imgL, 0, 0);
+    const imgT = ctx.getImageData(0, 0, w, bw);
+    const imgB = ctx.getImageData(0, h - bw, w, bw);
+    for (let y = 0; y < bw; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const t = y / bw;
+        imgT.data[i]   = imgT.data[i]   * (1 - t * 0.5) + imgB.data[i]   * (t * 0.5);
+        imgT.data[i+1] = imgT.data[i+1] * (1 - t * 0.5) + imgB.data[i+1] * (t * 0.5);
+        imgT.data[i+2] = imgT.data[i+2] * (1 - t * 0.5) + imgB.data[i+2] * (t * 0.5);
+      }
+    }
+    ctx.putImageData(imgT, 0, 0);
+  }
+
+  /* 随机污渍 — 径向渐变斑点 */
+  _addStains(canvas, count, color, opacity) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    for (let i = 0; i < count; i++) {
+      const x = Math.random() * w, y = Math.random() * h;
+      const r = 8 + Math.random() * 35;
+      const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
+      grd.addColorStop(0, `rgba(${color},${opacity})`);
+      grd.addColorStop(0.6, `rgba(${color},${opacity * 0.4})`);
+      grd.addColorStop(1, `rgba(${color},0)`);
+      ctx.fillStyle = grd;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+  }
+
+  /* 磨损效果 — 划痕、剥落、褪色 */
+  _addWear(canvas, intensity) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const n = Math.floor(intensity * 30);
+    ctx.strokeStyle = `rgba(0,0,0,${0.15 * intensity})`;
+    for (let i = 0; i < n; i++) {
+      ctx.lineWidth = 0.5 + Math.random() * 1.5;
+      ctx.beginPath();
+      const x = Math.random() * w, y = Math.random() * h;
+      const len = 10 + Math.random() * 50;
+      const ang = Math.random() * Math.PI * 2;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+      ctx.stroke();
+    }
+    for (let i = 0; i < n * 2; i++) {
+      const x = Math.random() * w, y = Math.random() * h;
+      const r = 1 + Math.random() * 4;
+      ctx.fillStyle = `rgba(0,0,0,${0.2 * intensity * Math.random()})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /* 底部受潮渐变 */
+  _addDampGradient(canvas, strength) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const grd = ctx.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, 'rgba(0,0,0,0)');
+    grd.addColorStop(0.6, `rgba(20,15,5,${strength * 0.2})`);
+    grd.addColorStop(1, `rgba(15,10,0,${strength * 0.5})`);
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  /* canvas转CanvasTexture — 迭代15: anisotropy=4 */
+  _canvasToTex(canvas) {
+    const THREE = window.THREE;
+    const t = new THREE.CanvasTexture(canvas);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.anisotropy = 4;
+    t.encoding = THREE.sRGBEncoding;
+    return t;
+  }
+
+  /* ---------- 迭代2: 黄色壁纸纹理 ---------- */
+  _texWallpaper(pattern, baseColor) {
+    const S = this._tex ? this._tex.size : 512;
+    const c = this._makeCanvasTex(S);
+    const ctx = c.getContext('2d');
+    const colorMap = {
+      yellow: { base: '#c4a847', base2: '#d4b854', accent: '#a89030', dark: '#8a7530' },
+      cream:  { base: '#d9c977', base2: '#e0d28a', accent: '#b8a850', dark: '#a09540' },
+      green:  { base: '#b5a84a', base2: '#c5b85a', accent: '#988830', dark: '#7a6f25' }
+    };
+    const col = colorMap[baseColor] || colorMap.yellow;
+
+    /* 底色渐变 */
+    const bg = ctx.createLinearGradient(0, 0, S, S);
+    bg.addColorStop(0, col.base);
+    bg.addColorStop(0.5, col.base2);
+    bg.addColorStop(1, col.base);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, S, S);
+
+    if (pattern === 'damask') {
+      /* 大马士革对称花纹 — 经典后室黄壁纸 */
+      const unit = S / 4;
+      ctx.strokeStyle = col.accent;
+      ctx.fillStyle = col.accent;
+      ctx.lineWidth = 1.5;
+      for (let uy = 0; uy < 4; uy++) {
+        for (let ux = 0; ux < 4; ux++) {
+          const cx = ux * unit + unit / 2;
+          const cy = uy * unit + unit / 2;
+          /* 菱形外框 */
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - unit * 0.3);
+          ctx.lineTo(cx + unit * 0.25, cy);
+          ctx.lineTo(cx, cy + unit * 0.3);
+          ctx.lineTo(cx - unit * 0.25, cy);
+          ctx.closePath();
+          ctx.stroke();
+          /* 中心花朵 */
+          ctx.beginPath();
+          for (let p = 0; p < 6; p++) {
+            const a = (p / 6) * Math.PI * 2;
+            const r = unit * 0.12;
+            if (p === 0) ctx.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+            else ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+          }
+          ctx.closePath();
+          ctx.fill();
+          /* 小圆点装饰 */
+          ctx.beginPath();
+          ctx.arc(cx, cy - unit * 0.35, 1.5, 0, Math.PI * 2);
+          ctx.arc(cx + unit * 0.3, cy, 1.5, 0, Math.PI * 2);
+          ctx.arc(cx, cy + unit * 0.35, 1.5, 0, Math.PI * 2);
+          ctx.arc(cx - unit * 0.3, cy, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else if (pattern === 'striped') {
+      /* 竖条纹壁纸 */
+      const stripeW = S / 10;
+      for (let i = 0; i < 10; i++) {
+        if (i % 2 === 0) {
+          ctx.fillStyle = col.base2;
+          ctx.fillRect(i * stripeW, 0, stripeW * 0.6, S);
+        } else {
+          ctx.fillStyle = col.dark;
+          ctx.globalAlpha = 0.3;
+          ctx.fillRect(i * stripeW, 0, stripeW * 0.4, S);
+          ctx.globalAlpha = 1;
+        }
+      }
+    } else if (pattern === 'chevron') {
+      /* 人字纹壁纸 */
+      ctx.strokeStyle = col.accent;
+      ctx.lineWidth = 2;
+      const rowH = S / 8;
+      const chevW = S / 6;
+      for (let row = 0; row < 8; row++) {
+        const y0 = row * rowH;
+        const flip = row % 2 === 0;
+        for (let i = 0; i <= 6; i++) {
+          const x = i * chevW;
+          ctx.beginPath();
+          if (flip) {
+            ctx.moveTo(x, y0 + rowH);
+            ctx.lineTo(x + chevW / 2, y0);
+            ctx.lineTo(x + chevW, y0 + rowH);
+          } else {
+            ctx.moveTo(x, y0);
+            ctx.lineTo(x + chevW / 2, y0 + rowH);
+            ctx.lineTo(x + chevW, y0);
+          }
+          ctx.stroke();
+        }
+      }
+    }
+
+    /* 微妙纹理噪声 */
+    this._noise2D(c, 128, 15, true);
+    /* 边缘无缝 */
+    this._seamlessTile(c);
+    /* 底部受潮渐变 */
+    this._addDampGradient(c, 0.6);
+    /* 随机水渍 */
+    this._addStains(c, 4, '60,50,15', 0.12);
+    /* 边缘磨损 */
+    this._addWear(c, 0.3);
+    return c;
+  }
+
+  /* ---------- 迭代3: 地毯纹理系统 ---------- */
+  _texCarpet(style, color) {
+    const S = this._tex ? this._tex.size : 512;
+    const c = this._makeCanvasTex(S);
+    const ctx = c.getContext('2d');
+    const colorMap = {
+      gray_blue: '#5a6b6e', dark_yellow: '#8a7a4a',
+      burgundy: '#6b3a3a', blue_gray: '#4a5a6b', gray: '#4a4a4a'
+    };
+    const baseCol = colorMap[color] || colorMap.gray_blue;
+    ctx.fillStyle = baseCol;
+    ctx.fillRect(0, 0, S, S);
+
+    if (style === 'short_pile') {
+      /* 短绒地毯 — 细密点状噪声 */
+      const img = ctx.getImageData(0, 0, S, S);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const n = (Math.random() - 0.5) * 30;
+        d[i] = clamp255(d[i] + n);
+        d[i+1] = clamp255(d[i+1] + n);
+        d[i+2] = clamp255(d[i+2] + n);
+      }
+      ctx.putImageData(img, 0, 0);
+      /* 磨损路径 — 颜色稍浅的条纹 */
+      for (let p = 0; p < 2; p++) {
+        const y = Math.random() * S;
+        const grd = ctx.createLinearGradient(0, y - 15, 0, y + 15);
+        grd.addColorStop(0, 'rgba(255,255,255,0)');
+        grd.addColorStop(0.5, 'rgba(255,255,255,0.08)');
+        grd.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, y - 15, S, 30);
+      }
+    } else if (style === 'loop') {
+      /* 圈绒地毯 — 小圆点重复图案 */
+      const dotSize = 3;
+      const spacing = 6;
+      for (let y = 0; y < S; y += spacing) {
+        for (let x = 0; x < S; x += spacing) {
+          const ox = (y / spacing) % 2 === 0 ? 0 : spacing / 2;
+          ctx.fillStyle = `rgba(255,255,255,${0.04 + Math.random() * 0.06})`;
+          ctx.beginPath();
+          ctx.arc(x + ox, y, dotSize, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = `rgba(0,0,0,${0.05 + Math.random() * 0.05})`;
+          ctx.beginPath();
+          ctx.arc(x + ox + 1, y + 1, dotSize * 0.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else if (style === 'commercial') {
+      /* 商用方块地毯 — 网格分界线 */
+      const tileS = S / 4;
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i <= 4; i++) {
+        ctx.beginPath(); ctx.moveTo(i * tileS, 0); ctx.lineTo(i * tileS, S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i * tileS); ctx.lineTo(S, i * tileS); ctx.stroke();
+      }
+      /* 细密点噪声 */
+      const img = ctx.getImageData(0, 0, S, S);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const n = (Math.random() - 0.5) * 25;
+        d[i] = clamp255(d[i] + n);
+        d[i+1] = clamp255(d[i+1] + n);
+        d[i+2] = clamp255(d[i+2] + n);
+      }
+      ctx.putImageData(img, 0, 0);
+    } else if (style === 'hotel') {
+      /* 酒店走廊地毯 — 酒红色底 + 金色花纹 */
+      ctx.fillStyle = '#5a2a2a';
+      ctx.fillRect(0, 0, S, S);
+      /* 对称几何边框图案 */
+      const gold = '#8a7a3a';
+      ctx.strokeStyle = gold;
+      ctx.fillStyle = gold;
+      ctx.lineWidth = 2;
+      const border = S * 0.08;
+      /* 外边框 */
+      ctx.strokeRect(border, border, S - border * 2, S - border * 2);
+      ctx.strokeRect(border * 1.5, border * 1.5, S - border * 3, S - border * 3);
+      /* 中心菱形花纹 */
+      const cx = S / 2, cy = S / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - S * 0.2);
+      ctx.lineTo(cx + S * 0.15, cy);
+      ctx.lineTo(cx, cy + S * 0.2);
+      ctx.lineTo(cx - S * 0.15, cy);
+      ctx.closePath();
+      ctx.stroke();
+      /* 角落小花纹 */
+      const corners = [[border*2, border*2], [S-border*2, border*2], [border*2, S-border*2], [S-border*2, S-border*2]];
+      for (const [px, py] of corners) {
+        ctx.beginPath();
+        ctx.arc(px, py, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      /* 细密点噪声 */
+      this._noise2D(c, 256, 12, true);
+    }
+
+    /* 污渍、磨损、潮湿暗化 */
+    this._addStains(c, 5, '15,10,5', 0.15);
+    this._addWear(c, 0.2);
+    this._noise2D(c, 64, 10, true);
+    this._seamlessTile(c);
+    return c;
+  }
+
+  /* ---------- 迭代4: 天花板纹理系统 ---------- */
+  _texCeiling(style) {
+    const S = this._tex ? this._tex.size : 512;
+    const c = this._makeCanvasTex(S);
+    const ctx = c.getContext('2d');
+
+    if (style === 'acoustic') {
+      /* 吸音天花板瓦片 */
+      ctx.fillStyle = '#d0d0d0';
+      ctx.fillRect(0, 0, S, S);
+      /* 细密小孔点阵（吸音孔） */
+      const holeSpacing = 5;
+      ctx.fillStyle = 'rgba(0,0,0,0.08)';
+      for (let y = holeSpacing; y < S; y += holeSpacing) {
+        for (let x = holeSpacing; x < S; x += holeSpacing) {
+          const ox = (y / holeSpacing) % 2 === 0 ? 0 : holeSpacing / 2;
+          ctx.beginPath();
+          ctx.arc(x + ox, y, 0.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      /* 网格分界线（2x2排列） */
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(S / 2, 0); ctx.lineTo(S / 2, S);
+      ctx.moveTo(0, S / 2); ctx.lineTo(S, S / 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.strokeRect(1, 1, S - 2, S - 2);
+      /* 水渍（黄褐色斑块） */
+      this._addStains(c, 3, '80,60,20', 0.1);
+      /* 偶尔缺失一块（深色方块） */
+      if (Math.random() < 0.3) {
+        const qx = Math.floor(Math.random() * 2) * (S / 2);
+        const qy = Math.floor(Math.random() * 2) * (S / 2);
+        ctx.fillStyle = 'rgba(10,10,10,0.6)';
+        ctx.fillRect(qx + 3, qy + 3, S / 2 - 6, S / 2 - 6);
+      }
+    } else if (style === 'concrete') {
+      /* 混凝土天花板 */
+      ctx.fillStyle = '#8a8a8a';
+      ctx.fillRect(0, 0, S, S);
+      this._noise2D(c, 100, 25, true);
+      /* 裂纹线 */
+      ctx.strokeStyle = 'rgba(20,20,20,0.35)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        let x = Math.random() * S, y = Math.random() * S;
+        ctx.moveTo(x, y);
+        for (let j = 0; j < 5; j++) {
+          x += (Math.random() - 0.5) * 60;
+          y += (Math.random() - 0.5) * 60;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    } else if (style === 'metal') {
+      /* 金属天花板 — 银灰色拉丝纹理 */
+      const grd = ctx.createLinearGradient(0, 0, 0, S);
+      grd.addColorStop(0, '#a0a0a8');
+      grd.addColorStop(0.5, '#b8b8c0');
+      grd.addColorStop(1, '#909098');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, S, S);
+      /* 条纹反光 */
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < S; i += 3) {
+        ctx.beginPath();
+        ctx.moveTo(0, i); ctx.lineTo(S, i);
+        ctx.stroke();
+      }
+      /* 面板分界 */
+      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+      ctx.lineWidth = 1.5;
+      const pS = S / 4;
+      for (let i = 0; i <= 4; i++) {
+        ctx.beginPath(); ctx.moveTo(i * pS, 0); ctx.lineTo(i * pS, S); ctx.stroke();
+      }
+    } else if (style === 'pipe') {
+      /* 管道天花板 — 深色底 + 金属管道图案 */
+      ctx.fillStyle = '#2a2a2e';
+      ctx.fillRect(0, 0, S, S);
+      /* 水平管道 */
+      const pipeY = [S * 0.2, S * 0.55, S * 0.85];
+      for (const py of pipeY) {
+        const grd = ctx.createLinearGradient(0, py - 12, 0, py + 12);
+        grd.addColorStop(0, '#6a6a70');
+        grd.addColorStop(0.3, '#8a8a90');
+        grd.addColorStop(0.5, '#a0a0a8');
+        grd.addColorStop(0.7, '#8a8a90');
+        grd.addColorStop(1, '#5a5a60');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, py - 12, S, 24);
+        /* 管道接头 */
+        ctx.fillStyle = '#4a4a50';
+        for (let x = S * 0.15; x < S; x += S * 0.25) {
+          ctx.fillRect(x - 3, py - 14, 6, 28);
+        }
+      }
+      /* 阀门图案 */
+      ctx.strokeStyle = '#5a5a60';
+      ctx.lineWidth = 2;
+      const vx = S * 0.7, vy = S * 0.4;
+      ctx.beginPath();
+      ctx.arc(vx, vy, 10, 0, Math.PI * 2);
+      ctx.stroke();
+      for (let r = 0; r < 4; r++) {
+        const a = (r / 4) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(vx + Math.cos(a) * 5, vy + Math.sin(a) * 5);
+        ctx.lineTo(vx + Math.cos(a) * 12, vy + Math.sin(a) * 12);
+        ctx.stroke();
+      }
+      this._noise2D(c, 64, 8, true);
+    }
+    this._seamlessTile(c);
+    return c;
+  }
+
+  /* ---------- 迭代5: 混凝土纹理系统 ---------- */
+  _texConcrete(variant) {
+    const S = this._tex ? this._tex.size : 512;
+    const c = this._makeCanvasTex(S);
+    const ctx = c.getContext('2d');
+
+    if (variant === 'parking') {
+      /* 停车场混凝土 */
+      ctx.fillStyle = '#7a7a7a';
+      ctx.fillRect(0, 0, S, S);
+      this._noise2D(c, 80, 20, true);
+      /* 斑点 */
+      for (let i = 0; i < 200; i++) {
+        const x = Math.random() * S, y = Math.random() * S;
+        const r = 1 + Math.random() * 3;
+        ctx.fillStyle = `rgba(${Math.random() < 0.5 ? '40,40,40' : '160,160,160'},${0.1 + Math.random() * 0.15})`;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      /* 黄色车道线 */
+      ctx.fillStyle = 'rgba(200,170,40,0.7)';
+      ctx.fillRect(S * 0.1, S * 0.45, S * 0.35, 6);
+      ctx.fillRect(S * 0.55, S * 0.45, S * 0.35, 6);
+      /* 油渍 */
+      this._addStains(c, 4, '10,8,5', 0.2);
+      /* 裂纹 */
+      ctx.strokeStyle = 'rgba(20,20,20,0.3)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        let x = Math.random() * S, y = Math.random() * S;
+        ctx.moveTo(x, y);
+        for (let j = 0; j < 4; j++) {
+          x += (Math.random() - 0.5) * 50;
+          y += (Math.random() - 0.5) * 50;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    } else if (variant === 'wall') {
+      /* 混凝土墙面 */
+      ctx.fillStyle = '#6a6a6a';
+      ctx.fillRect(0, 0, S, S);
+      this._noise2D(c, 100, 22, true);
+      /* 木纹模板痕迹（水平条纹） */
+      ctx.strokeStyle = 'rgba(40,40,40,0.15)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < S; i += S / 6) {
+        ctx.beginPath();
+        ctx.moveTo(0, i + Math.random() * 4);
+        ctx.lineTo(S, i + Math.random() * 4);
+        ctx.stroke();
+      }
+      /* 螺栓孔（小圆点） */
+      ctx.fillStyle = 'rgba(20,20,20,0.3)';
+      const holeR = 3;
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 4; col++) {
+          const x = (col + 0.5) * (S / 4);
+          const y = (row + 0.5) * (S / 3);
+          ctx.beginPath();
+          ctx.arc(x, y, holeR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      /* 水渍 */
+      this._addStains(c, 4, '30,25,15', 0.12);
+    } else if (variant === 'stained') {
+      /* 污渍混凝土 — 更多水渍、锈迹、霉斑 */
+      ctx.fillStyle = '#60685a';
+      ctx.fillRect(0, 0, S, S);
+      this._noise2D(c, 80, 25, true);
+      /* 锈迹 */
+      this._addStains(c, 6, '100,50,15', 0.15);
+      /* 霉斑（偏绿） */
+      this._addStains(c, 5, '30,50,20', 0.12);
+      /* 水渍 */
+      this._addStains(c, 4, '20,18,10', 0.15);
+    }
+    this._seamlessTile(c);
+    return c;
+  }
+
+  /* ---------- 迭代6: 瓷砖纹理系统 ---------- */
+  _texTile(style) {
+    const S = this._tex ? this._tex.size : 512;
+    const c = this._makeCanvasTex(S);
+    const ctx = c.getContext('2d');
+
+    if (style === 'pool_white') {
+      /* 泳池白瓷砖 */
+      const grd = ctx.createLinearGradient(0, 0, S, S);
+      grd.addColorStop(0, '#e8e8e8');
+      grd.addColorStop(1, '#d8e0e8');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, S, S);
+      /* 方格分界线 */
+      const tileS = S / 8;
+      ctx.strokeStyle = 'rgba(180,180,190,0.5)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 8; i++) {
+        ctx.beginPath(); ctx.moveTo(i * tileS, 0); ctx.lineTo(i * tileS, S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i * tileS); ctx.lineTo(S, i * tileS); ctx.stroke();
+      }
+      /* 偶尔破裂的瓷砖 */
+      for (let i = 0; i < 3; i++) {
+        const tx = Math.floor(Math.random() * 8) * tileS;
+        const ty = Math.floor(Math.random() * 8) * tileS;
+        ctx.strokeStyle = 'rgba(100,100,100,0.4)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(tx + 2, ty + 2);
+        ctx.lineTo(tx + tileS - 2, ty + tileS - 2);
+        ctx.moveTo(tx + tileS - 2, ty + 2);
+        ctx.lineTo(tx + 2, ty + tileS - 2);
+        ctx.stroke();
+      }
+      /* 霉斑（接缝处变暗） */
+      this._addStains(c, 6, '40,50,30', 0.1);
+    } else if (style === 'pool_aqua') {
+      /* 水蓝色瓷砖 */
+      ctx.fillStyle = '#4a9ab8';
+      ctx.fillRect(0, 0, S, S);
+      const tileS = S / 8;
+      ctx.strokeStyle = 'rgba(30,80,100,0.5)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 8; i++) {
+        ctx.beginPath(); ctx.moveTo(i * tileS, 0); ctx.lineTo(i * tileS, S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i * tileS); ctx.lineTo(S, i * tileS); ctx.stroke();
+      }
+      /* 水垢 */
+      this._addStains(c, 5, '200,200,180', 0.1);
+      this._noise2D(c, 128, 8, true);
+    } else if (style === 'bathroom') {
+      /* 浴室瓷砖 */
+      const tileS = S / 6;
+      for (let row = 0; row < 6; row++) {
+        for (let col = 0; col < 6; col++) {
+          ctx.fillStyle = (row + col) % 2 === 0 ? '#e0e8e0' : '#d0d8d0';
+          ctx.fillRect(col * tileS, row * tileS, tileS, tileS);
+        }
+      }
+      /* 接缝 */
+      ctx.strokeStyle = 'rgba(100,110,100,0.6)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i <= 6; i++) {
+        ctx.beginPath(); ctx.moveTo(i * tileS, 0); ctx.lineTo(i * tileS, S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i * tileS); ctx.lineTo(S, i * tileS); ctx.stroke();
+      }
+      /* 霉斑 */
+      this._addStains(c, 5, '30,50,25', 0.12);
+    } else if (style === 'hex') {
+      /* 六角形瓷砖 */
+      ctx.fillStyle = '#d8d8d8';
+      ctx.fillRect(0, 0, S, S);
+      const hexR = S / 12;
+      const hexH = hexR * Math.sqrt(3);
+      ctx.strokeStyle = 'rgba(30,30,30,0.4)';
+      ctx.lineWidth = 1.5;
+      for (let row = 0; row < 12; row++) {
+        for (let col = 0; col < 12; col++) {
+          const cx = col * hexR * 1.5;
+          const cy = row * hexH + (col % 2 === 0 ? 0 : hexH / 2);
+          if (cx > S + hexR || cy > S + hexH) continue;
+          ctx.beginPath();
+          for (let v = 0; v < 6; v++) {
+            const a = (v / 6) * Math.PI * 2;
+            const px = cx + Math.cos(a) * hexR;
+            const py = cy + Math.sin(a) * hexR;
+            if (v === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.stroke();
+          if (Math.random() < 0.15) {
+            ctx.fillStyle = 'rgba(40,40,40,0.3)';
+            ctx.fill();
+            ctx.fillStyle = '#d8d8d8';
+          }
+        }
+      }
+    }
+    this._seamlessTile(c);
+    return c;
+  }
+
+  /* ---------- 迭代7: 金属/工业纹理系统 ---------- */
+  _texMetal(style) {
+    const S = this._tex ? this._tex.size : 512;
+    const c = this._makeCanvasTex(S);
+    const ctx = c.getContext('2d');
+
+    if (style === 'rust') {
+      /* 生锈金属 */
+      ctx.fillStyle = '#3a3530';
+      ctx.fillRect(0, 0, S, S);
+      /* 锈斑 */
+      for (let i = 0; i < 40; i++) {
+        const x = Math.random() * S, y = Math.random() * S;
+        const r = 5 + Math.random() * 30;
+        const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
+        const rustShade = Math.random() < 0.5 ? '120,60,20' : '90,40,15';
+        grd.addColorStop(0, `rgba(${rustShade},${0.3 + Math.random() * 0.3})`);
+        grd.addColorStop(0.5, `rgba(${rustShade},${0.15})`);
+        grd.addColorStop(1, `rgba(${rustShade},0)`);
+        ctx.fillStyle = grd;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+      /* 金属底色斑点 */
+      this._noise2D(c, 80, 15, true);
+    } else if (style === 'pipe') {
+      /* 管道金属 */
+      const grd = ctx.createLinearGradient(0, 0, 0, S);
+      grd.addColorStop(0, '#5a5a5e');
+      grd.addColorStop(0.4, '#7a7a80');
+      grd.addColorStop(0.5, '#8a8a90');
+      grd.addColorStop(0.6, '#7a7a80');
+      grd.addColorStop(1, '#5a5a5e');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, S, S);
+      /* 焊缝 */
+      ctx.strokeStyle = 'rgba(40,40,40,0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(S * 0.3, 0); ctx.lineTo(S * 0.3, S);
+      ctx.moveTo(S * 0.7, 0); ctx.lineTo(S * 0.7, S);
+      ctx.stroke();
+      /* 阀门轮图案 */
+      const vx = S * 0.5, vy = S * 0.5;
+      ctx.strokeStyle = '#4a4a4e';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(vx, vy, S * 0.12, 0, Math.PI * 2);
+      ctx.stroke();
+      for (let r = 0; r < 6; r++) {
+        const a = (r / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(vx + Math.cos(a) * 8, vy + Math.sin(a) * 8);
+        ctx.lineTo(vx + Math.cos(a) * S * 0.1, vy + Math.sin(a) * S * 0.1);
+        ctx.stroke();
+      }
+      this._noise2D(c, 100, 10, true);
+    } else if (style === 'grate') {
+      /* 金属格栅 */
+      ctx.fillStyle = '#1a1a1e';
+      ctx.fillRect(0, 0, S, S);
+      /* 平行缝隙 */
+      const gapW = 4;
+      const barW = 8;
+      for (let x = 0; x < S; x += gapW + barW) {
+        const grd = ctx.createLinearGradient(x, 0, x + barW, 0);
+        grd.addColorStop(0, '#3a3a3e');
+        grd.addColorStop(0.5, '#5a5a5e');
+        grd.addColorStop(1, '#3a3a3e');
+        ctx.fillStyle = grd;
+        ctx.fillRect(x, 0, barW, S);
+      }
+    } else if (style === 'panel') {
+      /* 配电板 */
+      ctx.fillStyle = '#6a6a6e';
+      ctx.fillRect(0, 0, S, S);
+      this._noise2D(c, 100, 8, true);
+      /* 面板边框 */
+      ctx.strokeStyle = 'rgba(30,30,30,0.5)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(S * 0.05, S * 0.05, S * 0.9, S * 0.9);
+      /* 警告标签 */
+      ctx.fillStyle = 'rgba(200,170,20,0.6)';
+      ctx.fillRect(S * 0.15, S * 0.2, S * 0.3, S * 0.08);
+      ctx.fillStyle = 'rgba(20,20,20,0.8)';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText('WARNING', S * 0.17, S * 0.255);
+      /* 编号文字 */
+      ctx.fillStyle = 'rgba(20,20,20,0.6)';
+      ctx.font = '8px monospace';
+      ctx.fillText('PANEL-0' + Math.floor(Math.random() * 9), S * 0.6, S * 0.15);
+      /* 螺丝孔 */
+      ctx.fillStyle = 'rgba(20,20,20,0.5)';
+      const screws = [[S*0.08, S*0.08], [S*0.92, S*0.08], [S*0.08, S*0.92], [S*0.92, S*0.92]];
+      for (const [px, py] of screws) {
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    this._seamlessTile(c);
+    return c;
+  }
+
+  /* ---------- 迭代8: 木材/家具纹理系统 ---------- */
+  _texWood(style) {
+    const S = this._tex ? this._tex.size : 512;
+    const c = this._makeCanvasTex(S);
+    const ctx = c.getContext('2d');
+
+    if (style === 'paneling') {
+      /* 木墙板 */
+      ctx.fillStyle = '#5a3a2a';
+      ctx.fillRect(0, 0, S, S);
+      /* 竖向木纹 */
+      const plankW = S / 5;
+      for (let p = 0; p < 5; p++) {
+        const x = p * plankW;
+        const shade = 0.85 + Math.random() * 0.3;
+        ctx.fillStyle = `rgba(${Math.floor(90 * shade)},${Math.floor(58 * shade)},${Math.floor(42 * shade)},1)`;
+        ctx.fillRect(x, 0, plankW, S);
+        /* 木纹线 */
+        ctx.strokeStyle = 'rgba(30,20,10,0.2)';
+        ctx.lineWidth = 0.5;
+        for (let g = 0; g < 8; g++) {
+          const gx = x + Math.random() * plankW;
+          ctx.beginPath();
+          ctx.moveTo(gx, 0);
+          for (let y = 0; y < S; y += 20) {
+            ctx.lineTo(gx + Math.sin(y * 0.05) * 3, y);
+          }
+          ctx.stroke();
+        }
+        /* 板材分界线 */
+        ctx.strokeStyle = 'rgba(20,10,5,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, 0); ctx.lineTo(x, S);
+        ctx.stroke();
+      }
+    } else if (style === 'floor') {
+      /* 木地板 */
+      ctx.fillStyle = '#6b4a3a';
+      ctx.fillRect(0, 0, S, S);
+      const plankH = S / 6;
+      for (let p = 0; p < 6; p++) {
+        const y = p * plankH;
+        const shade = 0.9 + Math.random() * 0.2;
+        ctx.fillStyle = `rgba(${Math.floor(107 * shade)},${Math.floor(74 * shade)},${Math.floor(58 * shade)},1)`;
+        ctx.fillRect(0, y, S, plankH);
+        /* 水平木纹 */
+        ctx.strokeStyle = 'rgba(40,25,15,0.15)';
+        ctx.lineWidth = 0.5;
+        for (let g = 0; g < 6; g++) {
+          const gy = y + Math.random() * plankH;
+          ctx.beginPath();
+          ctx.moveTo(0, gy);
+          for (let x = 0; x < S; x += 20) {
+            ctx.lineTo(x, gy + Math.sin(x * 0.03) * 2);
+          }
+          ctx.stroke();
+        }
+        /* 板材间隙 */
+        ctx.strokeStyle = 'rgba(20,10,5,0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, y); ctx.lineTo(S, y);
+        ctx.stroke();
+      }
+      /* 磨损和划痕 */
+      this._addWear(c, 0.25);
+    } else if (style === 'furniture') {
+      /* 家具木 — 深色木纹 */
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fillRect(0, 0, S, S);
+      ctx.strokeStyle = 'rgba(20,10,5,0.3)';
+      ctx.lineWidth = 0.5;
+      for (let g = 0; g < 15; g++) {
+        const y = Math.random() * S;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        for (let x = 0; x < S; x += 15) {
+          ctx.lineTo(x, y + Math.sin(x * 0.02 + g) * 4);
+        }
+        ctx.stroke();
+      }
+      this._noise2D(c, 80, 8, true);
+    }
+    this._seamlessTile(c);
+    return c;
+  }
+
+  /* ---------- 迭代9: 灯光面板纹理 ---------- */
+  _texLightPanel() {
+    const S = this._tex ? this._tex.size : 512;
+    const c = this._makeCanvasTex(S);
+    const ctx = c.getContext('2d');
+    /* 灯具外壳（灰色金属） */
+    ctx.fillStyle = '#3a3a3e';
+    ctx.fillRect(0, 0, S, S);
+    /* 两侧外壳 */
+    const frameW = S * 0.08;
+    ctx.fillStyle = '#5a5a5e';
+    ctx.fillRect(0, 0, frameW, S);
+    ctx.fillRect(S - frameW, 0, frameW, S);
+    /* 中间的灯管（更亮的白色条） */
+    const tubeW = S * 0.15;
+    const grd1 = ctx.createLinearGradient(frameW, 0, frameW + tubeW, 0);
+    grd1.addColorStop(0, '#d0d0c8');
+    grd1.addColorStop(0.5, '#f8f8f0');
+    grd1.addColorStop(1, '#d0d0c8');
+    ctx.fillStyle = grd1;
+    ctx.fillRect(frameW, 0, tubeW, S);
+    const cx = S / 2;
+    const grd2 = ctx.createLinearGradient(cx - tubeW / 2, 0, cx + tubeW / 2, 0);
+    grd2.addColorStop(0, '#d0d0c8');
+    grd2.addColorStop(0.5, '#f8f8f0');
+    grd2.addColorStop(1, '#d0d0c8');
+    ctx.fillStyle = grd2;
+    ctx.fillRect(cx - tubeW / 2, 0, tubeW, S);
+    /* 中间间隔暗区 */
+    ctx.fillStyle = '#2a2a2e';
+    ctx.fillRect(frameW + tubeW, 0, cx - tubeW / 2 - frameW - tubeW, S);
+    ctx.fillRect(cx + tubeW / 2, 0, S - frameW - tubeW - cx - tubeW / 2, S);
+    /* 微妙的闪烁噪点 */
+    for (let i = 0; i < 100; i++) {
+      const x = Math.random() * S, y = Math.random() * S;
+      ctx.fillStyle = `rgba(255,255,240,${Math.random() * 0.1})`;
+      ctx.fillRect(x, y, 1, 1);
+    }
+    return c;
+  }
+
+  /* ---------- 迭代10: 法线贴图生成系统 ---------- */
+  _makeNormalMap(canvas, strength) {
+    const S = canvas.width;
+    const ctx = canvas.getContext('2d');
+    const src = ctx.getImageData(0, 0, S, S);
+    const sd = src.data;
+    const out = this._makeCanvasTex(S);
+    const octx = out.getContext('2d');
+    const dst = octx.createImageData(S, S);
+    const dd = dst.data;
+    const st = strength || 2.0;
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x < S; x++) {
+        const xm = Math.max(0, x - 1), xp = Math.min(S - 1, x + 1);
+        const ym = Math.max(0, y - 1), yp = Math.min(S - 1, y + 1);
+        /* Sobel算子计算高度梯度 */
+        const hl = (sd[(y * S + xm) * 4] + sd[(y * S + xm) * 4 + 1] + sd[(y * S + xm) * 4 + 2]) / 3;
+        const hr = (sd[(y * S + xp) * 4] + sd[(y * S + xp) * 4 + 1] + sd[(y * S + xp) * 4 + 2]) / 3;
+        const ht = (sd[(ym * S + x) * 4] + sd[(ym * S + x) * 4 + 1] + sd[(ym * S + x) * 4 + 2]) / 3;
+        const hb = (sd[(yp * S + x) * 4] + sd[(yp * S + x) * 4 + 1] + sd[(yp * S + x) * 4 + 2]) / 3;
+        const dx = (hr - hl) / 255 * st;
+        const dy = (hb - ht) / 255 * st;
+        const nz = 1;
+        const len = Math.sqrt(dx * dx + dy * dy + nz * nz);
+        const i = (y * S + x) * 4;
+        dd[i]   = (dx / len * 0.5 + 0.5) * 255;
+        dd[i+1] = (dy / len * 0.5 + 0.5) * 255;
+        dd[i+2] = (nz / len * 0.5 + 0.5) * 255;
+        dd[i+3] = 255;
+      }
+    }
+    octx.putImageData(dst, 0, 0);
+    return out;
+  }
+
+  /* ---------- 迭代11: 粗糙度贴图生成 ---------- */
+  _makeRoughnessMap(baseCanvas, variant) {
+    const S = baseCanvas.width;
+    const ctx = baseCanvas.getContext('2d');
+    const src = ctx.getImageData(0, 0, S, S);
+    const sd = src.data;
+    const out = this._makeCanvasTex(S);
+    const octx = out.getContext('2d');
+    const dst = octx.createImageData(S, S);
+    const dd = dst.data;
+    for (let i = 0; i < sd.length; i += 4) {
+      const lum = (sd[i] + sd[i+1] + sd[i+2]) / 3;
+      let r;
+      if (variant === 'wallpaper') {
+        r = lum > 140 ? 0.7 : 0.85;
+      } else if (variant === 'carpet') {
+        r = 0.92 + (lum / 255) * 0.06;
+      } else if (variant === 'ceiling') {
+        r = lum > 200 ? 1.0 : 0.9;
+      } else if (variant === 'concrete') {
+        r = lum < 60 ? 0.5 : 0.85;
+      } else if (variant === 'tile') {
+        r = lum > 200 ? 0.3 : 0.8;
+      } else if (variant === 'metal') {
+        r = lum < 80 ? 0.9 : 0.3;
+      } else if (variant === 'wood') {
+        r = 0.8;
+      } else {
+        r = 0.8;
+      }
+      const rv = Math.max(0, Math.min(255, r * 255));
+      dd[i] = rv; dd[i+1] = rv; dd[i+2] = rv; dd[i+3] = 255;
+    }
+    octx.putImageData(dst, 0, 0);
+    return out;
+  }
+
+  /* ---------- 迭代13: 纹理变体系统 ---------- */
+  _getVariantTex(baseCanvas, seed) {
+    const S = baseCanvas.width;
+    const c = this._makeCanvasTex(S);
+    const ctx = c.getContext('2d');
+    ctx.drawImage(baseCanvas, 0, 0);
+    const rng = mulberry32(seed);
+    /* 色调微调 ±10% */
+    const hueShift = (rng() - 0.5) * 0.1;
+    const img = ctx.getImageData(0, 0, S, S);
+    const d = img.data;
+    const mul = 1 + hueShift;
+    for (let i = 0; i < d.length; i += 4) {
+      d[i]   = clamp255(d[i]   * mul);
+      d[i+1] = clamp255(d[i+1] * mul);
+      d[i+2] = clamp255(d[i+2] * mul);
+    }
+    ctx.putImageData(img, 0, 0);
+    /* 不同的污渍位置 */
+    const stainCount = 2 + Math.floor(rng() * 3);
+    for (let s = 0; s < stainCount; s++) {
+      const x = rng() * S, y = rng() * S;
+      const r = 8 + rng() * 25;
+      const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
+      grd.addColorStop(0, `rgba(20,15,5,${0.08 + rng() * 0.1})`);
+      grd.addColorStop(1, 'rgba(20,15,5,0)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    return c;
+  }
+
+  /* 根据关卡纹理键名生成完整纹理集（含法线和粗糙度） */
+  _buildTexSet(wallKey, floorKey, ceilKey) {
+    const key = wallKey + '_' + floorKey + '_' + ceilKey + '_q' + (this.quality || 'high');
+    if (this._texLib[key]) return this._texLib[key];
+
+    /* 映射纹理键到生成方法 */
+    const wallMap = {
+      'wallpaper': () => this._texWallpaper('damask', 'yellow'),
+      'wallpaper_stripe': () => this._texWallpaper('striped', 'yellow'),
+      'wallpaper_chevron': () => this._texWallpaper('chevron', 'green'),
+      'drywall': () => this._texWallpaper('striped', 'cream'),
+      'concrete': () => this._texConcrete('wall'),
+      'parking': () => this._texConcrete('parking'),
+      'metal': () => this._texMetal('panel'),
+      'electrical': () => this._texMetal('panel'),
+      'pool': () => this._texTile('pool_aqua'),
+      'office': () => this._texWood('paneling'),
+      'warehouse': () => this._texConcrete('stained'),
+      'hospital': () => this._texTile('bathroom'),
+      'dark': () => this._texConcrete('stained'),
+      'core': () => this._texMetal('grate'),
+      'pipe': () => this._texMetal('pipe')
+    };
+    const floorMap = {
+      'carpet': () => this._texCarpet('short_pile', 'gray_blue'),
+      'carpet_hotel': () => this._texCarpet('hotel', 'burgundy'),
+      'carpet_loop': () => this._texCarpet('loop', 'burgundy'),
+      'carpet_commercial': () => this._texCarpet('commercial', 'gray'),
+      'concrete': () => this._texConcrete('parking'),
+      'parking': () => this._texConcrete('parking'),
+      'tile': () => this._texTile('bathroom'),
+      'pool': () => this._texTile('pool_white'),
+      'tile_pool': () => this._texTile('pool_white'),
+      'tile_aqua': () => this._texTile('pool_aqua'),
+      'hospital': () => this._texTile('bathroom'),
+      'rust': () => this._texMetal('rust'),
+      'rubber': () => this._texCarpet('commercial', 'gray'),
+      'epoxy': () => this._texConcrete('stained'),
+      'dark': () => this._texConcrete('stained'),
+      'wood': () => this._texWood('floor'),
+      'core': () => this._texMetal('grate')
+    };
+    const ceilMap = {
+      'panel': () => this._texCeiling('acoustic'),
+      'acoustic': () => this._texCeiling('acoustic'),
+      'concrete': () => this._texCeiling('concrete'),
+      'metal_ceil': () => this._texCeiling('metal'),
+      'metal': () => this._texCeiling('metal'),
+      'pipe': () => this._texCeiling('pipe'),
+      'truss': () => this._texCeiling('metal'),
+      'core': () => this._texCeiling('pipe'),
+      'light_panel': () => this._texLightPanel()
+    };
+
+    const wallCanvasBase = (wallMap[wallKey] || wallMap['wallpaper'])();
+    const floorCanvasBase = (floorMap[floorKey] || floorMap['carpet'])();
+    const ceilCanvasBase = (ceilMap[ceilKey] || ceilMap['panel'])();
+
+    /* 迭代13: 应用纹理变体 — 色调微调±10%与随机污渍，不破坏无缝平铺 */
+    const _vSeed = (wallKey + floorKey + ceilKey).split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0);
+    const wallCanvas = this._getVariantTex(wallCanvasBase, _vSeed);
+    const floorCanvas = this._getVariantTex(floorCanvasBase, _vSeed + 1);
+    const ceilCanvas = ceilCanvasBase;
+
+    /* 迭代10-11: 生成法线和粗糙度贴图 */
+    const wallNormal = this._makeNormalMap(wallCanvas, 2.0);
+    const floorNormal = this._makeNormalMap(floorCanvas, 1.5);
+    const ceilNormal = this._makeNormalMap(ceilCanvas, 1.0);
+    const wallRough = this._makeRoughnessMap(wallCanvas, 'wallpaper');
+    const floorRough = this._makeRoughnessMap(floorCanvas, 'carpet');
+    const ceilRough = this._makeRoughnessMap(ceilCanvas, 'ceiling');
+
+    const THREE = window.THREE;
+    /* 迭代15: 纹理降级 — 低端设备缩小纹理 */
+    const _scale = (this.quality === 'low') ? 0.5 : (this.quality === 'medium') ? 0.75 : 1.0;
+    const _downScale = (cv) => {
+      if (_scale >= 1.0) return cv;
+      const ns = Math.max(64, Math.floor(cv.width * _scale));
+      const sc = this._makeCanvasTex(ns);
+      sc.getContext('2d').drawImage(cv, 0, 0, ns, ns);
+      return sc;
+    };
+    const toT = (cv) => this._canvasToTex(_downScale(cv));
+    const toTN = (cv) => {
+      const t = new THREE.CanvasTexture(_downScale(cv));
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.magFilter = THREE.LinearFilter;
+      t.minFilter = THREE.LinearMipmapLinearFilter;
+      t.anisotropy = 4;
+      return t;
+    };
+
+    const set = {
+      wallMap: toT(wallCanvas), wallNormal: toTN(wallNormal), wallRough: toTN(wallRough),
+      floorMap: toT(floorCanvas), floorNormal: toTN(floorNormal), floorRough: toTN(floorRough),
+      ceilMap: toT(ceilCanvas), ceilNormal: toTN(ceilNormal), ceilRough: toTN(ceilRough),
+      wallCanvas, floorCanvas, ceilCanvas
+    };
+    this._texLib[key] = set;
+    return set;
+  }
+
 
   /* ---------- Entity 3D models ---------- */
   _eye(r, color) {
@@ -11528,8 +14544,10 @@ class ThreeJSRendererBridge {
       this.scene.background = new THREE.Color(0x000000);
     } else if (world.fog && this.scene.fog) {
       /* 雾气呼吸效果：缓慢正弦波动 ±15% */
-      if (this._fogBase === undefined || this._fogBase !== world.fog * 0.7) {
-        this._fogBase = world.fog * 0.7;
+      /* 迭代41-43: 使用关卡专属fogDensity */
+      const _baseFog = (this._levelFogDensity != null) ? this._levelFogDensity : world.fog;
+      if (this._fogBase === undefined || this._fogBase !== _baseFog * 0.7) {
+        this._fogBase = _baseFog * 0.7;
         if (this._fogPhase === undefined) this._fogPhase = Math.random() * Math.PI * 2;
         if (this._fogPeriod === undefined) this._fogPeriod = 8 + Math.random() * 7;
       }
@@ -11549,22 +14567,55 @@ class ThreeJSRendererBridge {
     /* Update ambient and hemi colors based on world */
     /* 停电期间 ambient 降到 0.05 */
     const powerOut = (window.game && window.game._powerOutageActive) ? true : false;
-    let ambient = player.forceDark ? Math.max(world.ambient * 0.3, 0.06) : world.ambient;
+    /* 迭代41-43: 使用关卡专属ambient和fogDensity */
+    const _lvlAmbient = (this._levelAmbient != null) ? this._levelAmbient : 0.3;
+    let ambient = player.forceDark ? Math.max(_lvlAmbient * 0.3, 0.06) : _lvlAmbient;
     if (powerOut) ambient = 0.05;
+    /* 迭代49: 停电时关闭3D灯具mesh（MeshBasicMaterial管灯不受光照影响，需手动暗化） */
+    if (this._lampFixtures) {
+      const _tubeVisible = !powerOut;
+      for (const fixture of this._lampFixtures) {
+        if (fixture.userData._tubeMesh) {
+          fixture.userData._tubeMesh.visible = _tubeVisible;
+        } else if (fixture.children && fixture.children.length > 0) {
+          /* 首次：缓存tube mesh引用 */
+          for (const child of fixture.children) {
+            if (child.material && child.material.isMeshBasicMaterial) {
+              fixture.userData._tubeMesh = child;
+              child.visible = _tubeVisible;
+              break;
+            }
+          }
+        }
+      }
+    }
     this.hemi.intensity = 0.42 * ambient / 0.3;
-    if (world.hemiSky !== undefined) {
+    if (this._levelHemiSky !== undefined) {
+      /* 已在bindWorld中设置hemi颜色 */
+    } else if (world.hemiSky !== undefined) {
       this.hemi.color.setHex(world.hemiSky);
       this.hemi.groundColor.setHex(world.hemiGround);
     }
     /* Update lamp colors */
-    if (world.lampColor !== undefined) {
+    /* 迭代41-43: 关卡专属灯光颜色已在bindWorld中设置，这里仅同步非emergency灯 */
+    if (this._levelLampColor !== undefined && !this._emergencyLightIndices) {
+      for (let i = 0; i < this.lightPool.length; i++) {
+        this.lightPool[i].color.setHex(this._levelLampColor);
+      }
+    } else if (world.lampColor !== undefined && !this._levelLampColor) {
       for (let i = 0; i < this.lightPool.length; i++) {
         this.lightPool[i].color.setHex(world.lampColor);
       }
     }
-
     /* 节日装饰：Hub 关卡时覆盖灯光和雾色为节日主题 */
     const holidayActive = this._holidayDecor != null;
+    /* parking emergency light 脉冲：红色灯按2Hz频率闪烁 */
+    if (this._emergencyLightIndices && !holidayActive) {
+      const _emPulse = (Math.sin(time * Math.PI * 2 * 2) > 0) ? 1 : 0.05;
+      for (const _ei of this._emergencyLightIndices) {
+        if (this.lightPool[_ei]) this.lightPool[_ei].intensity = _emPulse;
+      }
+    }
     if (holidayActive && this._holiday) {
       const h = this._holiday;
       const lc = (Math.sin(time * 1.5) > 0) ? h.lampA : h.lampB;
@@ -12683,6 +15734,17 @@ class ThreeJSRendererBridge {
       const idx = QUALITY_ORDER.indexOf(this.quality);
       if (idx < QUALITY_ORDER.length - 1) this.setQuality(QUALITY_ORDER[idx + 1]);
     }
+    /* dynamic shadow: only enable for lights within 15 cells of player */
+    if (this.lightPool && this.playerPos) {
+      const px = this.playerPos.x, pz = this.playerPos.z;
+      const d2 = 15 * 4 * 15 * 4;
+      for (let i = 0, n = this.lightPool.length; i < n; i++) {
+        const lamp = this.lightPool[i]; if (!lamp) continue;
+        const dx = lamp.position.x - px, dz = lamp.position.z - pz;
+        const near = (dx * dx + dz * dz) < d2;
+        if (lamp.castShadow !== near) { lamp.castShadow = near; }
+      }
+    }
   }
 
   /* ---------- Grain & scanlines for post() ---------- */
@@ -13494,6 +16556,38 @@ class Game {
     const el = document.getElementById('changelog-content');
     if (!el) return;
     const logs = [
+      { v: 'v12.0', date: '2026-11-25', items: [
+        '【贴图系统】19个程序化纹理方法：壁纸(大马士革/条纹/人字纹)、地毯(短绒/圈绒/商用/酒店)、天花板(吸音/混凝土/金属/管道)、混凝土(停车场/墙面/污渍)、瓷砖(泳池白/水蓝/浴室/六角形)、金属(生锈/管道/格栅/配电板)、木材(墙板/地板/家具)、荧光灯面板',
+        '【贴图系统】Sobel算子法线贴图（从灰度高度图生成）',
+        '【贴图系统】7种粗糙度贴图变体 + 纹理变体系统（vertex color色调±10%）',
+        '【贴图系统】AO烘焙（墙角0.65→边缘0.85→中央1.0）',
+        '【贴图系统】纹理质量降级（low=0.5/medium=0.75/high=1.0）',
+        '【地图生成】房间系统：5种房间类型（标准/大房/走廊交汇/储藏/设备间）',
+        '【地图生成】走廊连接：L型/Z型路径，自动放墙',
+        '【地图生成】6种地标房间：宴会厅(6×6)/大厅(5×5)/维护间/台球室/锅炉房/交汇厅',
+        '【地图生成】重写12种生成类型：corridor/hotel/parking/pillars/maze/pipe/windows/finale/grid/hub/rooms/supply',
+        '【地图生成】垂直变化系统：下沉区域/台阶/LOWCEIL',
+        '【地图生成】物品放置智能化：地标房间多物资/走廊少物资',
+        '【地图生成】地图连通性验证（BFS）',
+        '【3D建模】墙体细节：踢脚线/顶线/壁柱/壁龛',
+        '【3D建模】门框门头+金色门把手+旋转开合',
+        '【3D建模】家具3D化：桌子/椅子/货架/文件柜/储物桶/金属柜',
+        '【3D建模】管道3D化：圆柱主体/T-L接头/阀门/支架/3种材质变体',
+        '【3D建模】灯具3D化：吸顶灯/壁灯/应急灯',
+        '【3D建模】柱子柱头柱基+装饰凹槽',
+        '【3D建模】窗户窗框(2×3网格)+半透明玻璃',
+        '【3D建模】通风口百叶+金属框',
+        '【3D建模】地标专属建模：吊灯/接待台/配电柜/锅炉/台球桌/指示牌',
+        '【视觉专属化】12种关卡色调主题（暖黄/橙黄/灰混/米色/深黄/绿灰/蓝白/紫红/冷白/暖金/走廊暖/储物冷）',
+        '【视觉专属化】关卡专属纹理匹配（每种gen类型使用对应壁纸/地毯/天花板纹理组合）',
+        '【视觉专属化】关卡专属灯光氛围（12种光照参数：色温/强度/雾密度/emergency灯）',
+        '【视觉专属化】关卡专属环境音（12种基频+音色组合）',
+        '【视觉专属化】关卡专属装饰物（画框/挂钟/壁灯/车道线/交通锥/锈蚀标语/枯萎植物/红色应急灯/神秘符号/电脑屏幕）',
+        '【性能优化】几何体合并（墙体/踢脚线/顶线/壁柱合并到chunk BufferGeometry，drawcall大幅降低）',
+        '【性能优化】LOD距离剔除（25格外细节物体隐藏）',
+        '【性能优化】动态shadow map分辨率（high=2048/medium=1024/low=512）',
+        '【性能优化】渲染管线优化（pixelRatio上限1.5/fog远裁面=renderDistance×0.8/相机far动态调整/15格内灯光才castShadow）'
+      ]},
       { v: 'v11.0', date: '2026-11-22', items: [
         '【音频系统】WebAudio空间音频系统，实体声音带方向感',
         '【音频系统】每关独立低频环境音 + 随机远处声音事件（水滴、金属吱嘎、低语、电流声）',
@@ -15087,6 +18181,19 @@ class Game {
         if (this.state === 'playing' && !this._tutorialActive) this.update(dt);
         else if (this.state === 'dying') this._updateDeathSequence(dt);
         else if (this.state === 'switchgame') this.updateSwitchGame(dt);
+        /* LOD: hide far detail meshes for perf */
+        if (this.state === 'playing' && this.renderer && this.renderer._detailMeshes) {
+          const ppx = this.player ? this.player.x : 0, ppy = this.player ? this.player.y : 0;
+          const pworld = this.renderer.playerPos;
+          const px = pworld ? pworld.x : ppx * 4, pz = pworld ? pworld.z : ppy * 4;
+          const cullD2 = 28 * 4 * 28 * 4;
+          const arr = this.renderer._detailMeshes;
+          for (let i = 0, n = arr.length; i < n; i++) {
+            const m = arr[i]; if (!m) continue;
+            const dx = m.position.x - px, dz = m.position.z - pz;
+            m.visible = (dx * dx + dz * dz) < cullD2;
+          }
+        }
         this.render(dt);
         this.input.endFrame();
         /* 聊天按钮：游戏中隐藏，其他状态显示 */
@@ -15458,6 +18565,8 @@ class Game {
         }
         if (this.audio) this.audio.door();
         this.hud.toast(w.doorStates[key] ? '门已关闭（8秒后自动开启）' : '门已打开', 1.5);
+        /* Force rebuild to update door mesh */
+        if (this.renderer) this.renderer._forceDoorRebuild = true;
       }
     }
     this.updateHold(dt, inp);
@@ -15478,6 +18587,8 @@ class Game {
         if (this.world.doorTimers[key] <= 0) {
           delete this.world.doorTimers[key];
           if (this.world.doorStates) this.world.doorStates[key] = false;
+          /* Force rebuild to update door mesh */
+          if (this.renderer) this.renderer._forceDoorRebuild = true;
         }
       }
     }
