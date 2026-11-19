@@ -1155,6 +1155,196 @@ input[type="range"]::-moz-range-thumb {
   .sb-admin-box{width:95vw;max-height:90vh;}
 }
 
+/* ====== PostFX CSS Overlay ====== */
+#postfx-overlay{
+  position:fixed;inset:0;pointer-events:none;z-index:18;
+  mix-blend-mode:normal;overflow:hidden;
+}
+#postfx-overlay .fx-layer{position:absolute;inset:0;will-change:opacity,transform,filter;}
+/* 胶片颗粒：用 CSS noise animation */
+.fx-grain{
+  opacity:0;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  animation:grainShift .12s steps(4) infinite;
+}
+@keyframes grainShift{
+  0%{transform:translate(0,0)}25%{transform:translate(-3px,2px)}
+  50%{transform:translate(2px,-3px)}75%{transform:translate(-2px,-2px)}
+  100%{transform:translate(3px,1px)}
+}
+/* 暗角 */
+.fx-vignette{
+  opacity:0;mix-blend-mode:multiply;
+  background:radial-gradient(ellipse at center,transparent 35%,rgba(0,0,0,.55) 75%,rgba(0,0,0,.92) 100%);
+}
+/* VHS 扫描线 */
+.fx-scanlines{
+  opacity:0;mix-blend-mode:multiply;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0px,rgba(0,0,0,.18) 1px,transparent 1px,transparent 3px);
+}
+/* 色差容器 */
+.fx-chromatic{opacity:0;mix-blend-mode:screen;filter:none;}
+/* 红色危险脉冲 */
+.fx-danger{
+  opacity:0;mix-blend-mode:screen;
+  background:radial-gradient(ellipse at center,transparent 50%,rgba(120,0,8,.5) 85%,rgba(160,0,10,.72) 100%);
+  animation:dangerPulse 1.6s ease-in-out infinite;
+}
+@keyframes dangerPulse{0%,100%{opacity:var(--danger-op,0)}50%{opacity:calc(var(--danger-op,0)*1.5)}}
+/* 闪回白闪 */
+.fx-flash{opacity:0;background:#fff;mix-blend-mode:screen;}
+/* 去饱和滤镜层 */
+.fx-desaturate{opacity:0;mix-blend-mode:saturation;background:#808080;}
+
+/* ============================ 迭代41: HUD 恐怖化 ============================ */
+/* HP<30 时血量闪烁红色 + 心跳脉动 */
+.stat.hp-critical .bar-fill{
+  animation:hpCriticalFlash .6s ease-in-out infinite;
+}
+@keyframes hpCriticalFlash{
+  0%,100%{filter:brightness(1) drop-shadow(0 0 2px rgba(200,0,0,.6));}
+  50%{filter:brightness(1.8) drop-shadow(0 0 8px rgba(255,0,0,.9));}
+}
+.stat.hp-critical{
+  animation:hpPulse .6s ease-in-out infinite;
+}
+@keyframes hpPulse{
+  0%,100%{transform:scale(1);}
+  50%{transform:scale(1.03);}
+}
+
+/* Sanity<30 时裂纹效果 */
+.stat.sanity-cracked .bar{
+  position:relative;
+}
+.stat.sanity-cracked .bar::after{
+  content:'';
+  position:absolute;inset:0;
+  background:
+    linear-gradient(105deg,transparent 48%,rgba(0,0,0,.6) 49%,rgba(0,0,0,.6) 50%,transparent 51%),
+    linear-gradient(75deg,transparent 30%,rgba(0,0,0,.4) 31%,transparent 32%),
+    linear-gradient(125deg,transparent 60%,rgba(0,0,0,.5) 61%,transparent 62%);
+  pointer-events:none;
+  animation:crackShimmer 2s ease-in-out infinite;
+}
+@keyframes crackShimmer{
+  0%,100%{opacity:.5;}
+  50%{opacity:1;}
+}
+
+/* 体力耗尽时灰色抖动 */
+.stat.stamina-exhausted .bar-fill{
+  filter:grayscale(1) brightness(.6);
+  animation:staminaShake .15s linear infinite;
+}
+@keyframes staminaShake{
+  0%{transform:translateX(0);}
+  25%{transform:translateX(-1px);}
+  50%{transform:translateX(1px);}
+  75%{transform:translateX(-1px);}
+  100%{transform:translateX(0);}
+}
+
+/* 口渴<15 时蓝色水滴动画 */
+.stat.thirst-dehydrated .bar{
+  position:relative;overflow:hidden;
+}
+.stat.thirst-dehydrated .bar::after{
+  content:'💧';
+  position:absolute;right:2px;top:-2px;
+  font-size:10px;
+  animation:waterDrop 1.2s ease-in infinite;
+  opacity:.8;
+}
+@keyframes waterDrop{
+  0%{transform:translateY(-10px);opacity:0;}
+  30%{opacity:.9;}
+  100%{transform:translateY(12px);opacity:0;}
+}
+
+/* 恐惧指示器：entity距离<6格时红色十字准星 */
+.fear-crosshair{
+  position:fixed;left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  width:40px;height:40px;
+  pointer-events:none;z-index:45;
+  opacity:0;
+  transition:opacity .3s ease;
+}
+.fear-crosshair.on{opacity:.35;}
+.fear-crosshair::before,.fear-crosshair::after{
+  content:'';position:absolute;background:rgba(180,0,0,.7);
+}
+.fear-crosshair::before{
+  left:50%;top:0;width:1px;height:100%;transform:translateX(-50%);
+}
+.fear-crosshair::after{
+  top:50%;left:0;height:1px;width:100%;transform:translateY(-50%);
+}
+
+/* 电量<10 时闪烁警告 */
+.chip.battery-warning{
+  animation:batteryWarn .5s ease-in-out infinite;
+}
+@keyframes batteryWarn{
+  0%,100%{color:#c44;text-shadow:0 0 4px rgba(200,60,0,.5);}
+  50%{color:#f88;text-shadow:0 0 10px rgba(255,80,0,.9);}
+}
+
+/* Sanity<20 时所有HUD元素轻微抖动 */
+.hud.hud-insane{
+  animation:hudInsaneShake .2s linear infinite;
+}
+@keyframes hudInsaneShake{
+  0%{transform:translate(0,0);}
+  25%{transform:translate(.5px,-.5px);}
+  50%{transform:translate(-.5px,.5px);}
+  75%{transform:translate(.5px,.5px);}
+  100%{transform:translate(0,0);}
+}
+
+/* ============================ 迭代42: 死亡画面 ============================ */
+#dead-screen-particles{
+  position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;
+}
+.dead-particle{
+  position:absolute;width:3px;height:3px;
+  background:rgba(80,20,20,.4);border-radius:50%;
+  animation:deadParticleFloat linear infinite;
+}
+@keyframes deadParticleFloat{
+  0%{transform:translateY(100vh) translateX(0);opacity:0;}
+  10%{opacity:.6;}
+  90%{opacity:.4;}
+  100%{transform:translateY(-10vh) translateX(20px);opacity:0;}
+}
+#dead-cause{color:#c44;font-size:14px;margin:8px 0 4px;}
+#dead-stats{color:#887;font-size:12px;line-height:1.8;margin:8px 0 12px;}
+#dead-stats b{color:#e8dcc0;}
+
+/* ============================ 迭代45: 水下特效 ============================ */
+#water-overlay{
+  position:fixed;inset:0;z-index:30;pointer-events:none;
+  opacity:0;transition:opacity .5s ease;
+}
+#water-overlay.on{opacity:1;}
+#water-tint{
+  position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(20,60,120,.25),rgba(10,30,80,.4));
+  mix-blend-mode:multiply;
+}
+#water-ripple{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse at 30% 20%,rgba(100,180,255,.06) 0%,transparent 50%),
+    radial-gradient(ellipse at 70% 60%,rgba(80,160,220,.05) 0%,transparent 50%);
+  animation:waterRipple 3s ease-in-out infinite;
+}
+@keyframes waterRipple{
+  0%,100%{transform:scale(1) translateX(0);}
+  50%{transform:scale(1.02) translateX(5px);}
+}
+
 </style>
 </head>
 <body>
@@ -1162,6 +1352,23 @@ input[type="range"]::-moz-range-thumb {
   <canvas id="view"></canvas>
   <canvas id="overlay"></canvas>
   <div class="dmg-flash" id="dmg-flash"></div>
+
+  <!-- PostFX CSS Overlay: 胶片颗粒/暗角/扫描线/色差/危险脉冲/闪回/去饱和 -->
+  <div id="postfx-overlay">
+    <div class="fx-layer fx-grain" id="fx-grain"></div>
+    <div class="fx-layer fx-vignette" id="fx-vignette"></div>
+    <div class="fx-layer fx-scanlines" id="fx-scanlines"></div>
+    <div class="fx-layer fx-chromatic" id="fx-chromatic"></div>
+    <div class="fx-layer fx-danger" id="fx-danger"></div>
+    <div class="fx-layer fx-flash" id="fx-flash"></div>
+    <div class="fx-layer fx-desaturate" id="fx-desaturate"></div>
+  </div>
+
+  <!-- 迭代45: 水下/涉水视觉特效 -->
+  <div id="water-overlay">
+    <div id="water-tint"></div>
+    <div id="water-ripple"></div>
+  </div>
 
   <!-- ======================= HUD ======================= -->
   <div id="hud" class="hud">
@@ -1179,8 +1386,16 @@ input[type="range"]::-moz-range-thumb {
       </div>
     </div>
 
-    <!-- 右上角：理智条 + 体力条 -->
+    <!-- 右上角：HP条 + 理智条 + 体力条 -->
     <div class="hud-topright">
+      <div class="stat" id="stat-hp">
+        <div class="stat-label">
+          <span class="stat-name">生命 <em>HP</em></span>
+          <span class="stat-val" id="hp-val">120</span>
+        </div>
+        <div class="bar"><div class="bar-fill" id="hp-bar" style="background:#c44;"></div></div>
+      </div>
+
       <div class="stat" id="stat-sanity">
         <div class="stat-label">
           <span class="stat-name">理智 <em>SANITY</em></span>
@@ -1223,6 +1438,7 @@ input[type="range"]::-moz-range-thumb {
     </div>
 
     <div id="crosshair" class="crosshair"></div>
+    <div id="fear-crosshair" class="fear-crosshair"></div>
     <div id="banner" class="banner"></div>
     <div id="flood" class="flood"><i id="flood-fill"></i></div>
     <div id="grab-indicator" class="grab-indicator">抓握</div>
@@ -1554,9 +1770,19 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
           <b id="set-sens-val">1.0</b>
         </label>
         <label class="setting-row">
-          <span>音量</span>
+          <span>主音量</span>
           <input type="range" id="set-vol" min="0" max="1" step="0.05" value="0.6">
           <b id="set-vol-val">60%</b>
+        </label>
+        <label class="setting-row">
+          <span>音效音量</span>
+          <input type="range" id="set-sfx" min="0" max="1" step="0.05" value="0.7">
+          <b id="set-sfx-val">70%</b>
+        </label>
+        <label class="setting-row">
+          <span>环境音量</span>
+          <input type="range" id="set-ambient" min="0" max="1" step="0.05" value="0.4">
+          <b id="set-ambient-val">40%</b>
         </label>
         <label class="setting-row">
           <span>画面抖动</span>
@@ -1659,9 +1885,12 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
 
     <!-- 死亡 -->
     <section class="screen" id="screen-dead">
-      <div class="panel panel-sm dead-panel">
+      <div id="dead-screen-particles"></div>
+      <div class="panel panel-sm dead-panel" style="position:relative;z-index:1;">
         <h2 class="danger">理智崩溃</h2>
         <p id="dead-text">你听见自己的呼吸变成了别人的。</p>
+        <p id="dead-cause"></p>
+        <div id="dead-stats"></div>
         <div class="menu-buttons">
           <button class="btn btn-primary" data-action="restart" id="dead-restart-btn">返回中枢</button>
           <button class="btn btn-ghost" data-action="quit">返回主菜单</button>
@@ -4703,7 +4932,11 @@ class AudioEngine {
   constructor() {
     this.ctx = null;
     this.master = null;
+    this.sfxGroup = null;
+    this.ambientGroup = null;
     this.volume = 0.6;
+    this.sfxVolume = 0.7;
+    this.ambientVolume = 0.4;
     this.ready = false;
     this.humNodes = null;
     this.humGain = null;
@@ -4717,9 +4950,16 @@ class AudioEngine {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();
+    /* 迭代43: 混音器系统 — master → destination, sfxGroup/ambientGroup → master */
     this.master = this.ctx.createGain();
     this.master.gain.value = this.volume;
     this.master.connect(this.ctx.destination);
+    this.sfxGroup = this.ctx.createGain();
+    this.sfxGroup.gain.value = this.sfxVolume;
+    this.sfxGroup.connect(this.master);
+    this.ambientGroup = this.ctx.createGain();
+    this.ambientGroup.gain.value = this.ambientVolume;
+    this.ambientGroup.connect(this.master);
 
     // 噪声缓冲
     const len = this.ctx.sampleRate * 2;
@@ -4734,6 +4974,17 @@ class AudioEngine {
   setVolume(v) {
     this.volume = v;
     if (this.master) this.master.gain.value = v;
+  }
+
+  /* 迭代43: 混音器音量控制 */
+  setSfxVolume(v) {
+    this.sfxVolume = v;
+    if (this.sfxGroup) this.sfxGroup.gain.value = v;
+  }
+
+  setAmbientVolume(v) {
+    this.ambientVolume = v;
+    if (this.ambientGroup) this.ambientGroup.gain.value = v;
   }
 
   /* ---------- 荧光灯底噪 ---------- */
@@ -4754,7 +5005,7 @@ class AudioEngine {
 
     o1.connect(lp);
     o2.connect(g2); g2.connect(lp);
-    lp.connect(g); g.connect(this.master);
+    lp.connect(g); g.connect(this.ambientGroup || this.master);
     o1.start(); o2.start();
 
     this.humNodes = { o1, o2, lp };
@@ -4794,7 +5045,7 @@ class AudioEngine {
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(gain, t + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(bp); bp.connect(g); g.connect(this.master);
+    src.connect(bp); bp.connect(g); g.connect(this.sfxGroup || this.master);
     src.start(t);
     src.stop(t + dur + 0.05);
     return { src, bp, g };
@@ -4812,7 +5063,7 @@ class AudioEngine {
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(gain, t + 0.015);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(this.master);
+    o.connect(g); g.connect(this.sfxGroup || this.master);
     o.start(t); o.stop(t + dur + 0.05);
   }
 
@@ -4896,6 +5147,410 @@ class AudioEngine {
     if (!this.ready) return;
     this._tone(220, 1.6, 0.16, 'sawtooth', 40);
     this._noise(1.6, 200, 0.7, 0.1, 'lowpass');
+  }
+
+  /* ====== 空间音频系统 ====== */
+
+  /* 创建 PannerNode，模拟 3D 定位音效 */
+  _makeSpatial(x, y) {
+    if (!this.ctx) return null;
+    const panner = this.ctx.createPanner();
+    panner.panningModel = 'HRTF';
+    panner.distanceModel = 'exponential';
+    panner.refDistance = 2;
+    panner.maxDistance = 30;
+    panner.rolloffFactor = 1.5;
+    /* 游戏坐标 → 音频坐标（X=右, Y=上=0, Z=前） */
+    panner.positionX.value = x || 0;
+    panner.positionY.value = 0;
+    panner.positionZ.value = y || 0;
+    panner.connect(this.sfxGroup || this.master);
+    return panner;
+  }
+
+  /* 带空间定位的噪声发声 */
+  _noiseSpatial(dur, freq, q, gain, type, x, y) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const panner = this._makeSpatial(x, y);
+    if (!panner) return;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = type || 'bandpass';
+    bp.frequency.value = freq;
+    bp.Q.value = q;
+    const g = ctx.createGain();
+    const t = ctx.currentTime;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp); bp.connect(g); g.connect(panner);
+    src.start(t);
+    src.stop(t + dur + 0.05);
+  }
+
+  /* 带空间定位的 tone 发声 */
+  _toneSpatial(freq, dur, gain, waveType, freqEnd, x, y) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const panner = this._makeSpatial(x, y);
+    if (!panner) return;
+    const o = ctx.createOscillator();
+    o.type = waveType || 'sine';
+    const t = ctx.currentTime;
+    o.frequency.setValueAtTime(freq, t);
+    if (freqEnd) o.frequency.exponentialRampToValueAtTime(Math.max(20, freqEnd), t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(panner);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+
+  /* 实体低吼（带空间定位） */
+  growlSpatial(dist, ex, ey) {
+    if (!this.ready) return;
+    const g = 0.16 / Math.max(1, dist);
+    this._toneSpatial(58 + Math.random() * 14, 0.9, g, 'sawtooth', 42, ex, ey);
+    this._noiseSpatial(0.85, 180, 1.2, g * 0.6, 'lowpass', ex, ey);
+  }
+
+  /* 实体脚步声（带空间定位） */
+  entityStep(dist, ex, ey, entityType, stepVol) {
+    if (!this.ready) return;
+    const sv = stepVol !== undefined ? stepVol : 1.0;
+    const vol = 0.08 / Math.max(1, dist * 0.5) * sv;
+    if (entityType === 'hound') {
+      /* 沉重的脚步，低频 */
+      this._noiseSpatial(0.14, 180 + Math.random() * 80, 1.0, vol, 'lowpass', ex, ey);
+      this._toneSpatial(55 + Math.random() * 15, 0.1, vol * 0.6, 'sine', 35, ex, ey);
+    } else if (entityType === 'crawler') {
+      /* 快速的刮擦声 */
+      this._noiseSpatial(0.06, 800 + Math.random() * 400, 2.5, vol, 'highpass', ex, ey);
+    } else if (entityType === 'stalker') {
+      /* 几乎无声（音量降低80%） */
+      this._noiseSpatial(0.05, 400 + Math.random() * 200, 1.5, vol, 'bandpass', ex, ey);
+    } else if (entityType === 'rot') {
+      /* 湿润的拖拽声 */
+      this._noiseSpatial(0.16, 220 + Math.random() * 100, 0.8, vol, 'lowpass', ex, ey);
+    } else {
+      /* 默认脚步 */
+      this._noiseSpatial(0.1, 300 + Math.random() * 120, 1.4, vol, 'bandpass', ex, ey);
+    }
+  }
+
+  /* 近距离呼吸声（带空间定位） */
+  breathing(dist, ex, ey) {
+    if (!this.ready) return;
+    const vol = 0.12 / Math.max(1, dist);
+    const freq = dist < 3 ? 280 + Math.random() * 60 : 200 + Math.random() * 40;
+    this._noiseSpatial(0.4, freq, 0.6, vol, 'bandpass', ex, ey);
+    setTimeout(() => {
+      if (!this.ready) return;
+      this._noiseSpatial(0.5, freq * 0.7, 0.5, vol * 0.7, 'bandpass', ex, ey);
+    }, 350);
+  }
+
+  /* 远处的低吼（更低的频率和音量） */
+  distantGrowl() {
+    if (!this.ready) return;
+    this._tone(36 + Math.random() * 8, 2.2, 0.05, 'sawtooth', 24);
+    this._noise(2.0, 120, 0.8, 0.03, 'lowpass');
+  }
+
+  /* 迭代29：嚎叫者嚎叫 — 低频长音+回声 */
+  howl() {
+    if (!this.ready) return;
+    /* 低频长音0.8秒 */
+    this._tone(55 + Math.random() * 10, 0.8, 0.12, 'sawtooth', 40);
+    this._noise(0.8, 200, 1.2, 0.06, 'lowpass');
+    /* 回声 */
+    setTimeout(() => {
+      if (!this.ready) return;
+      this._tone(48, 0.6, 0.06, 'sawtooth', 30);
+      this._noise(0.6, 150, 1.0, 0.03, 'lowpass');
+    }, 400);
+    setTimeout(() => {
+      if (!this.ready) return;
+      this._tone(42, 0.4, 0.03, 'sawtooth', 24);
+    }, 800);
+  }
+
+  /* ====== 关卡环境音系统 ====== */
+
+  startAmbient(levelConfig) {
+    this.stopAmbient();
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    /* 不同关卡有不同的基频和调制速度 */
+    const levelId = (levelConfig && levelConfig.id != null) ? levelConfig.id : 0;
+    const baseFreqs = [48, 55, 42, 60, 38, 52, 45, 50, 40, 58, 44, 46, 36, 54, 62];
+    const baseFreq = baseFreqs[levelId % baseFreqs.length];
+    const modSpeed = 0.08 + (levelId % 5) * 0.03;
+
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = 0;
+    masterGain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 2.0);
+    masterGain.connect(this.ambientGroup || this.master);
+
+    /* 2-3 个低频 oscillator（40-80Hz） */
+    const oscs = [];
+    const oscFreqs = [baseFreq, baseFreq * 1.5, baseFreq * 0.75];
+    for (let i = 0; i < 3; i++) {
+      const o = ctx.createOscillator();
+      o.type = i === 0 ? 'sine' : 'sawtooth';
+      o.frequency.value = oscFreqs[i];
+      const og = ctx.createGain();
+      og.gain.value = i === 0 ? 0.5 : 0.2;
+      /* LFO 调制频率 */
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = modSpeed * (1 + i * 0.3);
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = oscFreqs[i] * 0.04;
+      lfo.connect(lfoGain);
+      lfoGain.connect(o.frequency);
+      o.connect(og);
+      og.connect(masterGain);
+      o.start();
+      lfo.start();
+      oscs.push({ o, lfo, og });
+    }
+
+    /* 滤波后的噪声层 */
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.loop = true;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 100;
+    lp.Q.value = 0.5;
+    const ng = ctx.createGain();
+    ng.gain.value = 0.15;
+    src.connect(lp); lp.connect(ng); ng.connect(masterGain);
+    src.start();
+
+    this.ambientNodes = { masterGain, oscs, src, lp, ng };
+  }
+
+  stopAmbient() {
+    if (!this.ambientNodes || !this.ctx) return;
+    const ctx = this.ctx;
+    const a = this.ambientNodes;
+    const t = ctx.currentTime;
+    try {
+      a.masterGain.gain.cancelScheduledValues(t);
+      a.masterGain.gain.linearRampToValueAtTime(0, t + 0.8);
+      for (const node of a.oscs) {
+        node.o.stop(t + 1.0);
+        node.lfo.stop(t + 1.0);
+      }
+      a.src.stop(t + 1.0);
+    } catch (e) { /* ignore */ }
+    /* 断开所有节点，防止内存泄漏 */
+    try {
+      a.masterGain.disconnect();
+      for (const node of a.oscs) { node.o.disconnect(); node.lfo.disconnect(); node.og.disconnect(); }
+      a.src.disconnect(); a.lp.disconnect(); a.ng.disconnect();
+    } catch(e) { /* ignore */ }
+    this.ambientNodes = null;
+  }
+
+  /* ====== 随机远处声音事件 ====== */
+
+  /* 水滴声：高频短促的 tone + 微小 noise */
+  drip() {
+    if (!this.ready) return;
+    this._tone(1400 + Math.random() * 600, 0.04, 0.06, 'sine', 400);
+    setTimeout(() => {
+      if (!this.ready) return;
+      this._noise(0.03, 2000 + Math.random() * 1000, 3, 0.03, 'highpass');
+    }, 30);
+  }
+
+  /* 金属吱嘎声：频率扫描的 sawtooth */
+  metalCreak() {
+    if (!this.ready) return;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    const t = ctx.currentTime;
+    const startF = 200 + Math.random() * 200;
+    o.frequency.setValueAtTime(startF, t);
+    o.frequency.exponentialRampToValueAtTime(startF * 2.5, t + 0.3);
+    o.frequency.exponentialRampToValueAtTime(startF * 0.5, t + 0.7);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.04, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 800;
+    bp.Q.value = 5;
+    o.connect(bp); bp.connect(g); g.connect(this.ambientGroup || this.master);
+    o.start(t); o.stop(t + 0.85);
+  }
+
+  /* 远处低语：带 bandpass 的 noise + 颤音 */
+  distantWhisper() {
+    if (!this.ready) return;
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 900 + Math.random() * 600;
+    bp.Q.value = 6;
+    /* 颤音：LFO 调制中心频率 */
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 4 + Math.random() * 3;
+    const lfoG = ctx.createGain();
+    lfoG.gain.value = 300;
+    lfo.connect(lfoG); lfoG.connect(bp.frequency);
+    const g = ctx.createGain();
+    const t = ctx.currentTime;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.035, t + 0.3);
+    g.gain.linearRampToValueAtTime(0.025, t + 1.2);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.0);
+    src.connect(bp); bp.connect(g); g.connect(this.ambientGroup || this.master);
+    src.start(t); lfo.start(t);
+    src.stop(t + 2.1); lfo.stop(t + 2.1);
+  }
+
+  /* 电流嗡嗡声：快速频率调制的 square 波 */
+  electricBuzz() {
+    if (!this.ready) return;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    o.type = 'square';
+    const t = ctx.currentTime;
+    o.frequency.setValueAtTime(60, t);
+    /* 快速频率调制 */
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sawtooth';
+    lfo.frequency.value = 18 + Math.random() * 12;
+    const lfoG = ctx.createGain();
+    lfoG.gain.value = 40;
+    lfo.connect(lfoG); lfoG.connect(o.frequency);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.05, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 400;
+    o.connect(lp); lp.connect(g); g.connect(this.ambientGroup || this.master);
+    o.start(t); lfo.start(t);
+    o.stop(t + 0.55); lfo.stop(t + 0.55);
+  }
+
+  /* ============================ 迭代45: 水下muffled音效 ============================ */
+  _waterFilter = null;
+  setUnderwater(on) {
+    if (!this.ctx) return;
+    if (on && !this._waterFilter) {
+      this._waterFilter = this.ctx.createBiquadFilter();
+      this._waterFilter.type = 'lowpass';
+      this._waterFilter.frequency.value = 400;
+      this._waterFilter.Q.value = 1;
+      /* 插入到 master 之前 */
+      if (this.sfxGroup) { this.sfxGroup.disconnect(); this.sfxGroup.connect(this._waterFilter); }
+      if (this.ambientGroup) { this.ambientGroup.disconnect(); this.ambientGroup.connect(this._waterFilter); }
+      this._waterFilter.connect(this.master);
+    } else if (!on && this._waterFilter) {
+      if (this.sfxGroup) { this.sfxGroup.disconnect(); this.sfxGroup.connect(this.master); }
+      if (this.ambientGroup) { this.ambientGroup.disconnect(); this.ambientGroup.connect(this.master); }
+      this._waterFilter.disconnect();
+      this._waterFilter = null;
+    }
+  }
+
+  /* ============================ 迭代46: 追逐音乐系统 ============================ */
+  _chaseMusic = null;
+  startChaseMusic(intensity) {
+    if (!this.ctx) return;
+    intensity = Math.max(0, Math.min(1, intensity));
+    if (this._chaseMusic) {
+      /* 更新强度 */
+      const t = this.ctx.currentTime;
+      this._chaseMusic.intensity = intensity;
+      this._chaseMusic.pulseGain.gain.linearRampToValueAtTime(0.08 * intensity, t + 0.5);
+      this._chaseMusic.disGain.gain.linearRampToValueAtTime(0.04 * intensity, t + 0.5);
+      return;
+    }
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const group = ctx.createGain();
+    group.gain.value = 1;
+    group.connect(this.master);
+
+    /* 低频pulse：40-60Hz square波，120-160BPM */
+    const bpm = 120 + intensity * 40;
+    const beatDur = 60 / bpm;
+    const pulseOsc = ctx.createOscillator();
+    pulseOsc.type = 'square';
+    pulseOsc.frequency.value = 50;
+    const pulseGain = ctx.createGain();
+    pulseGain.gain.value = 0.08 * intensity;
+    /* LFO 控制节奏脉冲 */
+    const pulseLfo = ctx.createOscillator();
+    pulseLfo.type = 'square';
+    pulseLfo.frequency.value = 1 / beatDur;
+    const pulseLfoGain = ctx.createGain();
+    pulseLfoGain.gain.value = 0.08 * intensity;
+    pulseLfo.connect(pulseLfoGain);
+    pulseLfoGain.connect(pulseGain.gain);
+    pulseOsc.connect(pulseGain);
+    pulseGain.connect(group);
+
+    /* 高频不和谐音：随机半音sine波 */
+    const disGain = ctx.createGain();
+    disGain.gain.value = 0.04 * intensity;
+    disGain.connect(group);
+    const disOsc = ctx.createOscillator();
+    disOsc.type = 'sine';
+    disOsc.frequency.value = 800;
+    disOsc.connect(disGain);
+
+    /* 不和谐音切换 */
+    const disInterval = setInterval(() => {
+      if (!this._chaseMusic || !this.ctx) return;
+      const semis = [-2, 1, 3, 6, 8, 11];
+      const semi = semis[Math.floor(Math.random() * semis.length)];
+      const freq = 440 * Math.pow(2, semi / 12);
+      disOsc.frequency.linearRampToValueAtTime(freq, this.ctx.currentTime + 0.1);
+    }, 500 + Math.random() * 500);
+
+    pulseOsc.start(now);
+    pulseLfo.start(now);
+    disOsc.start(now);
+
+    this._chaseMusic = {
+      group, pulseOsc, pulseLfo, disOsc, pulseGain, disGain,
+      intensity, disInterval
+    };
+  }
+
+  stopChaseMusic() {
+    if (!this._chaseMusic || !this.ctx) return;
+    const cm = this._chaseMusic;
+    this._chaseMusic = null;
+    const t = this.ctx.currentTime;
+    /* 2秒淡出 */
+    cm.group.gain.linearRampToValueAtTime(0, t + 2);
+    if (cm.disInterval) clearInterval(cm.disInterval);
+    setTimeout(() => {
+      try {
+        cm.pulseOsc.stop();
+        cm.pulseLfo.stop();
+        cm.disOsc.stop();
+        cm.group.disconnect();
+      } catch(e) { /* ignore */ }
+    }, 2100);
   }
 }
 
@@ -5327,7 +5982,8 @@ const TILE = {
   SHELF: 4,
   PIPE: 5,
   VENT: 6,
-  EXIT: 7
+  EXIT: 7,
+  LOCKER: 8
 };
 
 /* 标志位 */
@@ -5348,7 +6004,8 @@ const TILE_DEF = {
   [TILE.SHELF]: { h: 0.55, flags: F.STAND | F.CLIMB, tex: 'shelf' },
   [TILE.PIPE]: { h: 1.0, flags: F.CLIMB, tex: 'pipe' },
   [TILE.VENT]: { h: 0, flags: F.LOWCEIL, tex: 'vent' },
-  [TILE.EXIT]: { h: 1.0, flags: F.EXIT, tex: 'exit' }
+  [TILE.EXIT]: { h: 1.0, flags: F.EXIT, tex: 'exit' },
+  [TILE.LOCKER]: { h: 0.95, flags: F.STAND, tex: 'shelf' }
 };
 
 /* ---------------- 窗口参数 ---------------- */
@@ -5690,6 +6347,10 @@ function generateWorld(level, seed) {
     if (r < propP * 1.45) return TILE.SHELF;
     if (r < propP * 1.75) return TILE.PIPE;
     if (r < propP * 1.95) return TILE.VENT;
+    /* 储物柜：走廊/旅馆/停车场沿墙壁生成，约每15-20格一个 */
+    if ((gen === 'corridor' || gen === 'hotel' || gen === 'parking') && !onSpine(seed, rx, ry, lx, ly, RS)) {
+      if (hash3(ax + 31, ay + 17, 88) < 0.022) return TILE.LOCKER;
+    }
     return TILE.EMPTY;
   };
 
@@ -5831,7 +6492,7 @@ function generateWorld(level, seed) {
         // 物品（补给概率随深度提升，目标物概率不变）
         const r = hash3(seed + 0x301, rx, ry);
         const deep = depthBonus(rx, ry);
-        const supply = 0.10 + deep * 0.09;
+        const supply = (0.10 + deep * 0.09) * (level._itemMult || 1);
         const navP = level.navP || 0.025;  /* 导航仪概率 */
         let t = null;
         if (r < objP) t = 'objective';
@@ -5937,6 +6598,91 @@ function generateWorld(level, seed) {
   }
 
   /* ---- 世界对象 ---- */
+  /* 迭代34：散落物品生成 */
+  const _scattered = [];
+  const _scCount = 5 + Math.floor(seededRand() * 11); /* 5-15个 */
+  const _scTypes = ['crate', 'paper', 'bucket'];
+  for (let si = 0; si < _scCount; si++) {
+    let _sx, _sy, _tries = 0;
+    do {
+      _sx = 2 + Math.floor(seededRand() * (W - 4));
+      _sy = 2 + Math.floor(seededRand() * (H - 4));
+      _tries++;
+    } while (_tries < 20 && (height[_sy * W + _sx] > 0.3));
+    if (_tries < 20) {
+      _scattered.push({
+        x: _sx + 0.5 + (seededRand() - 0.5) * 0.4,
+        y: _sy + 0.5 + (seededRand() - 0.5) * 0.4,
+        type: _scTypes[Math.floor(seededRand() * _scTypes.length)],
+        rot: seededRand() * Math.PI * 2
+      });
+    }
+  }
+
+  /* 迭代35：安全屋生成 — corridor/hotel/parking类型 */
+  const _safeRooms = [];
+  const _srGens = ['corridor', 'hotel', 'parking', 'rooms', 'pillars'];
+  if (_srGens.indexOf(level.gen) >= 0 && !level.isHub) {
+    const _srCount = 1 + Math.floor(seededRand() * 2); /* 1-2个 */
+    for (let sr = 0; sr < _srCount; sr++) {
+      let _srx, _sry, _tries = 0;
+      do {
+        _srx = 3 + Math.floor(seededRand() * (W - 6));
+        _sry = 3 + Math.floor(seededRand() * (H - 6));
+        _tries++;
+        /* 找一个开阔区域，距离起点至少10格 */
+        const _distStart = Math.hypot(_srx - start.x, _sry - start.y);
+        if (_distStart < 10) continue;
+        /* 检查3x3区域是否都是空地 */
+        let _ok = true;
+        for (let dx = -1; dx <= 1 && _ok; dx++) {
+          for (let dy = -1; dy <= 1 && _ok; dy++) {
+            if (height[(_sry + dy) * W + (_srx + dx)] > 0.3) _ok = false;
+          }
+        }
+        if (_ok) break;
+      } while (_tries < 30);
+      if (_tries < 30) {
+        _safeRooms.push({ x: _srx + 0.5, y: _sry + 0.5, r: 2.5 });
+        /* 在安全屋中心放置储物柜 */
+        type[_sry * W + _srx] = TILE.LOCKER;
+        height[_sry * W + _srx] = 0.95;
+      }
+    }
+  }
+
+  /* 迭代36：陷阱房生成 — corridor/hotel/parking/rooms类型 */
+  const _trapRooms = [];
+  if (_srGens.indexOf(level.gen) >= 0 && !level.isHub) {
+    const _trCount = 1 + Math.floor(seededRand() * 2);
+    for (let tr = 0; tr < _trCount; tr++) {
+      let _trx, _try, _tries = 0;
+      do {
+        _trx = 3 + Math.floor(seededRand() * (W - 6));
+        _try = 3 + Math.floor(seededRand() * (H - 6));
+        _tries++;
+        const _distStart = Math.hypot(_trx - start.x, _try - start.y);
+        if (_distStart < 12) continue;
+        /* 避免和安全屋重叠 */
+        let _overlap = false;
+        for (const sr of _safeRooms) {
+          if (Math.hypot(_trx - sr.x, _try - sr.y) < 8) { _overlap = true; break; }
+        }
+        if (_overlap) continue;
+        let _ok = true;
+        for (let dx = -1; dx <= 1 && _ok; dx++) {
+          for (let dy = -1; dy <= 1 && _ok; dy++) {
+            if (height[(_try + dy) * W + (_trx + dx)] > 0.3) _ok = false;
+          }
+        }
+        if (_ok) break;
+      } while (_tries < 30);
+      if (_tries < 30) {
+        _trapRooms.push({ x: _trx + 0.5, y: _try + 0.5, r: 2.5, triggered: false, timer: 0 });
+      }
+    }
+  }
+
   const world = {
     w: W, h: H,
     ox: 0, oy: 0,
@@ -5952,12 +6698,16 @@ function generateWorld(level, seed) {
     hemiGround: level.hemiGround ?? 0x191510,
     level,
     seed,
+    scattered: _scattered,
+    safeRooms: _safeRooms,
+    trapRooms: _trapRooms,
     roomSize: RS,
     start,
     exitPos: { x: exitCell.x + 0.5, y: exitCell.y + 0.5 },
     exitStand: { x: exitCell.x + 0.5, y: exitCell.y + 1.5 },
     lightMul: 1,
     time: 0,
+    doorStates: {},   /* 迭代18：门的开闭状态 */
     tileAt: (ax, ay) => cell(Math.floor(ax), Math.floor(ay)),
     ensure(px, py) {
       const cx = world.ox + WIN_HALF, cy = world.oy + WIN_HALF;
@@ -6269,6 +7019,39 @@ const LEVEL_NOTES = {
   }
 };
 
+/* 迭代32：墙面文字系统 */
+const WALL_TEXTS = [
+  'RUN', 'NO EXIT', 'THEY HEAR YOU', 'TURN BACK', "IT'S TOO LATE",
+  'HELP ME', 'NO WAY OUT', 'I SEE YOU', 'DON\'T STOP', 'LEVEL 0',
+  'WE ARE HERE', 'THE WALLS KNOW', 'YOU CANNOT LEAVE', 'STAY STILL',
+  'IT FOLLOWS', 'YOU\'RE NOT ALONE', 'KEEP MOVING', 'THEY\'RE COMING',
+  'NO ONE ESCAPES', 'I WAS HERE BEFORE YOU'
+];
+
+/* 迭代38：关卡过渡叙事文字 */
+const LEVEL_NARRATIVES = [
+  '我在潮湿的地毯上醒来。灯管嗡嗡作响，空气中弥漫着旧纸张的味道。这里没有时间，只有无尽的走廊。',
+  '混凝土地面很冷。远处传来拖沓的脚步声——不像人的步伐。我必须找到出路。',
+  '灯光终于稳定了。但这份安宁让我更加不安——在后室里，安全本身就是陷阱。',
+  '管道在头顶嘶嘶作响，蒸汽烫伤了我的手背。电闸锈死在墙上，每一个都像在抗拒被拉动。',
+  '水已经没过脚踝了。瓷砖反射着青绿色的光，水底有什么东西在游动。我必须加快。',
+  '办公桌一排排延伸到黑暗里。每张桌上都摊着同一份文件——名字那一栏被涂掉了。是我的名字吗？',
+  '货架堆到看不见顶。爬上去能看到更远，但也意味着无处躲藏。我能听到箱子后面有呼吸声。',
+  '病房门一扇扇关着。有一扇门后面，有人在用我的声音说话。我不敢打开它。',
+  '没有光。连灯管的残影都消失了。我听到自己的呼吸从四面八方传来——但有一个不是我的。',
+  '所有走廊在这里交汇。我能听见上面某一层传来自己的脚步声。出口就在前面，但它一直在后退。',
+  'V型走廊向下延伸。两侧的展廊里陈列着我遗失的记忆。走过去，走出去——如果还能走出去的话。',
+  '旅馆走廊的地毯吸收了所有声音。房门紧闭，但我知道有些门后面在等我。房卡冰凉。',
+  '无数窗户涌入光线，却照不亮中央的阴影。窗外的景色永远不变——因为外面什么都没有。',
+  '噩梦初醒。走廊无尽延伸。它在我身后，打不死，一直在追。别回头。',
+  '粉色的空间里回荡着一个问题。我不记得答案了。走廊尽头的笑脸越来越大。',
+  '蒸汽和铁锈的味道呛得我喘不过气。管道缝隙里滴下的液体不是水——它比水更黏稠。',
+  '空荡荡的商铺像张开的嘴。卷帘门半开着，像在邀请我进去。自动扶梯停了，但我听到它在滑动。',
+  '柱子延伸到看不见底的黑暗里。车道线消失在远方。我的引擎声从四面八方传来——但我没有车。',
+  '警报声撕裂了一切。所有的门都锁死了。走廊尽头亮起红色应急灯。跑。不要停。',
+  '灰色的混凝土迷宫。没有灯，但到处都很亮。墙上钉着一张地图——上面画的是我来时的路。'
+];
+
 const LEVELS = [
   /* ---------------- LEVEL 0 ---------------- */
   {
@@ -6297,10 +7080,11 @@ const LEVELS = [
     vents: 1,
     entities: [],
     objective: { name: '出口', count: 0 },
-    biscuits: 5,
-    waters: 1,
-    batteries: 1,
-    sanityDrain: 0.74,
+    biscuits: 8,
+    waters: 3,
+    batteries: 3,
+    speedMul: 0.8,
+    sanityDrain: 0.3,
     sanityGain: 2.81,
     hint: 'WASD 移动，Shift 冲刺。找到发着光的出口门，按 E 推门通关。'
   },
@@ -6330,13 +7114,14 @@ const LEVELS = [
     decor: { type: 'crates', density: 0.03 },
     pipes: 2,
     vents: 2,
-    entities: [{ type: 'hound', count: 2, minDist: 15 }],
+    entities: [{ type: 'hound', count: 1, minDist: 15 }],
     objective: { name: '车钥匙', count: 4 },
-    biscuits: 5,
-    waters: 2,
+    biscuits: 6,
+    waters: 3,
     batteries: 2,
     navP: 0.04,
-    sanityDrain: 1.15,
+    speedMul: 0.8,
+    sanityDrain: 0.4,
     sanityGain: 2.16,
     hint: '混凝土柱子后面可以躲避猎犬。冲刺会发出很大的声音。找到导航仪后按 R 手持，可看罗盘。'
   },
@@ -6369,6 +7154,7 @@ const LEVELS = [
     entities: [],
     objective: { name: '出口', count: 0 },
     isHub: true,
+    speedMul: 0.8,
     biscuits: 3,
     waters: 2,
     batteries: 1,
@@ -6422,13 +7208,14 @@ const LEVELS = [
     decor: { type: 'mixed', density: 0.05 },
     pipes: 7,
     vents: 3,
-    entities: [{ type: 'hound', count: 2, minDist: 14 }, { type: 'crawler', count: 1, minDist: 16 }, { type: 'smiler', count: 1, minDist: 18 }],
+    entities: [{ type: 'hound', count: 1, minDist: 14 }, { type: 'crawler', count: 1, minDist: 16 }],
     objective: { name: '电闸', count: 6, variant: 'switch' },
-    biscuits: 5,
-    waters: 2,
+    biscuits: 6,
+    waters: 3,
     batteries: 3,
     navP: 0.025,
-    sanityDrain: 1.42,
+    speedMul: 0.8,
+    sanityDrain: 0.5,
     sanityGain: 2.20,
     hint: '拉下墙上全部6个电闸（按E交互，按住旋钮）。管道交错——蹲下（C）可以钻进通风口。'
   },
@@ -6459,14 +7246,15 @@ const LEVELS = [
     pipes: 4,
     vents: 3,
     water: true,
-    entities: [{ type: 'crawler', count: 2, minDist: 15 }, { type: 'rot', count: 1, minDist: 18 }],
+    entities: [{ type: 'crawler', count: 2, minDist: 15 }, { type: 'rot', count: 1, minDist: 18 }, { type: 'smiler', count: 1, minDist: 18 }],
     objective: { name: '出口', count: 1 },
     altClear: { type: 'flood_escape', hint: '水位持续上涨——在水灌满整层之前逃到出口！水下消耗氧气。' },
-    biscuits: 4,
+    biscuits: 5,
     waters: 3,
     batteries: 2,
     navP: 0.02,
-    sanityDrain: 1.45,
+    speedMul: 0.9,
+    sanityDrain: 0.5,
     sanityGain: 2.25,
     hint: '水位在不断上涨！尽快找到出口。水下游泳消耗氧气（氧气耗尽会溺水）。水面可以恢复氧气。'
   },
@@ -6498,16 +7286,16 @@ const LEVELS = [
     vents: 3,
     entities: [
       { type: 'smiler', count: 2, minDist: 14 },
-      { type: 'hound', count: 2, minDist: 17 },
-      { type: 'echo', count: 1, minDist: 18 },
-      { type: 'partygoer', count: 1, minDist: 20 }
+      { type: 'hound', count: 1, minDist: 17 },
+      { type: 'stalker', count: 1, minDist: 20 }
     ],
     objective: { name: '档案', count: 5 },
-    biscuits: 6,
+    biscuits: 5,
     waters: 3,
     batteries: 2,
     navP: 0.025,
-    sanityDrain: 1.31,
+    speedMul: 0.9,
+    sanityDrain: 0.5,
     sanityGain: 2.42,
     hint: '隔断只有半人高——翻过去比绕路快，但要花体力。影行者会瞬移靠近你，听到嗡鸣声快跑。'
   },
@@ -6538,15 +7326,17 @@ const LEVELS = [
     pipes: 5,
     vents: 2,
     entities: [
-      { type: 'hound', count: 3, minDist: 16 },
-      { type: 'rot', count: 2, minDist: 14 }
+      { type: 'hound', count: 2, minDist: 16 },
+      { type: 'rot', count: 1, minDist: 14 },
+      { type: 'crawler', count: 1, minDist: 18 }
     ],
     objective: { name: '货单', count: 4, variant: 'hold' },
-    biscuits: 7,
-    waters: 3,
+    biscuits: 5,
+    waters: 2,
     batteries: 2,
     navP: 0.02,
-    sanityDrain: 1.55,
+    speedMul: 0.9,
+    sanityDrain: 0.5,
     sanityGain: 2.20,
     hint: '这层箱子特别多。按 F 爬到箱顶走直线，比在地面绕路安全得多。腐生者毒迹减速，绕开走。'
   },
@@ -6578,16 +7368,16 @@ const LEVELS = [
     vents: 3,
     entities: [
       { type: 'crawler', count: 2, minDist: 13 },
-      { type: 'smiler', count: 2, minDist: 16 },
-      { type: 'echo', count: 1, minDist: 18 },
-      { type: 'watcher', count: 1, minDist: 20 }
+      { type: 'smiler', count: 1, minDist: 16 },
+      { type: 'stalker', count: 1, minDist: 20 }
     ],
     objective: { name: '病历', count: 5, variant: 'guarded' },
-    biscuits: 5,
-    waters: 4,
+    biscuits: 4,
+    waters: 3,
     batteries: 2,
     navP: 0.02,
-    sanityDrain: 1.88,
+    speedMul: 0.9,
+    sanityDrain: 0.5,
     sanityGain: 2.42,
     hint: '这一层理智掉得最快。杏仁水（按 2 手持后按 E）能救命。回声只在你移动时移动——停下它也停。'
   },
@@ -6619,14 +7409,16 @@ const LEVELS = [
     vents: 4,
     entities: [
       { type: 'smiler', count: 3, minDist: 15 },
-      { type: 'stalker', count: 2, minDist: 18 }
+      { type: 'stalker', count: 2, minDist: 18 },
+      { type: 'hound', count: 1, minDist: 16 }
     ],
     objective: { name: '灯芯', count: 5 },
-    biscuits: 6,
-    waters: 3,
-    batteries: 4,
+    biscuits: 5,
+    waters: 2,
+    batteries: 3,
     navP: 0.015,
-    sanityDrain: 2.05,
+    speedMul: 1.0,
+    sanityDrain: 0.7,
     sanityGain: 2.16,
     hint: '关掉手电你就什么都看不见。但开着灯，它们也看得见你。影行者瞬移时会有嗡鸣声预警。'
   },
@@ -6666,11 +7458,12 @@ const LEVELS = [
     ],
     objective: { name: '核心碎片', count: 8, variant: 'mobile' },
     altClear: { type: 'survive', time: 120, hint: '或存活满120秒后出口解锁' },
-    biscuits: 7,
-    waters: 4,
-    batteries: 3,
+    biscuits: 5,
+    waters: 3,
+    batteries: 2,
     navP: 0.015,
-    sanityDrain: 2.20,
+    speedMul: 1.0,
+    sanityDrain: 0.7,
     sanityGain: 2.42,
     hint: '最后一层。把所有碎片找齐，然后回到出口。或存活满120秒——两种方式都能通关。'
   },
@@ -6706,7 +7499,8 @@ const LEVELS = [
     waters: 3,
     batteries: 2,
     navP: 0,
-    sanityDrain: 0.5,
+    speedMul: 1.0,
+    sanityDrain: 0.3,
     sanityGain: 3.0,
     hint: '沿着 V 形坡道向下走，走廊两侧是回溯展廊。找到 5 个记忆碎片后，晶格之门将开启。'
   },
@@ -6739,14 +7533,16 @@ const LEVELS = [
     pipes: 1,
     vents: 1,
     entities: [
-      { type: 'smile_demon', count: 1, minDist: 12 }
+      { type: 'smile_demon', count: 1, minDist: 12 },
+      { type: 'hound', count: 1, minDist: 16 }
     ],
     objective: { name: '房卡', count: 4, variant: 'normal' },
     biscuits: 3,
     waters: 2,
     batteries: 2,
     navP: 0.01,
-    sanityDrain: 1.4,
+    speedMul: 1.0,
+    sanityDrain: 0.7,
     sanityGain: 1.8,
     hint: '废弃旅馆。找到 4 张房卡后出口开启。小心走廊尽头的东西。'
   },
@@ -6777,14 +7573,16 @@ const LEVELS = [
     pipes: 0,
     vents: 1,
     entities: [
-      { type: 'dream_chaser', count: 1, minDist: 15 }
+      { type: 'dream_chaser', count: 1, minDist: 15 },
+      { type: 'stalker', count: 1, minDist: 20 }
     ],
     objective: { name: '窗之碎片', count: 5, variant: 'normal' },
     biscuits: 3,
-    waters: 3,
+    waters: 2,
     batteries: 2,
     navP: 0.01,
-    sanityDrain: 1.2,
+    speedMul: 1.0,
+    sanityDrain: 0.7,
     sanityGain: 2.0,
     hint: '百窗庭院。收集 5 个窗之碎片后出口显现。光线虽好，但有什么在追你。'
   },
@@ -6817,15 +7615,17 @@ const LEVELS = [
     pipes: 2,
     vents: 1,
     entities: [
-      { type: 'dream_chaser', count: 1, minDist: 20 }
+      { type: 'dream_chaser', count: 1, minDist: 20 },
+      { type: 'howler', count: 1, minDist: 18 }
     ],
     objective: { name: '出口', count: 0 },
     altClear: { type: 'survive', time: 90, hint: '存活 90 秒 · 出口才会出现' },
-    biscuits: 4,
+    biscuits: 3,
     waters: 2,
-    batteries: 3,
+    batteries: 2,
     navP: 0,
-    sanityDrain: 3.0,
+    speedMul: 1.1,
+    sanityDrain: 1.0,
     sanityGain: 0.5,
     hint: '它打不死，一直追你。理智消耗极快。别停下，别回头。存活 90 秒后出口出现。',
     isEasterEgg: true,
@@ -6860,13 +7660,15 @@ const LEVELS = [
     pipes: 0,
     vents: 0,
     entities: [
-      { type: 'smile_demon', count: 1, minDist: 15 }
+      { type: 'smile_demon', count: 1, minDist: 15 },
+      { type: 'skin_stealer', count: 1, minDist: 18 }
     ],
     objective: { name: '签名', count: 3, variant: 'normal' },
-    biscuits: 5,
-    waters: 3,
+    biscuits: 4,
+    waters: 2,
     batteries: 2,
     navP: 0,
+    speedMul: 1.1,
     sanityDrain: 1.0,
     sanityGain: 1.0,
     hint: '粉色的噩梦。找到 3 个开发者签名后出口解锁。别碰笑魔。',
@@ -6904,14 +7706,16 @@ const LEVELS = [
     entities: [
       { type: 'crawler', count: 2, minDist: 14 },
       { type: 'hound', count: 2, minDist: 16 },
+      { type: 'howler', count: 1, minDist: 18 },
       { type: 'rot', count: 1, minDist: 18 }
     ],
     objective: { name: '阀门', count: 5, variant: 'switch' },
-    biscuits: 5,
-    waters: 3,
-    batteries: 3,
+    biscuits: 4,
+    waters: 2,
+    batteries: 2,
     navP: 0.02,
-    sanityDrain: 1.6,
+    speedMul: 1.1,
+    sanityDrain: 1.0,
     sanityGain: 2.1,
     hint: '蒸汽弥漫的管道迷宫。找到并关闭 5 个蒸汽阀门后出口开启。小心管道缝隙里的东西。'
   },
@@ -6945,14 +7749,16 @@ const LEVELS = [
       { type: 'hound', count: 2, minDist: 15 },
       { type: 'smiler', count: 2, minDist: 16 },
       { type: 'partygoer', count: 1, minDist: 20 },
+      { type: 'skin_stealer', count: 1, minDist: 18 },
       { type: 'echo', count: 1, minDist: 18 }
     ],
     objective: { name: '商铺钥匙', count: 5 },
-    biscuits: 6,
-    waters: 3,
+    biscuits: 4,
+    waters: 2,
     batteries: 2,
     navP: 0.02,
-    sanityDrain: 1.3,
+    speedMul: 1.1,
+    sanityDrain: 1.0,
     sanityGain: 2.3,
     hint: '废弃商场。收集 5 把商铺钥匙后出口解锁。空旷的商铺是天然的伏击点——注意脚步声。'
   },
@@ -6985,14 +7791,16 @@ const LEVELS = [
     entities: [
       { type: 'hound', count: 3, minDist: 16 },
       { type: 'stalker', count: 2, minDist: 20 },
+      { type: 'duller', count: 1, minDist: 18 },
       { type: 'rot', count: 1, minDist: 18 }
     ],
     objective: { name: '停车券', count: 5, variant: 'hold' },
-    biscuits: 6,
-    waters: 3,
-    batteries: 3,
+    biscuits: 4,
+    waters: 2,
+    batteries: 2,
     navP: 0.015,
-    sanityDrain: 1.7,
+    speedMul: 1.1,
+    sanityDrain: 1.0,
     sanityGain: 2.0,
     hint: '无尽的深渊停车场。找到 5 张停车券后出口解锁。潜伏者在暗处跟踪——听到嗡鸣就跑。'
   },
@@ -7026,15 +7834,17 @@ const LEVELS = [
       { type: 'hound', count: 4, minDist: 12 },
       { type: 'crawler', count: 3, minDist: 14 },
       { type: 'stalker', count: 2, minDist: 16 },
-      { type: 'dream_chaser', count: 1, minDist: 20 }
+      { type: 'dream_chaser', count: 1, minDist: 20 },
+      { type: 'partygoer', count: 1, minDist: 22 }
     ],
     objective: { name: '出口', count: 0 },
     altClear: { type: 'survive', time: 120, hint: '存活 120 秒 · 出口才会出现' },
-    biscuits: 4,
+    biscuits: 3,
     waters: 2,
-    batteries: 4,
+    batteries: 3,
     navP: 0,
-    sanityDrain: 3.5,
+    speedMul: 1.2,
+    sanityDrain: 1.5,
     sanityGain: 0.3,
     hint: 'LEVEL ! —— 警报响了。所有实体都在追你。不要停，不要回头。存活 120 秒后出口出现。',
     isEasterEgg: true,
@@ -7067,14 +7877,16 @@ const LEVELS = [
     vents: 0,
     entities: [
       { type: 'hound', count: 2, minDist: 15 },
-      { type: 'crawler', count: 1, minDist: 20 }
+      { type: 'crawler', count: 1, minDist: 20 },
+      { type: 'howler', count: 1, minDist: 18 }
     ],
     objective: { name: '终点', count: 1 },
-    biscuits: 6,
-    waters: 4,
-    batteries: 6,
+    biscuits: 5,
+    waters: 3,
+    batteries: 5,
     navP: 0.3,
-    sanityDrain: 0.8,
+    speedMul: 1.2,
+    sanityDrain: 1.5,
     sanityGain: 1.5,
     hint: 'Level 12356 —— 深灰色迷宫。死后复活重置（最多8次）。通往外面的门=死亡。进入房间60秒后刷怪。墙上有地图提示。可作为补给点。',
     isEasterEgg: true,
@@ -7118,6 +7930,8 @@ for (const L of LEVELS) {
       minDist: e.minDist ?? 15
     }));
   }
+  /* 迭代31：确保每关有speedMul */
+  if (L.speedMul == null) L.speedMul = 1.0;
 }
 
 /* ------------------------------------------------------------
@@ -7332,6 +8146,8 @@ class Player {
   constructor(world) {
     this.maxStamina = 100;
     this.maxSanity = 100;
+    this.maxHp = 120;  /* 迭代49: maxHp从100调整为120 */
+    this.hp = 120;
     this.radius = 0.26;
     this.reset(world);
   }
@@ -7343,6 +8159,7 @@ class Player {
     this.velY = 0;
     this.stamina = this.maxStamina;
     this.sanity = this.maxSanity;
+    this.hp = this.maxHp;  /* 迭代49: 每次重置时恢复HP */
     this.crouch = false;
     this.sprinting = false;
     this.grabbing = false;
@@ -7389,6 +8206,9 @@ class Player {
     this.arcFlash = 0;   // 电弧闪光（关卡事件）
     this.shake = 0;
     this.noise = 0; // 本帧发出的噪音半径
+    this.hidden = false;      // 桌下/低空间隐藏状态
+    this.hiding = false;      // 储物柜躲藏状态
+    this.hideTimer = 0;       // 躲藏过渡计时
 
     // 朝向最开阔的方向
     let bestA = 0, bestD = -1;
@@ -7499,7 +8319,7 @@ class Player {
     this.biscuits--;
     if (this.biscuits <= 0) this.heldItem = null;
     this.stamina = Math.min(this.maxStamina, this.stamina + 38);
-    this.sanity = Math.min(this.maxSanity, this.sanity + 6);
+    this.sanity = Math.min(this.maxSanity, this.sanity + 5);
     this.exhausted = 0;
     this.staminaDelay = 0;
     if (audio) audio.eat();
@@ -7516,10 +8336,11 @@ class Player {
     return true;
   }
 
-  /* 从水壶喝水（口渴系统） */
+  /* 从水壶喝水（迭代25：恢复thirst，迭代49：调整为55，迭代26：恢复sanity +10） */
   drinkFromCanteen(audio) {
     if (!this.hasWater || this.thirst >= 95) return false;
-    this.thirst = Math.min(100, this.thirst + 35);
+    this.thirst = Math.min(100, this.thirst + 55);
+    this.sanity = Math.min(this.maxSanity, this.sanity + 10);
     if (audio) audio.drink();
     return true;
   }
@@ -7576,7 +8397,9 @@ class Player {
       return false;
     }
     this.flashlight = !this.flashlight;
+    /* 迭代27：手电筒开关时产生click声音（可吸引附近entity） */
     if (audio) audio.clank();
+    this._flashToggle = true;
     return this.flashlight;
   }
 
@@ -7717,15 +8540,36 @@ class Player {
     /* 怪物 nearby: 肾上腺素 +50% 速度 */
     if (this.dangerNear) speed *= 1.5;
 
-    /* --- 体力（降低消耗） --- */
+    /* 迭代30：钝化者减速 — 被注视时移动速度降低40% */
+    if (this._dullerSlow) {
+      speed *= 0.6;
+      this._dullerSlow = false; /* 每帧重置，由duller的update设置 */
+    }
+
+    /* --- 体力（迭代24深度整合） --- */
     if (this.sprinting) {
-      this.stamina -= 14 * dt;
+      this.stamina -= 25 * dt;       /* 冲刺消耗25/秒 */
       this.staminaDelay = 0.75;
+    } else if (this.crouch && moving) {
+      this.stamina -= 5 * dt;        /* 蹲走消耗5/秒 */
+      this.staminaDelay = 0.5;
     } else if (this.staminaDelay > 0) {
       this.staminaDelay -= dt;
     } else {
-      const regen = this.wet ? 5.5 : 9.5;
+      /* 不移动时恢复15/秒，移动时恢复减半 */
+      const baseRegen = moving ? 7.5 : 15;
+      /* 迭代25：口渴<30时体力恢复减半 */
+      const thirstMult = this.thirst < 30 ? 0.5 : 1.0;
+      const regen = (this.wet ? baseRegen * 0.6 : baseRegen) * thirstMult;
       this.stamina += regen * dt;
+    }
+    /* 迭代24：stamina<25时进入exhausted状态 */
+    if (this.stamina < 25 && this.exhausted <= 0) {
+      this.exhausted = 1; /* 标记进入exhausted */
+    }
+    /* exhausted状态下需要stamina恢复到40才能解除 */
+    if (this.exhausted > 0 && this.stamina >= 40) {
+      this.exhausted = 0;
     }
     if (this.stamina <= 0) {
       this.stamina = 0;
@@ -7735,16 +8579,26 @@ class Player {
       }
     }
 
-    /* --- 口渴系统 --- */
+    /* --- 口渴系统（迭代25深度整合） --- */
     if (!cmd.noclip) {
     this.thirst -= this.thirstRate * dt;
     if (this.thirst <= 0) {
       this.thirst = 0;
-      this.stamina -= 5 * dt;   /* 口渴时体力持续衰减 */
+      /* 迭代25：thirst=0时每5秒扣5HP */
+      this._thirstDamageTimer = (this._thirstDamageTimer || 0) + dt;
+      if (this._thirstDamageTimer >= 5) {
+        this._thirstDamageTimer = 0;
+        this.hp -= 5;
+        if (audio) audio.hurt();
+      }
     }
-    if (this.thirst < 30) this.thirstRate = 0.9;  /* 低口渴时正常衰减 */
+    if (this.thirst < 30) this.thirstRate = 0.9;
     else if (this.thirst < 60) this.thirstRate = 0.8;
     else this.thirstRate = 0.9;
+    /* 迭代25：thirst<15时掉sanity */
+    if (this.thirst < 15) {
+      this.sanity -= 1 * dt;
+    }
     }
 
     /* --- 攻击冷却 --- */
@@ -7822,31 +8676,63 @@ class Player {
         if (this.inWater) audio.splash();
         else audio.step(this.sprinting, this.crouch);
       }
-      // 噪音
-      this.noise = this.crouch ? 1.4 : this.sprinting ? 9 : 4.5;
+      // 噪音（迭代24：sprint=3.5, walk=1.5, crouch=0.3）
+      this.noise = this.crouch ? 0.3 : this.sprinting ? 3.5 : 1.5;
+      // 迭代45: 水中噪音增加50%
+      if (this.wet) this.noise *= 1.5;
     } else {
       this.noise *= 0.9;
     }
 
-    /* --- 手电电量（只有手持且开着才耗电）--- */
+    /* --- 手电电量（迭代27：0.8/秒消耗）--- */
     if (!cmd.noclip && this.flashlight && this.heldItem === 'flashlight') {
-      this.battery -= 1.15 * dt;
+      this.battery -= 0.8 * dt;
+      /* 迭代27：电量<10时手电闪烁 */
+      if (this.battery < 10 && this.battery > 0) {
+        this._flashFlicker = (this._flashFlicker || 0) + dt;
+        if (this._flashFlicker > 0.15) {
+          this._flashFlicker = 0;
+          this._flashOn = !this._flashOn;
+        }
+      } else {
+        this._flashOn = true;
+      }
       if (this.battery <= 0) {
         this.battery = 0;
         this.flashlight = false;
+        this._flashOn = false;
       }
+    } else {
+      this._flashOn = this.flashlight;
     }
 
-    /* --- 理智（全暗约 5 分钟归零） --- */
+    /* --- 理智（迭代26深度整合 + 迭代31难度曲线） --- */
     if (!cmd.noclip) {
     const lightHere = this._lightHere(world);
     const dark = 1 - smoothstep(0.06, 0.42, lightHere);
+    /* 迭代31：sanityDrain由关卡定义，默认0.5 */
+    const sDrain = level.sanityDrain || 0.5;
     if (dark > 0.02) {
-      this.sanity -= level.sanityDrain * 0.45 * dark * dt;
+      this.sanity -= sDrain * dark * dt;
     } else {
       this.sanity += level.sanityGain * smoothstep(0.42, 0.9, lightHere) * dt;
     }
     this.sanity = clamp(this.sanity, 0, this.maxSanity);
+    }
+
+    /* --- 储物柜躲藏系统（迭代16） --- */
+    /* 躲藏状态：摄像机降低、视野受限、sanity恢复 */
+    if (this.hiding) {
+      this.sanity = Math.min(this.maxSanity, this.sanity + 2 * dt);
+      this.thirst -= this.thirstRate * dt;
+      this.noise = 0;
+    }
+
+    /* --- 桌下/低空间隐藏（迭代17） --- */
+    this.hidden = false;
+    if (this.crouch && (cellFlags & F.LOWCEIL)) {
+      this.hidden = true;
+      this.noise = Math.min(this.noise, 0.05);
     }
 
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 1.8);
@@ -7865,7 +8751,9 @@ class Player {
 
   _updateCamera(dt, world) {
     // 视点高度
-    const eye = this.crouch ? EYE_CROUCH : EYE_STAND;
+    let eye = this.crouch ? EYE_CROUCH : EYE_STAND;
+    /* 躲藏状态：视点大幅降低 */
+    if (this.hiding) eye = EYE_CROUCH * 0.55;
     // 走路晃动
     const speedFactor = this.sprinting ? 1.7 : this.crouch ? 0.4 : 1;
     if (this.walkedDist > 0.001 || this.sprinting) {
@@ -8018,6 +8906,42 @@ const ENTITY_DEF = {
     sprite: 'smiler',
     damage: 999,
     hp: 99999
+  },
+  /* 迭代28：剥皮者 — 潜伏、背对时加速 */
+  skin_stealer: {
+    name: '剥皮者',
+    speed: 1.8,
+    sight: 10,
+    hear: 14,
+    worldH: 0.9,
+    worldW: 0.55,
+    sprite: 'stalker',
+    damage: 40,
+    hp: 75
+  },
+  /* 迭代29：嚎叫者 — 定期嚎叫唤醒其他entity */
+  howler: {
+    name: '嚎叫者',
+    speed: 2.3,
+    sight: 6,
+    hear: 20,
+    worldH: 1.2,
+    worldW: 0.7,
+    sprite: 'hound',
+    damage: 30,
+    hp: 60
+  },
+  /* 迭代30：钝化者 — 被注视时减速玩家 */
+  duller: {
+    name: '钝化者',
+    speed: 1.5,
+    sight: 16,
+    hear: 5,
+    worldH: 1.5,
+    worldW: 0.8,
+    sprite: 'rot',
+    damage: 20,
+    hp: 100
   }
 };
 
@@ -8140,6 +9064,31 @@ class Entity {
     this.beingWatched = false;
     /* 凝视者：被手电照射时受伤 */
     this.litUp = false;
+    /* 迭代18：门敲门计时器 */
+    this._doorKnockTimer = 0;
+    /* 迭代19-21：AI增强状态 */
+    this.lastHeardX = 0;
+    this.lastHeardY = 0;
+    this.lastSeenX = 0;
+    this.lastSeenY = 0;
+    this._searchTimer = 0;
+    this._searchPoints = null;
+    this._searchIdx = 0;
+    this._investigateTimer = 0;
+    this._patrolPoints = null;
+    this._patrolIdx = 0;
+    this._patrolWait = 0;
+    /* 迭代23：声音诱饵冷却 */
+    this._lureCooldown = 0;
+    /* 迭代28：剥皮者状态 */
+    this._skinRevealed = false;
+    /* 迭代29：嚎叫者计时器 */
+    this._howlTimer = 10 + Math.random() * 15;
+    /* 迭代30：钝化者减速效果 */
+    this._dullerSlow = 0;
+    /* 迭代31：关卡难度速度倍数 + 精英标记 */
+    this.speedMul = 1.0;
+    this.isElite = false;
   }
 
   /* 受到攻击 */
@@ -8176,6 +9125,17 @@ class Entity {
   _blocked(world, x, y) {
     const i = idx(world, x, y);
     if (i < 0) return true;
+    /* 迭代18：关闭的门阻挡实体（dream_chaser/smile_demon除外） */
+    if (world.type[i] === TILE.EXIT) {
+      const key = Math.floor(x) + ',' + Math.floor(y);
+      const closed = world.doorStates && world.doorStates[key];
+      if (closed) {
+        /* dream_chaser 和 smile_demon 可以穿过关闭的门 */
+        if (this.type === 'dream_chaser' || this.type === 'smile_demon') return false;
+        return true;
+      }
+      return false; /* 开着的门不阻挡 */
+    }
     return world.height[i] > 0.6;
   }
 
@@ -8213,9 +9173,21 @@ class Entity {
     this.knockbackX *= 0.5;
     this.knockbackY *= 0.5;
 
-    const los = dist < def.sight && lineOfSight(world, this.x, this.y, player.x, player.y, 0.62);
-    const hearRange = def.hear * (player.crouch ? 0.4 : player.sprinting ? 1.75 : 1);
-    const heard = dist < hearRange && (player.noise > 1 || dist < hearRange * 0.5);
+    const _effSight = (player.flashlight && !player._flashOn) ? def.sight * 0.7 : def.sight;
+    const losRaw = dist < _effSight && lineOfSight(world, this.x, this.y, player.x, player.y, 0.62);
+    /* 躲藏/隐藏的玩家更难被发现 */
+    let hearRange = def.hear * (player.crouch ? 0.4 : player.sprinting ? 1.75 : 1);
+    let heard = dist < hearRange && (player.noise > 1 || dist < hearRange * 0.5);
+    /* 迭代16：储物柜躲藏的玩家几乎无法被发现，除非entity直接站在面前 */
+    let los = losRaw;
+    if (player.hiding) {
+      if (dist > 1.0) { los = false; heard = false; }
+    }
+    /* 迭代17：LOWCEIL/桌下隐藏的玩家听觉检测减半 */
+    if (player.hidden) {
+      hearRange *= 0.5;
+      heard = dist < hearRange && (player.noise > 1 || dist < hearRange * 0.5);
+    }
 
     /* 梦境追逐者 & 笑魔：永远追击，无视视线和听觉限制 */
     if (this.type === 'dream_chaser' || this.type === 'smile_demon') {
@@ -8301,24 +9273,156 @@ class Entity {
       }
     }
 
-    if (los || heard) {
+    /* 迭代28：剥皮者 — 潜伏/现身机制 */
+    if (this.type === 'skin_stealer') {
+      /* 检查玩家是否看着它 */
+      const angTo = Math.atan2(this.y - player.y, this.x - player.x);
+      let da = Math.abs(((angTo - player.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+      const beingWatched = da < 0.8 && los && dist < 14;
+      /* 距离<3时从潜伏切换到现身 */
+      if (dist < 3) {
+        this._skinRevealed = true;
+      }
+      if (beingWatched) {
+        /* 被注视时完全停止 */
+        this.state = 'stare';
+        if (this.growlTimer <= 0) {
+          this.growlTimer = 3 + this.rng() * 3;
+          if (audio && dist < 12) audio.growl(dist);
+        }
+        return;
+      } else {
+        /* 玩家背对时速度翻倍 */
+        if (this._skinRevealed) {
+          this._skinSpeedMult = 1.5; /* 现身后速度+50% */
+        } else {
+          this._skinSpeedMult = 2.0; /* 潜伏时速度翻倍 */
+        }
+      }
+    }
+
+    /* 迭代29：嚎叫者 — 定期嚎叫 */
+    if (this.type === 'howler') {
+      this._howlTimer -= dt;
+      if (this._howlTimer <= 0) {
+        this._howlTimer = 15 + Math.random() * 10;
+        if (audio) audio.howl();
+        /* 嚎叫唤醒同关卡所有patrol/investigate的entity */
+        if (this._gameRef && this._gameRef.entities) {
+          for (const other of this._gameRef.entities) {
+            if (other === this || other.isDead) continue;
+            if (other.state === 'patrol' || other.state === 'investigate') {
+              other.state = 'chase';
+              other.alert = 4;
+              other.lastSeenX = player.x;
+              other.lastSeenY = player.y;
+            }
+          }
+        }
+        /* 玩家在10格内sanity -10 */
+        if (dist < 10) {
+          player.sanity = Math.max(0, player.sanity - 10);
+        }
+      }
+      /* howler有转向惯性 */
+      this._headingVel = (this._headingVel || 0) * 0.92;
+    }
+
+    /* 迭代30：钝化者 — 被注视时减速玩家 */
+    if (this.type === 'duller') {
+      if (los) {
+        const angTo = Math.atan2(this.y - player.y, this.x - player.x);
+        let da = Math.abs(((angTo - player.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        if (da < 0.7 && dist < def.sight) {
+          /* 玩家看着duller → 标记减速 */
+          this._dullerAffecting = 2.0; /* 持续2秒效果 */
+        }
+      }
+      if (this._dullerAffecting > 0) {
+        this._dullerAffecting -= dt;
+        player._dullerSlow = true;
+      }
+    }
+
+    /* 迭代19-21：增强状态机 — chase/investigate/search/patrol */
+    if (los) {
       if (this.state !== 'chase' && dist < 16) {
         this.rage = Math.min(1, this.rage + 0.25);
       }
       this.state = 'chase';
       this.alert = 4;
-    } else if (this.alert > 0) {
-      this.alert -= dt;
-      this.state = 'chase';
+      this.lastSeenX = player.x;
+      this.lastSeenY = player.y;
+    } else if (heard) {
+      this.lastHeardX = player.x;
+      this.lastHeardY = player.y;
+      if (this.state !== 'chase') {
+        this.state = 'investigate';
+        this._investigateTimer = 0;
+      }
     } else {
-      this.state = 'patrol';
+      if (this.state === 'chase') {
+        /* 迭代21：丢失玩家 → 进入搜寻模式 */
+        if (this.alert > 0) {
+          this.alert -= dt;
+        } else {
+          this.state = 'search';
+          this._searchTimer = 15 + this.rng() * 5;
+          this._searchPoints = null;
+          this._searchIdx = 0;
+        }
+      } else if (this.state === 'investigate') {
+        /* 迭代19：调查到达后四处张望然后回patrol */
+        const id = Math.hypot(this.x - this.lastHeardX, this.y - this.lastHeardY);
+        if (id < 1.5) {
+          this._investigateTimer += dt;
+          if (this._investigateTimer > 3 + this.rng() * 2) {
+            this.state = 'patrol';
+          }
+        }
+      } else if (this.state === 'search') {
+        this._searchTimer -= dt;
+        if (this._searchTimer <= 0) {
+          this.state = 'patrol';
+          this._searchPoints = null;
+        }
+      } else {
+        this.state = 'patrol';
+      }
+    }
+
+    /* 迭代18：门敲门 — chase中遇到关闭的门 */
+    if (this._doorKnockTimer > 0) {
+      this._doorKnockTimer -= dt;
+      if (this._doorKnockTimer <= 0) {
+        /* 放弃敲门，切换到investigate */
+        this.state = 'investigate';
+        this._investigateTimer = 0;
+      }
     }
 
     let speed = def.speed;
+    /* 迭代31：关卡难度速度倍数 + 精英加成 */
+    speed *= this.speedMul;
+    if (this.isElite) speed *= 1.2;
     if (this.state === 'chase') speed *= 1 + this.rage * 0.22;
-    else speed *= 0.55;
+    else if (this.state === 'investigate') speed *= 0.7;  /* 迭代19 */
+    else if (this.state === 'search') speed *= 0.6;       /* 迭代21 */
+    else speed *= 0.4;  /* 迭代20：巡逻速度40% */
+    /* 停电期间 entity 速度 +20% */
+    if (this._powerOutageBoost) speed *= 1.2;
+    /* 迭代28：剥皮者速度倍数 */
+    if (this._skinSpeedMult) speed *= this._skinSpeedMult;
+    /* 迭代27/30：手电照射减速 */
+    if (this._litSlow) speed *= (1 - this._litSlow);
 
     if (this.state === 'chase') {
+      /* 迭代22：如果被分配了侧翼目标，向侧翼目标移动 */
+      if (this._flankX !== undefined && this._flankY !== undefined) {
+        const ang = Math.atan2(this._flankY - this.y, this._flankX - this.x);
+        this._tryMove(world, Math.cos(ang) * speed * dt, Math.sin(ang) * speed * dt);
+        this.heading = ang;
+      } else {
       // 跟随距离场
       const ox = world.ox, oy = world.oy, wW = world.w, wH = world.h;
       const cx = Math.floor(this.x) - ox, cy = Math.floor(this.y) - oy;
@@ -8341,33 +9445,136 @@ class Entity {
         const tx = best[0] + ox + 0.5, ty = best[1] + oy + 0.5;
         const ang = Math.atan2(ty - this.y, tx - this.x);
         this._tryMove(world, Math.cos(ang) * speed * dt, Math.sin(ang) * speed * dt);
+        /* 迭代18：检查前方是否被关闭的门阻挡 */
+        const checkI = idx(world, this.x + Math.cos(ang) * 0.4, this.y + Math.sin(ang) * 0.4);
+        if (checkI >= 0 && world.type[checkI] === TILE.EXIT && world.doorStates &&
+            world.doorStates[Math.floor(this.x + Math.cos(ang) * 0.4) + ',' + Math.floor(this.y + Math.sin(ang) * 0.4)]) {
+          if (this._doorKnockTimer <= 0) {
+            this._doorKnockTimer = 5;
+            if (audio) audio.door();
+          }
+        }
       } else {
         // 直线逼近
         const ang = Math.atan2(dyp, dxp);
         this._tryMove(world, Math.cos(ang) * speed * dt, Math.sin(ang) * speed * dt);
       }
       this.heading = Math.atan2(dyp, dxp);
+      }
     } else {
-      // 巡逻
-      this.repathTimer -= dt;
-      if (this.repathTimer <= 0) {
-        this.repathTimer = 2.5 + this.rng() * 3.5;
-        // 偏向回到出生点附近
-        const hx = this.homeX - this.x, hy = this.homeY - this.y;
-        const hd = Math.hypot(hx, hy);
-        if (hd > 9) {
-          this.heading = Math.atan2(hy, hx) + (this.rng() - 0.5) * 0.6;
+      /* 迭代19/20/21：非追击状态移动逻辑 */
+      let targetX, targetY;
+      if (this.state === 'investigate') {
+        /* 迭代19：前往声音来源 */
+        targetX = this.lastHeardX;
+        targetY = this.lastHeardY;
+      } else if (this.state === 'search') {
+        /* 迭代21：在最后看到玩家的位置周围搜索 */
+        if (!this._searchPoints || this._searchIdx >= this._searchPoints.length) {
+          if (!this._searchPoints) {
+            this._searchPoints = [];
+            for (let s = 0; s < 4; s++) {
+              this._searchPoints.push([
+                this.lastSeenX + (this.rng() - 0.5) * 6,
+                this.lastSeenY + (this.rng() - 0.5) * 6
+              ]);
+            }
+            this._searchIdx = 0;
+            this._searchWait = 0;
+          } else {
+            /* 搜索完毕，重新生成搜索点 */
+            this._searchPoints = null;
+            this._searchIdx = 0;
+          }
+        }
+        if (this._searchPoints && this._searchIdx < this._searchPoints.length) {
+          if (this._searchWait > 0) {
+            this._searchWait -= dt;
+            targetX = this.x; /* 原地等待 */
+            targetY = this.y;
+          } else {
+            const sp = this._searchPoints[this._searchIdx];
+            targetX = sp[0];
+            targetY = sp[1];
+            if (Math.hypot(this.x - targetX, this.y - targetY) < 1.5) {
+              this._searchIdx++;
+              this._searchWait = 2;
+            }
+          }
         } else {
-          this.heading += (this.rng() - 0.5) * 2.4;
+          targetX = this.lastSeenX;
+          targetY = this.lastSeenY;
+        }
+      } else {
+        /* 迭代20：巡逻路径系统 */
+        if (!this._patrolPoints || this._patrolPoints.length === 0) {
+          /* 生成3-5个巡逻点 */
+          this._patrolPoints = [];
+          const npt = 3 + Math.floor(this.rng() * 3);
+          for (let p = 0; p < npt; p++) {
+            let attempts = 0;
+            while (attempts < 10) {
+              const px = this.homeX + (this.rng() - 0.5) * 12;
+              const py = this.homeY + (this.rng() - 0.5) * 12;
+              const pi = idx(world, px, py);
+              if (pi >= 0 && world.height[pi] <= 0.3) {
+                this._patrolPoints.push([px, py]);
+                break;
+              }
+              attempts++;
+            }
+          }
+          this._patrolIdx = 0;
+          this._patrolWait = 0;
+        }
+        if (this._patrolPoints.length > 0) {
+          if (this._patrolWait > 0) {
+            this._patrolWait -= dt;
+            targetX = this.x;
+            targetY = this.y;
+          } else {
+            const pp = this._patrolPoints[this._patrolIdx];
+            targetX = pp[0];
+            targetY = pp[1];
+            if (Math.hypot(this.x - targetX, this.y - targetY) < 1.5) {
+              this._patrolIdx = (this._patrolIdx + 1) % this._patrolPoints.length;
+              this._patrolWait = 2 + this.rng() * 2;
+            }
+          }
+        } else {
+          /* fallback：回到出生点附近 */
+          targetX = this.homeX;
+          targetY = this.homeY;
         }
       }
-      const nx = this.x + Math.cos(this.heading) * speed * dt;
-      const ny = this.y + Math.sin(this.heading) * speed * dt;
-      if (this._blocked(world, nx + Math.cos(this.heading) * 0.25, ny + Math.sin(this.heading) * 0.25)) {
-        this.heading += (this.rng() - 0.5) * 2.2 + Math.PI * 0.5;
-        this.repathTimer = 0.3 + this.rng() * 0.6;
-      } else {
-        this._tryMove(world, Math.cos(this.heading) * speed * dt, Math.sin(this.heading) * speed * dt);
+
+      /* 向目标移动 */
+      if (targetX !== undefined) {
+        const tdx = targetX - this.x;
+        const tdy = targetY - this.y;
+        const td = Math.hypot(tdx, tdy);
+        if (td > 0.3) {
+          const ang = Math.atan2(tdy, tdx);
+          this.heading = ang;
+          const nx = this.x + Math.cos(ang) * speed * dt;
+          const ny = this.y + Math.sin(ang) * speed * dt;
+          if (this._blocked(world, nx + Math.cos(ang) * 0.25, ny + Math.sin(ang) * 0.25)) {
+            /* 遇到障碍，尝试侧移 */
+            const sideAng = ang + (this.rng() > 0.5 ? 1 : -1) * Math.PI * 0.4;
+            this._tryMove(world, Math.cos(sideAng) * speed * dt, Math.sin(sideAng) * speed * dt);
+            /* 迭代18：检查是否被关闭的门阻挡 */
+            const bi = idx(world, nx + Math.cos(ang) * 0.25, ny + Math.sin(ang) * 0.25);
+            if (bi >= 0 && world.type[bi] === TILE.EXIT && world.doorStates &&
+                world.doorStates[Math.floor(nx) + ',' + Math.floor(ny)]) {
+              if (this._doorKnockTimer <= 0 && this.state === 'chase') {
+                this._doorKnockTimer = 5;
+                if (audio) audio.door();
+              }
+            }
+          } else {
+            this._tryMove(world, Math.cos(ang) * speed * dt, Math.sin(ang) * speed * dt);
+          }
+        }
       }
     }
 
@@ -8375,6 +9582,26 @@ class Entity {
     if (this.growlTimer <= 0) {
       this.growlTimer = (this.state === 'chase' ? 2.2 : 6) + this.rng() * 4;
       if (audio && dist < 16) audio.growl(dist);
+    }
+
+    /* 实体脚步声系统 */
+    if (this.state === 'patrol' || this.state === 'chase' || this.state === 'investigate') {
+      if (this.stepTimer === undefined) this.stepTimer = 0;
+      /* 步频 = speed 的函数，不同实体类型有不同特征 */
+      let stepInterval = 0.6 / Math.max(0.5, speed);
+      /* 不同实体类型调整步频和音量 */
+      let stepVol = 1.0;
+      if (this.type === 'crawler') { stepInterval *= 0.5; stepVol = 0.7; } /* 快速刮擦 */
+      else if (this.type === 'stalker') { stepVol = 0.2; } /* 几乎无声 */
+      else if (this.type === 'rot') { stepInterval *= 1.2; stepVol = 0.8; } /* 湿润拖拽 */
+      else if (this.type === 'hound') { stepInterval *= 0.85; stepVol = 1.2; } /* 沉重 */
+      this.stepTimer -= dt;
+      if (this.stepTimer <= 0 && dist < 15) {
+        this.stepTimer = stepInterval;
+        if (audio && audio.entityStep) {
+          audio.entityStep(dist, this.x, this.y, this.type, stepVol);
+        }
+      }
     }
 
     /* 影行者：每隔几秒短距瞬移，只在追击时触发 */
@@ -8664,7 +9891,13 @@ class ThreeJSRendererBridge {
 
     /* Build materials */
     this.matWall = new THREE.MeshStandardMaterial({ map: this._THREEtex.wall, vertexColors: true, roughness: 0.85, metalness: 0.05 });
+    /* 迭代32：带文字的墙面材质 */
+    this._THREEtex.wallText = null;
+    this.matWallText = new THREE.MeshStandardMaterial({ map: this._THREEtex.wall, vertexColors: true, roughness: 0.85, metalness:  0.05 });
     this.matFloor = new THREE.MeshStandardMaterial({ map: this._THREEtex.floor, vertexColors: true, roughness: 0.75, metalness: 0.1 });
+    /* 迭代33：带痕迹的地面材质 */
+    this._THREEtex.floorStain = null;
+    this.matFloorStain = new THREE.MeshStandardMaterial({ map: this._THREEtex.floor, vertexColors: true, roughness: 0.75, metalness: 0.1 });
     this.matCeil = new THREE.MeshStandardMaterial({ map: this._THREEtex.ceil, vertexColors: true, roughness: 0.9, metalness: 0.02 });
     this.matLamp = new THREE.MeshBasicMaterial({ map: this._THREEtex.lamp });
     this.matWater = new THREE.MeshStandardMaterial({ color: 0x3a8ec0, transparent: true, opacity: 0.55, vertexColors: true, side: THREE.DoubleSide, roughness: 0.1, metalness: 0.3 });
@@ -9212,6 +10445,9 @@ class ThreeJSRendererBridge {
       const wt = world.level.wallTex || world.level.wallType || 'wallpaper';
       const ft = world.level.floorTex || world.level.floorType || 'carpet';
       const ct = world.level.ceilTex || world.level.ceilType || 'panel';
+      /* 迭代32：判断是否启用墙面文字 */
+      const _wallTextLevels = ['corridor', 'hotel', 'parking'];
+      const _enableWallText = _wallTextLevels.indexOf(world.level.gen) >= 0;
       if (this._tex.walls[wt]) {
         const THREE = window.THREE;
         const c = document.createElement('canvas');
@@ -9223,6 +10459,41 @@ class ThreeJSRendererBridge {
         g.putImageData(img, 0, 0);
         this._THREEtex.wall.image = c;
         this._THREEtex.wall.needsUpdate = true;
+        /* 迭代32：创建带文字的墙面纹理 */
+        if (_enableWallText && WALL_TEXTS) {
+          const c2 = document.createElement('canvas');
+          c2.width = this._tex.size; c2.height = this._tex.size;
+          const g2 = c2.getContext('2d');
+          g2.drawImage(c, 0, 0);
+          /* 在纹理上绘制2-3条随机文字 */
+          const _rng = mulberry32((world.level.id || 0) * 7919 + 42);
+          const _numTexts = 2 + Math.floor(_rng() * 2);
+          for (let ti = 0; ti < _numTexts; ti++) {
+            const _txt = WALL_TEXTS[Math.floor(_rng() * WALL_TEXTS.length)];
+            const _x = _rng() * (this._tex.size - 80) + 10;
+            const _y = _rng() * (this._tex.size - 30) + 10;
+            const _angle = (_rng() - 0.5) * 0.3;
+            const _darkRed = _rng() > 0.5;
+            g2.save();
+            g2.translate(_x, _y);
+            g2.rotate(_angle);
+            g2.font = (10 + _rng() * 6) + 'px monospace';
+            g2.fillStyle = _darkRed ? 'rgba(80,20,15,0.75)' : 'rgba(45,45,45,0.7)';
+            g2.fillText(_txt, 0, 0);
+            g2.restore();
+          }
+          if (!this._THREEtex.wallText) {
+            this._THREEtex.wallText = new THREE.CanvasTexture(c2);
+            this._THREEtex.wallText.wrapS = THREE.RepeatWrapping;
+            this._THREEtex.wallText.wrapT = THREE.RepeatWrapping;
+            this._THREEtex.wallText.repeat.set(1, 1);
+          } else {
+            this._THREEtex.wallText.image = c2;
+            this._THREEtex.wallText.needsUpdate = true;
+          }
+          this.matWallText.map = this._THREEtex.wallText;
+          this.matWallText.needsUpdate = true;
+        }
       }
       if (this._tex.floors[ft]) {
         const THREE = window.THREE;
@@ -9235,6 +10506,67 @@ class ThreeJSRendererBridge {
         g.putImageData(img, 0, 0);
         this._THREEtex.floor.image = c;
         this._THREEtex.floor.needsUpdate = true;
+        /* 迭代33：创建带痕迹的地面纹理 */
+        const _stainLevels = ['hotel', 'parking', 'corridor'];
+        if (_stainLevels.indexOf(world.level.gen) >= 0) {
+          const c3 = document.createElement('canvas');
+          c3.width = this._tex.size; c3.height = this._tex.size;
+          const g3 = c3.getContext('2d');
+          g3.drawImage(c, 0, 0);
+          const _srng = mulberry32((world.level.id || 0) * 6271 + 137);
+          /* 脚印：3-5步一组 */
+          const _footGroups = 1 + Math.floor(_srng() * 2);
+          for (let fg = 0; fg < _footGroups; fg++) {
+            const _fx = _srng() * this._tex.size;
+            const _fy = _srng() * this._tex.size;
+            const _fang = _srng() * Math.PI * 2;
+            const _steps = 3 + Math.floor(_srng() * 3);
+            for (let s = 0; s < _steps; s++) {
+              const _sx = _fx + Math.cos(_fang) * s * 12;
+              const _sy = _fy + Math.sin(_fang) * s * 12;
+              g3.fillStyle = 'rgba(15,10,8,0.4)';
+              g3.beginPath();
+              g3.ellipse(_sx, _sy, 4, 7, _fang, 0, Math.PI * 2);
+              g3.fill();
+            }
+          }
+          /* 水渍/污渍 */
+          const _stains = 2 + Math.floor(_srng() * 3);
+          for (let si = 0; si < _stains; si++) {
+            const _sx = _srng() * this._tex.size;
+            const _sy = _srng() * this._tex.size;
+            const _r = 8 + _srng() * 20;
+            g3.fillStyle = 'rgba(20,15,10,0.3)';
+            g3.beginPath();
+            g3.arc(_sx, _sy, _r, 0, Math.PI * 2);
+            g3.fill();
+          }
+          /* 拖拽痕迹：长条形暗色 */
+          const _drags = 1 + Math.floor(_srng() * 2);
+          for (let di = 0; di < _drags; di++) {
+            const _dx = _srng() * this._tex.size;
+            const _dy = _srng() * this._tex.size;
+            const _dang = _srng() * Math.PI * 2;
+            const _dlen = 30 + _srng() * 40;
+            g3.save();
+            g3.translate(_dx, _dy);
+            g3.rotate(_dang);
+            g3.fillStyle = 'rgba(10,8,5,0.35)';
+            g3.fillRect(0, -3, _dlen, 6);
+            g3.restore();
+          }
+          if (!this._THREEtex.floorStain) {
+            this._THREEtex.floorStain = new THREE.CanvasTexture(c3);
+            this._THREEtex.floorStain.wrapS = THREE.RepeatWrapping;
+            this._THREEtex.floorStain.wrapT = THREE.RepeatWrapping;
+            this._THREEtex.floorStain.repeat.set(1, 1);
+          } else {
+            this._THREEtex.floorStain.image = c3;
+            this._THREEtex.floorStain.needsUpdate = true;
+          }
+          this.matFloorStain.map = this._THREEtex.floorStain;
+          this.matFloorStain.needsUpdate = true;
+        }
       }
       if (this._tex.ceilings[ct] && this._THREEtex.ceil) {
         const THREE = window.THREE;
@@ -9358,30 +10690,62 @@ class ThreeJSRendererBridge {
 
     for (let cy = Math.max(0, py - VIEW_R); cy < Math.min(H, py + VIEW_R); cy += CHUNK) {
       for (let cx = Math.max(0, px - VIEW_R); cx < Math.min(W, px + VIEW_R); cx += CHUNK) {
-        const gw = G(), gf = G(), gc = G(), gl = G(), gwat = G();
+        const gw = G(), gf = G(), gc = G(), gl = G(), gwat = G(), gwt = G(), gfs = G();
+        /* 迭代32：墙面文字 — 判断此关卡是否启用 */
+        const _wtGen = world.level ? world.level.gen : '';
+        const _wtEnabled = _wtGen === 'corridor' || _wtGen === 'hotel' || _wtGen === 'parking';
+        /* 迭代33：地面痕迹 — 同样的关卡类型 */
+        const _fsEnabled = _wtEnabled;
+        const _wtRng = mulberry32((lx * 31 + ly * 17 + (world.level ? (world.level.id || 0) * 991 : 0)) | 0);
         for (let ly = cy; ly < Math.min(cy + CHUNK, H); ly++) {
           for (let lx = cx; lx < Math.min(cx + CHUNK, W); lx++) {
             const wx = (lx + ox) * CELL, wz = (ly + oy) * CELL;
             const wx1 = wx + CELL, wz1 = wz + CELL;
             const isWall = solidAt(lx, ly);
-            if (isWall) {
+            const tileType = world.type[ly * W + lx];
+            /* 迭代16：储物柜渲染 — 深色金属柜体 */
+            if (tileType === TILE.LOCKER) {
+              const lh = 0.95 * WALL_H; /* 储物柜高度 */
+              const lockerCol = [0.15, 0.16, 0.18]; /* 深色金属 */
+              /* 柜体四面 */
+              if (!solidAt(lx, ly - 1) || true) {
+                quad(gw, [wx, 0, wz], [wx, lh, wz], [wx1, lh, wz], [wx1, 0, wz], 0, 0, 1, 1, [lockerCol[0], lockerCol[1], lockerCol[2], lockerCol[0]]);
+              }
+              if (!solidAt(lx, ly + 1) || true) {
+                quad(gw, [wx1, 0, wz1], [wx1, lh, wz1], [wx, lh, wz1], [wx, 0, wz1], 0, 0, 1, 1, [lockerCol[0], lockerCol[1], lockerCol[2], lockerCol[0]]);
+              }
+              if (!solidAt(lx - 1, ly) || true) {
+                quad(gw, [wx, 0, wz1], [wx, lh, wz1], [wx, lh, wz], [wx, 0, wz], 0, 0, 1, 1, [lockerCol[0], lockerCol[1], lockerCol[2], lockerCol[0]]);
+              }
+              if (!solidAt(lx + 1, ly) || true) {
+                quad(gw, [wx1, 0, wz], [wx1, lh, wz], [wx1, lh, wz1], [wx1, 0, wz1], 0, 0, 1, 1, [lockerCol[0], lockerCol[1], lockerCol[2], lockerCol[0]]);
+              }
+              /* 顶部 */
+              quad(gw, [wx, lh, wz], [wx1, lh, wz], [wx1, lh, wz1], [wx, lh, wz1], 0, 0, 1, 1, [lockerCol[0]*0.8, lockerCol[1]*0.8, lockerCol[2]*0.8, lockerCol[0]*0.8]);
+              /* 半开的门 — 在面向负z方向的面上渲染一个偏移的薄片 */
+              const doorW = CELL * 0.35;
+              quad(gw, [wx + 0.02, 0, wz - doorW], [wx + 0.02, lh * 0.9, wz - doorW], [wx + 0.02, lh * 0.9, wz], [wx + 0.02, 0, wz], 0, 0, 1, 1, [0.12, 0.13, 0.15, 0.12]);
+            } else if (isWall) {
+              /* 迭代32：5%概率使用带文字的墙面 */
+              const _useWT = _wtEnabled && _wtRng() < 0.05;
+              const _gwall = _useWT ? gwt : gw;
               if (!solidAt(lx, ly - 1)) {
-                quad(gw, [wx, 0, wz], [wx, WALL_H, wz], [wx1, WALL_H, wz], [wx1, 0, wz], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
+                quad(_gwall, [wx, 0, wz], [wx, WALL_H, wz], [wx1, WALL_H, wz], [wx1, 0, wz], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
                 /* 墙基踢脚线（底部暗色条带） */
                 const bsH = 0.08;
-                quad(gw, [wx, 0, wz], [wx, bsH, wz], [wx1, bsH, wz], [wx1, 0, wz], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
+                quad(_gwall, [wx, 0, wz], [wx, bsH, wz], [wx1, bsH, wz], [wx1, 0, wz], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
               }
               if (!solidAt(lx, ly + 1)) {
-                quad(gw, [wx1, 0, wz1], [wx1, WALL_H, wz1], [wx, WALL_H, wz1], [wx, 0, wz1], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
-                quad(gw, [wx1, 0, wz1], [wx1, 0.08, wz1], [wx, 0.08, wz1], [wx, 0, wz1], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
+                quad(_gwall, [wx1, 0, wz1], [wx1, WALL_H, wz1], [wx, WALL_H, wz1], [wx, 0, wz1], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
+                quad(_gwall, [wx1, 0, wz1], [wx1, 0.08, wz1], [wx, 0.08, wz1], [wx, 0, wz1], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
               }
               if (!solidAt(lx - 1, ly)) {
-                quad(gw, [wx, 0, wz1], [wx, WALL_H, wz1], [wx, WALL_H, wz], [wx, 0, wz], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
-                quad(gw, [wx, 0, wz1], [wx, 0.08, wz1], [wx, 0.08, wz], [wx, 0, wz], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
+                quad(_gwall, [wx, 0, wz1], [wx, WALL_H, wz1], [wx, WALL_H, wz], [wx, 0, wz], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
+                quad(_gwall, [wx, 0, wz1], [wx, 0.08, wz1], [wx, 0.08, wz], [wx, 0, wz], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
               }
               if (!solidAt(lx + 1, ly)) {
-                quad(gw, [wx1, 0, wz], [wx1, WALL_H, wz], [wx1, WALL_H, wz1], [wx1, 0, wz1], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
-                quad(gw, [wx1, 0, wz], [wx1, 0.08, wz], [wx1, 0.08, wz1], [wx1, 0, wz1], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
+                quad(_gwall, [wx1, 0, wz], [wx1, WALL_H, wz], [wx1, WALL_H, wz1], [wx1, 0, wz1], 0, 0, 1, 1, [0.70, 1, 1, 0.70]);
+                quad(_gwall, [wx1, 0, wz], [wx1, 0.08, wz], [wx1, 0.08, wz1], [wx1, 0, wz1], 0, 0, 1, 1, [0.45, 1, 1, 0.45]);
               }
             } else {
               /* Corner shading + 地板边缘暗化（伪AO） */
@@ -9390,7 +10754,9 @@ class ThreeJSRendererBridge {
               const aoW = solidAt(lx - 1, ly) ? 0.55 : 1;
               const aoE = solidAt(lx + 1, ly) ? 0.55 : 1;
               const cs = [(aoN * aoW), (aoN * aoE), (aoS * aoE), (aoS * aoW)];
-              quad(gf, [wx, 0, wz1], [wx1, 0, wz1], [wx1, 0, wz], [wx, 0, wz], 0, 0, 1, 1, cs);
+              /* 迭代33：8%概率使用带痕迹的地面 */
+              const _useFS = _fsEnabled && _wtRng() < 0.08;
+              quad(_useFS ? gfs : gf, [wx, 0, wz1], [wx1, 0, wz1], [wx1, 0, wz], [wx, 0, wz], 0, 0, 1, 1, cs);
               /* 天花板边缘暗化 */
               const cs2 = [(aoN * aoW * 0.9), (aoN * aoE * 0.9), (aoS * aoE * 0.9), (aoS * aoW * 0.9)];
               quad(gc, [wx, WALL_H, wz], [wx1, WALL_H, wz], [wx1, WALL_H, wz1], [wx, WALL_H, wz1], 0, 0, 1, 1, cs2);
@@ -9408,7 +10774,7 @@ class ThreeJSRendererBridge {
             }
           }
         }
-        [['w', gw, this.matWall], ['f', gf, this.matFloor], ['c', gc, this.matCeil], ['l', gl, this.matLamp], ['wat', gwat, this.matWater]].forEach(([k, g, m]) => {
+        [['w', gw, this.matWall], ['f', gf, this.matFloor], ['c', gc, this.matCeil], ['l', gl, this.matLamp], ['wat', gwat, this.matWater], ['wt', gwt, this.matWallText], ['fs', gfs, this.matFloorStain]].forEach(([k, g, m]) => {
           const mesh = toMesh(g, m);
           if (mesh) { this.worldGroup.add(mesh); this.chunkList.push(mesh); }
         });
@@ -9425,9 +10791,72 @@ class ThreeJSRendererBridge {
         }
       }
     }
-  }
 
-  /* 构建3D灯具几何体（天花板吸顶灯罩） */
+    /* 迭代34：散落物品渲染 */
+    if (world.scattered && world.scattered.length) {
+      const px = _vpx + ox, py = _vpy + oy;
+      for (const item of world.scattered) {
+        const dx = item.x - px, dy = item.y - py;
+        if (Math.abs(dx) > VIEW_R || Math.abs(dy) > VIEW_R) continue;
+        const wx = item.x * CELL, wz = item.y * CELL;
+        if (item.type === 'crate') {
+          /* 倒置箱子：旋转的方块 */
+          const geo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
+          const mat = new THREE.MeshStandardMaterial({ color: 0x6b5a3a, roughness: 0.9, metalness: 0.05 });
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(wx, 0.17, wz);
+          mesh.rotation.set(item.rot * 0.5, item.rot, item.rot * 0.7);
+          this.worldGroup.add(mesh);
+          this.chunkList.push(mesh);
+        } else if (item.type === 'paper') {
+          /* 散落纸张：平面quad */
+          const geo = new THREE.PlaneGeometry(0.22, 0.3);
+          const _paperCol = item.rot > Math.PI ? 0xe8e0c8 : 0xd4c8a0;
+          const mat = new THREE.MeshStandardMaterial({ color: _paperCol, roughness: 1.0, metalness: 0, side: THREE.DoubleSide });
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(wx, 0.01, wz);
+          mesh.rotation.set(-Math.PI / 2, 0, item.rot);
+          this.worldGroup.add(mesh);
+          this.chunkList.push(mesh);
+        } else if (item.type === 'bucket') {
+          /* 打翻的桶：横放圆柱体 */
+          const geo = new THREE.CylinderGeometry(0.12, 0.1, 0.28, 8);
+          const mat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.7, metalness: 0.3 });
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(wx, 0.12, wz);
+          mesh.rotation.set(Math.PI / 2, 0, item.rot);
+          this.worldGroup.add(mesh);
+          this.chunkList.push(mesh);
+        }
+      }
+    }
+
+    /* 迭代35：安全屋暖色灯光 */
+    if (world.safeRooms && world.safeRooms.length) {
+      for (const sr of world.safeRooms) {
+        const dx = sr.x - px, dy = sr.y - py;
+        if (Math.abs(dx) > VIEW_R || Math.abs(dy) > VIEW_R) continue;
+        const wx = sr.x * CELL, wz = sr.y * CELL;
+        const light = new THREE.PointLight(0xffd088, 0.8, 6, 1.5);
+        light.position.set(wx, WALL_H * 0.8, wz);
+        this.worldGroup.add(light);
+        this.chunkList.push(light);
+      }
+    }
+
+    /* 迭代36：陷阱房微弱红色标记光 */
+    if (world.trapRooms && world.trapRooms.length) {
+      for (const tr of world.trapRooms) {
+        const dx = tr.x - px, dy = tr.y - py;
+        if (Math.abs(dx) > VIEW_R || Math.abs(dy) > VIEW_R) continue;
+        const wx = tr.x * CELL, wz = tr.y * CELL;
+        const light = new THREE.PointLight(0x551515, 0.3, 4, 2);
+        light.position.set(wx, 0.1, wz);
+        this.worldGroup.add(light);
+        this.chunkList.push(light);
+      }
+    }
+  }
   _buildLampFixtures() {
     const THREE = window.THREE;
     /* 清除旧灯具 */
@@ -10085,6 +11514,10 @@ class ThreeJSRendererBridge {
       this.ctx.fillRect(0, 0, this.W, this.H);
       return;
     }
+    /* 计算 dt 用于摄像机震动衰减 */
+    if (!this._lastRenderTime) this._lastRenderTime = time;
+    const dt = Math.min(0.05, (time - this._lastRenderTime) / 1000);
+    this._lastRenderTime = time;
 
     /* Rebuild world mesh if window scrolled */
     this._rebuildWorldIfNeeded();
@@ -10094,7 +11527,19 @@ class ThreeJSRendererBridge {
       if (this.scene.fog) this.scene.fog.density = 0;
       this.scene.background = new THREE.Color(0x000000);
     } else if (world.fog && this.scene.fog) {
-      this.scene.fog.density = world.fog * 0.7;
+      /* 雾气呼吸效果：缓慢正弦波动 ±15% */
+      if (this._fogBase === undefined || this._fogBase !== world.fog * 0.7) {
+        this._fogBase = world.fog * 0.7;
+        if (this._fogPhase === undefined) this._fogPhase = Math.random() * Math.PI * 2;
+        if (this._fogPeriod === undefined) this._fogPeriod = 8 + Math.random() * 7;
+      }
+      this._fogPhase += dt / this._fogPeriod * Math.PI * 2;
+      let fogMul = 1 + 0.15 * Math.sin(this._fogPhase);
+      /* dangerNear 时雾气变浓 +20% */
+      if (window.game && window.game.dangerNear) fogMul += 0.2;
+      /* silence event 时雾气更浓 +30% */
+      if (window.game && window.game._silenceActive) fogMul += 0.3;
+      this.scene.fog.density = this._fogBase * fogMul;
       if (world.fogColor !== undefined) {
         this.scene.fog.color.setHex(world.fogColor);
         this.scene.background = new THREE.Color(world.fogColor);
@@ -10102,7 +11547,10 @@ class ThreeJSRendererBridge {
     }
 
     /* Update ambient and hemi colors based on world */
-    const ambient = player.forceDark ? Math.max(world.ambient * 0.3, 0.06) : world.ambient;
+    /* 停电期间 ambient 降到 0.05 */
+    const powerOut = (window.game && window.game._powerOutageActive) ? true : false;
+    let ambient = player.forceDark ? Math.max(world.ambient * 0.3, 0.06) : world.ambient;
+    if (powerOut) ambient = 0.05;
     this.hemi.intensity = 0.42 * ambient / 0.3;
     if (world.hemiSky !== undefined) {
       this.hemi.color.setHex(world.hemiSky);
@@ -10155,6 +11603,26 @@ class ThreeJSRendererBridge {
     this.camera.position.set(camX, camY + bob, camZ);
     /* Convert game angle (radians, 0=+X) to Three.js yaw */
     this.camera.rotation.set(player.pitch || 0, -Math.PI / 2 - player.angle, 0);
+
+    /* 摄像机震动：偏移量 = intensity * (random-0.5) * 2 */
+    let shakeOffX = 0, shakeOffY = 0;
+    if (this._shakeState && this._shakeState.duration > 0) {
+      const s = this._shakeState;
+      s.duration -= dt;
+      const decay = s.maxDuration > 0 ? Math.max(0, s.duration / s.maxDuration) : 0;
+      const cur = s.intensity * decay;
+      shakeOffX = cur * (Math.random() - 0.5) * 2;
+      shakeOffY = cur * (Math.random() - 0.5) * 2;
+      if (s.duration <= 0) { s.intensity = 0; }
+    }
+    if (this._shakeCont && this._shakeCont > 0) {
+      shakeOffX += this._shakeCont * (Math.random() - 0.5) * 2;
+      shakeOffY += this._shakeCont * (Math.random() - 0.5) * 2;
+    }
+    if (shakeOffX || shakeOffY) {
+      this.camera.position.x += shakeOffX;
+      this.camera.position.y += shakeOffY;
+    }
 
     /* Flashlight */
     const flOn = player.flashlight && player.battery > 0 && !player.forceDark;
@@ -10219,9 +11687,76 @@ class ThreeJSRendererBridge {
   _updateLights(px, pz, time, world) {
     if (!this._lamps) return;
     const lightMul = world ? world.lightMul : 1;
+    /* 停电期间所有点光源关闭 */
+    const powerOut = (window.game && window.game._powerOutageActive) ? true : false;
+    if (powerOut) {
+      for (let i = 0; i < POOL; i++) {
+        if (this.lightPool[i]) this.lightPool[i].intensity = 0;
+      }
+      return;
+    }
     /* 只取最近的 POOL 个灯，避免每帧对全部灯排序 */
     const lamps = this._lamps;
     const n = lamps.length;
+    if (!this._flickerStates) this._flickerStates = [];
+    /* 初始化闪烁状态 */
+    while (this._flickerStates.length < n) {
+      this._flickerStates.push({
+        mode: 'normal', timer: 0, nextSwitch: 30 + Math.random() * 60,
+        subTimer: 0, dyingPhase: 0
+      });
+    }
+    let dyingOffCount = 0;
+    const flickerMul = (idx, t) => {
+      const fs = this._flickerStates[idx];
+      fs.timer += 0.016;
+      if (fs.timer >= fs.nextSwitch) {
+        fs.timer = 0;
+        fs.nextSwitch = 30 + Math.random() * 60;
+        const modes = ['normal', 'dying', 'haunted', 'surge', 'normal', 'normal'];
+        fs.mode = modes[(Math.random() * modes.length) | 0];
+        fs.subTimer = 0;
+        fs.dyingPhase = 0;
+      }
+      let m = 1;
+      switch (fs.mode) {
+        case 'dying': {
+          /* 越来越快的闪烁，最后熄灭 2 秒再恢复 */
+          fs.dyingPhase += 0.016;
+          const freq = 2 + fs.dyingPhase * 3;
+          if (fs.dyingPhase > 4) {
+            /* 熄灭 — 限制同时熄灭的灯数量，避免全黑 */
+            if (dyingOffCount < 2) {
+              m = 0; dyingOffCount++;
+            } else {
+              m = 0.3;
+            }
+            if (fs.dyingPhase > 6) { fs.mode = 'normal'; fs.dyingPhase = 0; }
+          } else {
+            m = 0.5 + 0.5 * Math.sin(t * freq * 10);
+            m = m > 0.3 ? 1 : 0.1;
+          }
+          break;
+        }
+        case 'haunted': {
+          /* 不规则闪烁 */
+          m = 0.6 + 0.4 * (Math.sin(t * 7.3 + idx * 2.1) * Math.sin(t * 2.7 + idx));
+          m = m > 0.5 ? 1 : 0.15 + Math.random() * 0.3;
+          break;
+        }
+        case 'surge': {
+          /* 突然变亮再恢复 */
+          const sp = fs.timer / fs.nextSwitch;
+          if (sp < 0.1) m = 1.5 - sp * 5;
+          else m = 1;
+          break;
+        }
+        default:
+          /* normal: 偶尔轻微波动 */
+          m = 0.86 + 0.14 * Math.sin(t * 13.0 + idx * 3.1) * Math.sin(t * 3.7 + idx);
+      }
+      return m;
+    };
     if (n <= POOL) {
       for (let i = 0; i < POOL; i++) {
         const L = this.lightPool[i];
@@ -10229,7 +11764,7 @@ class ThreeJSRendererBridge {
         const l = lamps[i];
         const d = (l.x - px) * (l.x - px) + (l.z - pz) * (l.z - pz);
         L.position.set(l.x, WALL_H - 0.18, l.z);
-        const f = 0.86 + 0.14 * Math.sin(time * 13.0 + l.x * 3.1) * Math.sin(time * 3.7 + l.z);
+        const f = flickerMul(i, time);
         const drop = Math.max(0, 1 - d / 400);
         L.intensity = 2.6 * f * drop * lightMul;
       }
@@ -10240,16 +11775,16 @@ class ThreeJSRendererBridge {
     for (let i = 0; i < n; i++) {
       const l = lamps[i];
       const d = (l.x - px) * (l.x - px) + (l.z - pz) * (l.z - pz);
-      if (d < 400) near.push({ l, d });
+      if (d < 400) near.push({ l, d, idx: i });
     }
     near.sort((a, b) => a.d - b.d);
     const cnt = Math.min(POOL, near.length);
     for (let i = 0; i < POOL; i++) {
       const L = this.lightPool[i];
       if (i >= cnt) { L.intensity = 0; continue; }
-      const { l, d } = near[i];
+      const { l, d, idx } = near[i];
       L.position.set(l.x, WALL_H - 0.18, l.z);
-      const f = 0.86 + 0.14 * Math.sin(time * 13.0 + l.x * 3.1) * Math.sin(time * 3.7 + l.z);
+      const f = flickerMul(idx, time);
       const drop = Math.max(0, 1 - d / 400);
       L.intensity = 2.6 * f * drop * lightMul;
     }
@@ -10309,6 +11844,10 @@ class ThreeJSRendererBridge {
       const dist = Math.hypot(dx, dz);
       const d3 = dx * dx + dz * dz;
       if (d3 * CELL * CELL < nd) { nd = d3 * CELL * CELL; nearest = e; }
+
+      /* 迭代47: LOD — 距离>25格的entity不渲染3D mesh */
+      if (dist > 25) { e.visible = false; continue; }
+      e.visible = true;
 
       if (u.billboard) {
         e.lookAt(this.camera.position.x, e.position.y + 0.68, this.camera.position.z);
@@ -10414,6 +11953,145 @@ class ThreeJSRendererBridge {
         e.position.y = bob;
         if (u.body) u.body.scale.y = 1 + Math.sin(time * 3) * 0.05;
         for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = Math.sin(time * 2.5 + k * Math.PI) * 0.15;
+      }
+
+      /* ============================ 迭代44: 实体视觉特效 ============================ */
+      /* 迭代47: LOD — 距离15-25格简化渲染，跳过粒子/光效等特效 */
+      const entType = s.entityType;
+      if (dist > 15) {
+        /* 远距离：仅显示基本mesh，跳过所有视觉特效 */
+        continue;
+      }
+      /* 精英实体：周围有微红色光晕 */
+      if (s.isElite && !s.isDead) {
+        if (!u._eliteGlow) {
+          const THREE = window.THREE;
+          const glowMat = new THREE.SpriteMaterial({ color: 0xff2200, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false });
+          const glowSprite = new THREE.Sprite(glowMat);
+          glowSprite.scale.set(2.5, 2.5, 1);
+          glowSprite.position.y = 0.8;
+          e.add(glowSprite);
+          u._eliteGlow = glowSprite;
+        }
+        u._eliteGlow.material.opacity = 0.12 + Math.sin(time * 3) * 0.06;
+      }
+
+      /* smiler：黑暗中发光的笑脸 */
+      if (entType === 'smiler' && !s.isDead) {
+        if (!u._smilerEyes) {
+          const THREE = window.THREE;
+          const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.9 });
+          const eyeGeo = new THREE.SphereGeometry(0.04, 6, 6);
+          const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+          const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+          eyeL.position.set(-0.12, 0.85, 0.01);
+          eyeR.position.set(0.12, 0.85, 0.01);
+          e.add(eyeL); e.add(eyeR);
+          u._smilerEyes = [eyeL, eyeR];
+          const pLight = new THREE.PointLight(0xffee88, 0.3, 4);
+          pLight.position.set(0, 0.85, 0);
+          e.add(pLight);
+          u._smilerLight = pLight;
+        }
+        const flicker = 0.6 + Math.sin(time * 8) * 0.3;
+        u._smilerLight.intensity = flicker * 0.4;
+        u._smilerEyes[0].material.opacity = flicker;
+        u._smilerEyes[1].material.opacity = flicker;
+      }
+
+      /* rot：下方绿色毒雾粒子 */
+      if (entType === 'rot' && !s.isDead) {
+        if (!u._rotParticles) {
+          const THREE = window.THREE;
+          const pMat = new THREE.SpriteMaterial({ color: 0x44ff44, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false });
+          const particles = [];
+          for (let pi = 0; pi < 5; pi++) {
+            const sp = new THREE.Sprite(pMat.clone());
+            sp.scale.set(0.3, 0.3, 1);
+            sp.position.set((Math.random() - 0.5) * 0.6, -0.1 - Math.random() * 0.3, (Math.random() - 0.5) * 0.6);
+            sp.userData.phase = Math.random() * Math.PI * 2;
+            e.add(sp);
+            particles.push(sp);
+          }
+          u._rotParticles = particles;
+        }
+        for (const sp of u._rotParticles) {
+          sp.position.y = -0.1 - ((time * 0.3 + sp.userData.phase) % 1) * 0.5;
+          sp.material.opacity = 0.15 * (1 - ((time * 0.3 + sp.userData.phase) % 1));
+        }
+      }
+
+      /* howler：嚎叫时身体膨胀 + 声波环 */
+      if (entType === 'howler' && !s.isDead) {
+        if (s.howling) {
+          const inflate = 1 + Math.sin(time * 10) * 0.15;
+          e.scale.set(inflate, inflate, inflate);
+          if (!u._howlRing) {
+            const THREE = window.THREE;
+            const ringGeo = new THREE.RingGeometry(0.3, 0.5, 16);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = 0.5;
+            e.add(ring);
+            u._howlRing = ring;
+            u._howlRingTime = 0;
+          }
+          u._howlRingTime += dt;
+          const rs = 1 + u._howlRingTime * 3;
+          u._howlRing.scale.set(rs, rs, 1);
+          u._howlRing.material.opacity = Math.max(0, 0.4 - u._howlRingTime * 0.4);
+          if (u._howlRingTime > 1) u._howlRingTime = 0;
+        } else {
+          e.scale.set(1, 1, 1);
+        }
+      }
+
+      /* dream_chaser：身后留下紫色拖影 */
+      if (entType === 'dream_chaser' && !s.isDead && walking) {
+        if (!u._trailTimer) u._trailTimer = 0;
+        u._trailTimer -= dt;
+        if (u._trailTimer <= 0) {
+          u._trailTimer = 0.1;
+          const THREE = window.THREE;
+          if (!u._trailClones) u._trailClones = [];
+          if (u._trailClones.length > 5) {
+            const old = u._trailClones.shift();
+            e.parent.remove(old);
+          }
+          const trailMat = new THREE.MeshBasicMaterial({ color: 0x8800ff, transparent: true, opacity: 0.3, depthWrite: false });
+          const trail = new THREE.Mesh(new THREE.SphereGeometry(0.3, 6, 6), trailMat);
+          trail.position.copy(e.position);
+          trail.position.y = 0.8;
+          trail.userData.life = 1;
+          e.parent.add(trail);
+          u._trailClones.push(trail);
+        }
+        for (let ti = u._trailClones.length - 1; ti >= 0; ti--) {
+          const tc = u._trailClones[ti];
+          tc.userData.life -= dt * 3;
+          tc.material.opacity = Math.max(0, tc.userData.life * 0.3);
+          if (tc.userData.life <= 0) {
+            e.parent.remove(tc);
+            u._trailClones.splice(ti, 1);
+          }
+        }
+      }
+
+      /* skin_stealer：潜伏状态半透明 + 轮廓闪烁 */
+      if (entType === 'skin_stealer' && !s.isDead) {
+        const stealth = s.entityState === 'patrol' || s.entityState === 'investigate';
+        e.traverse(child => {
+          if (child.material) {
+            child.material.transparent = true;
+            const baseOp = child.material.userData_baseOp || 1;
+            if (stealth) {
+              child.material.opacity = baseOp * (0.3 + Math.sin(time * 5) * 0.15);
+            } else {
+              child.material.opacity = baseOp;
+            }
+          }
+        });
       }
 
       /* Death animation: tilt over + sink */
@@ -10920,6 +12598,25 @@ class ThreeJSRendererBridge {
       ctx.fillRect(0, 0, W, H);
     }
 
+    /* 迭代37：黑色人影 — 视野边缘闪过0.1秒 */
+    if (opts.shadowFigure > 0) {
+      const _side = Math.sin(time * 17) > 0 ? 1 : -1;
+      const _fx = _side > 0 ? W * 0.82 : W * 0.08;
+      const _fy = H * 0.45;
+      const _fh = H * 0.55;
+      const _fw = W * 0.08;
+      const _alpha = Math.min(0.85, opts.shadowFigure * 8);
+      ctx.fillStyle = `rgba(2,2,3,${_alpha})`;
+      /* 人影形状：头+肩+身 */
+      ctx.beginPath();
+      ctx.ellipse(_fx, _fy - _fh * 0.35, _fw * 0.35, _fh * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(_fx - _fw * 0.3, _fy - _fh * 0.2, _fw * 0.6, _fh * 0.5);
+      ctx.beginPath();
+      ctx.ellipse(_fx, _fy - _fh * 0.25, _fw * 0.4, _fh * 0.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     /* Grain noise */
     const gAlpha = 0.045 + (1 - sanity) * 0.09;
     if (gAlpha > 0.001 && this.grain) {
@@ -10963,11 +12660,25 @@ class ThreeJSRendererBridge {
     this._tuneTimer += dt;
     if (this._tuneTimer < 2) return;
     this._tuneTimer = 0;
-    /* Simple quality auto-tune: if FPS low, reduce pixel ratio */
+    /* 迭代48: FPS<30时自动降低画质（减少shadow、降低TEX） */
     const fps = 1 / Math.max(0.001, this._avgDt);
-    if (fps < 25 && this.quality !== 'low') {
+    if (fps < 30 && this.quality !== 'low') {
       const idx = QUALITY_ORDER.indexOf(this.quality);
       if (idx > 0) this.setQuality(QUALITY_ORDER[idx - 1]);
+      /* 降低shadow map分辨率 */
+      if (this.renderer.shadowMap) {
+        this.renderer.shadowMap.type = window.THREE.BasicShadowMap;
+      }
+      /* 降低纹理分辨率：设置minFilter为最近邻，跳过mipmap */
+      if (this._THREEtex) {
+        for (const k in this._THREEtex) {
+          if (this._THREEtex[k]) {
+            this._THREEtex[k].minFilter = THREE.NearestFilter;
+            this._THREEtex[k].magFilter = THREE.NearestFilter;
+            this._THREEtex[k].needsUpdate = true;
+          }
+        }
+      }
     } else if (fps > 50 && this.quality !== 'ultra') {
       const idx = QUALITY_ORDER.indexOf(this.quality);
       if (idx < QUALITY_ORDER.length - 1) this.setQuality(QUALITY_ORDER[idx + 1]);
@@ -10987,6 +12698,26 @@ class ThreeJSRendererBridge {
     }
     g.putImageData(img, 0, 0);
     this.grain = c;
+  }
+
+  /* ====== 摄像机震动系统 ====== */
+  shake(intensity, duration) {
+    if (!this._shakeState) this._shakeState = { intensity: 0, duration: 0, maxDuration: 0 };
+    /* 取较大的震动 */
+    if (intensity > this._shakeState.intensity) {
+      this._shakeState.intensity = intensity;
+      this._shakeState.duration = duration;
+      this._shakeState.maxDuration = duration;
+    } else if (this._shakeState.duration < duration) {
+      this._shakeState.duration = duration;
+      this._shakeState.maxDuration = duration;
+    }
+  }
+
+  /* 持续低强度震动（entity 靠近 / sanity 极低时） */
+  shakeContinuous(intensity) {
+    if (!this._shakeCont) this._shakeCont = 0;
+    this._shakeCont = intensity;
   }
 
   _buildScanlines() {
@@ -11016,6 +12747,9 @@ class HUD {
       levelName: $('hud-levelname'),
       objective: $('hud-objective'),
       hint: $('hud-hint'),
+      hpBar: $('hp-bar'),
+      hpVal: $('hp-val'),
+      statHp: $('stat-hp'),
       sanityBar: $('sanity-bar'),
       sanityVal: $('sanity-val'),
       statSanity: $('stat-sanity'),
@@ -11186,6 +12920,40 @@ class HUD {
     this.el.sanityVal.textContent = Math.round(player.sanity);
     this.el.statStamina.classList.toggle('low', sp < 0.25);
     this.el.statSanity.classList.toggle('low', sa < 0.35);
+    /* 迭代41: HUD恐怖化 */
+    /* HP<30 时闪烁红色 + 心跳脉动 */
+    if (this.el.statHp) {
+      const hpRatio = (player.maxHp && player.maxHp > 0) ? (player.hp / player.maxHp) : 1;
+      this.el.statHp.classList.toggle('hp-critical', hpRatio < 0.3);
+      if (this.el.hpBar) this.el.hpBar.style.width = (hpRatio * 100).toFixed(1) + '%';
+      if (this.el.hpVal) this.el.hpVal.textContent = Math.round(player.hp);
+    }
+    /* Sanity<30 时裂纹效果 */
+    this.el.statSanity.classList.toggle('sanity-cracked', sa < 0.3);
+    /* 体力耗尽时灰色抖动 */
+    this.el.statStamina.classList.toggle('stamina-exhausted', sp < 0.05);
+    /* 口渴<15 时蓝色水滴动画 */
+    this.el.statThirst.classList.toggle('thirst-dehydrated', th < 0.15);
+    /* 电量<10 时闪烁警告 */
+    if (this.el.chipBattery) {
+      this.el.chipBattery.classList.toggle('battery-warning', player.battery < 10);
+    }
+    /* Sanity<20 时所有HUD元素轻微抖动 */
+    const hudEl = document.getElementById('hud');
+    if (hudEl) {
+      hudEl.classList.toggle('hud-insane', sa < 0.2);
+    }
+    /* 恐惧指示器：entity距离<6格时红色十字准星 */
+    const fcEl = document.getElementById('fear-crosshair');
+    if (fcEl && game.entities) {
+      let nearestEnt = 999;
+      for (const e of game.entities) {
+        if (e.isDead) continue;
+        const d = Math.hypot(e.x - player.x, e.y - player.y);
+        if (d < nearestEnt) nearestEnt = d;
+      }
+      fcEl.classList.toggle('on', nearestEnt < 6);
+    }
     /* 口渴条 */
     if (this.el.thirstBar) {
       this.el.thirstBar.style.width = (th * 100).toFixed(1) + '%';
@@ -11223,6 +12991,15 @@ class HUD {
 
     /* 手持物品显示 */
     this.setHeldItem(player.heldItem);
+
+    /* 迭代16-17：躲藏/隐藏状态提示 */
+    if (player.hiding) {
+      this.el.prompt.textContent = '🚪 躲藏中 — 按 E 退出';
+      this.el.prompt.classList.add('on');
+    } else if (player.hidden) {
+      this.el.prompt.textContent = '🔇 隐藏中';
+      this.el.prompt.classList.add('on');
+    }
 
     /* 小地图（导航仪手持时） */
     this.drawMinimap(player, game);
@@ -11424,6 +13201,22 @@ class Game {
     this.helpReturn = 'menu';
     this.creativeMode = false;
 
+    /* PostFX state */
+    this._fxEls = null;
+    this._flashTimer = 0;
+    this._flashCooldown = 5 + Math.random() * 5;
+    this._shakeOnHurt = false;
+
+    /* 随机远处声音 + 沉默事件 + 停电事件 */
+    this._randomSoundTimer = 15 + Math.random() * 25;
+    this._silenceTimer = 60 + Math.random() * 120;
+    this._silenceActive = false;
+    this._silenceDuration = 0;
+    this._powerOutageTimer = 120 + Math.random() * 180;
+    this._powerOutageActive = false;
+    this._powerOutageDuration = 0;
+    this._powerRestoreTimer = 0;
+
     /* 成就系统 */
     this.achievements = this.loadAchievements();
     this.flashlightTime = 0;
@@ -11431,6 +13224,13 @@ class Game {
     this.levelCellsVisited = new Set();
     this.levelKills = 0;
     this.levelDamageTaken = 0;
+
+    /* 迭代37：跳跃恐惧系统状态 */
+    this._jsTurnTimer = 0;
+    this._jsLastAngle = 0;
+    this._jsHallucinationTimer = 0;
+    this._jsShadowFigureTime = 0;
+    this._jsFootstepTimer = 0;
 
     this.cmpTimer = 0;
     this.cmpTarget = null;
@@ -11463,7 +13263,7 @@ class Game {
   }
 
   loadSettings() {
-    const def = { sensitivity: 1, volume: 0.6, shake: 1, quality: this.defaultQuality() };
+    const def = { sensitivity: 1, volume: 0.6, sfxVolume: 0.7, ambientVolume: 0.4, shake: 1, quality: this.defaultQuality() };
     try {
       const raw = localStorage.getItem(SETTINGS_KEY);
       if (raw) return Object.assign(def, JSON.parse(raw));
@@ -11694,6 +13494,32 @@ class Game {
     const el = document.getElementById('changelog-content');
     if (!el) return;
     const logs = [
+      { v: 'v11.0', date: '2026-11-22', items: [
+        '【音频系统】WebAudio空间音频系统，实体声音带方向感',
+        '【音频系统】每关独立低频环境音 + 随机远处声音事件（水滴、金属吱嘎、低语、电流声）',
+        '【音频系统】突然沉默事件 + 随机停电事件 + 近距离呼吸声 + 动态心跳系统',
+        '【音频系统】追逐动态音乐系统（低频pulse + 不和谐音）',
+        '【音频系统】音量混音器（master/sfx/ambient分组控制）',
+        '【视觉恐怖】CSS后处理：胶片颗粒、暗角、VHS扫描线、色差',
+        '【视觉恐怖】理智低时画面扭曲、去饱和、旋转、闪回',
+        '【视觉恐怖】摄像机震动系统 + 动态灯光闪烁模式（dying/haunted/surge/normal）',
+        '【视觉恐怖】雾气呼吸效果 + 水下/涉水蓝色色调特效',
+        '【视觉恐怖】实体视觉特效（笑脸发光、毒雾粒子、声波环、紫色拖影等）',
+        '【实体系统】13种实体类型（新增剥皮者、嚎叫者、钝化者）',
+        '【实体系统】AI状态：巡逻→调查→追击→搜寻，自然循环',
+        '【实体系统】实体协调：包围战术 + 声音诱饵 + 精英个体',
+        '【实体系统】伏击生成 + 群体生成 + 实体脚步声（不同类型不同特征）',
+        '【生存机制】储物柜躲藏 + 桌下隐藏 + 门防御机制',
+        '【生存机制】体力/口渴/理智深度整合 + 手电筒战术',
+        '【生存机制】安全屋 + 陷阱房 + 跳跃恐惧事件',
+        '【关卡设计】5档难度递增曲线 + 关卡过渡叙事文字',
+        '【关卡设计】环境叙事：墙面文字、地面痕迹、散落物品',
+        '【关卡设计】每次进入同关都有环境变化',
+        '【HUD】恐怖化UI（闪烁、裂纹、抖动）+ 死亡画面升级 + 恐惧指示器',
+        '【性能】实体LOD系统 + 渲染优化 + 自适应画质',
+        '【平衡性】maxHp调整为120、hound伤害18、门防御8秒自动开启',
+        '【平衡性】水中噪音增加50%、安全屋理智恢复+3/秒、手电冻结smiler'
+      ]},
       { v: 'v8.2', date: '2026-11-19', items: [
         '修复 Hub 中枢进不去的 bug（房间系统墙壁覆盖了 Hub 地图生成）',
         'Hub 生成代码提前到房间系统之前，确保走廊和门不被阻断',
@@ -12141,6 +13967,28 @@ class Game {
         this.saveSettings();
       });
     }
+    const sfxVol = document.getElementById('set-sfx');
+    if (sfxVol) {
+      sfxVol.value = this.settings.sfxVolume ?? 0.7;
+      document.getElementById('set-sfx-val').textContent = Math.round(sfxVol.value * 100) + '%';
+      sfxVol.addEventListener('input', () => {
+        this.settings.sfxVolume = Number(sfxVol.value);
+        document.getElementById('set-sfx-val').textContent = Math.round(sfxVol.value * 100) + '%';
+        this.audio.setSfxVolume(this.settings.sfxVolume);
+        this.saveSettings();
+      });
+    }
+    const ambVol = document.getElementById('set-ambient');
+    if (ambVol) {
+      ambVol.value = this.settings.ambientVolume ?? 0.4;
+      document.getElementById('set-ambient-val').textContent = Math.round(ambVol.value * 100) + '%';
+      ambVol.addEventListener('input', () => {
+        this.settings.ambientVolume = Number(ambVol.value);
+        document.getElementById('set-ambient-val').textContent = Math.round(ambVol.value * 100) + '%';
+        this.audio.setAmbientVolume(this.settings.ambientVolume);
+        this.saveSettings();
+      });
+    }
     if (shake) {
       shake.value = this.settings.shake;
       document.getElementById('set-shake-val').textContent = Math.round(shake.value * 100) + '%';
@@ -12251,6 +14099,8 @@ class Game {
   applySettings() {
     this.input.sensitivity = this.settings.sensitivity;
     this.audio.setVolume(this.settings.volume);
+    if (this.settings.sfxVolume != null) this.audio.setSfxVolume(this.settings.sfxVolume);
+    if (this.settings.ambientVolume != null) this.audio.setAmbientVolume(this.settings.ambientVolume);
     this.applyQuality(this.settings.quality);
   }
 
@@ -12498,8 +14348,38 @@ class Game {
       this._tempLevelIndex = null;
       if (index > LEVELS.length - 1) index = LEVELS.length - 1;
     }
-    const level = LEVELS[Math.max(0, Math.min(LEVELS.length - 1, index))];
+    const _origLevel = LEVELS[Math.max(0, Math.min(LEVELS.length - 1, index))];
     this.levelIndex = index;
+
+    /* 迭代40：关卡环境变化系统 - 每次进入同一关卡都有变化 */
+    const _envSeed = (index * 7919 + Date.now()) | 0;
+    let _envRng = _envSeed;
+    const _envRand = () => { _envRng = (_envRng * 1103515245 + 12345) & 0x7fffffff; return _envRng / 0x7fffffff; };
+    const level = Object.assign({}, _origLevel);
+    /* 雾密度 ±20% */
+    level.fog = (_origLevel.fog ?? 0.075) * (0.8 + _envRand() * 0.4);
+    /* 环境亮度 ±15% */
+    level.ambient = (_origLevel.ambient ?? 0.3) * (0.85 + _envRand() * 0.3);
+    /* 灯光颜色偏移：暖色/冷色/绿色调 */
+    const _colorShift = Math.floor(_envRand() * 3);
+    if (_colorShift === 0) {
+      /* 暖色调 */
+      level.lampColor = 0xffd9a0;
+      level.hemiSky = 0xb8a070;
+    } else if (_colorShift === 1) {
+      /* 冷色调 */
+      level.lampColor = 0xb0c8e0;
+      level.hemiSky = 0x8090a8;
+    } else {
+      /* 绿色调 */
+      level.lampColor = 0xa8d8a0;
+      level.hemiSky = 0x6a8a5a;
+    }
+    /* 实体数量 ±1 */
+    level._entityCountAdj = _envRand() < 0.5 ? -1 : 1;
+    /* 物资数量 ±20% */
+    level._itemMult = 0.8 + _envRand() * 0.4;
+    this._levelEnvironment = { fog: level.fog, ambient: level.ambient, colorShift: _colorShift };
     this.level = level;
 
     /* 种子系统：URL 参数 ?seed= 可自定义种子，方便分享 */
@@ -12556,10 +14436,28 @@ class Game {
     world.floodLevel = this.ev.floodLevel;
     this.renderer.bindWorld(world);
 
+    /* 关卡环境音：先停旧的再启动新的 */
+    this.audio.stopAmbient();
+    this.audio.stopChaseMusic();
+    this.audio.startAmbient(level);
+
     this.hud.setLevel(level);
     this.hud.show();
     this.hud.setPrompt(null);
     this.hud.setGrab(false);
+
+    /* 迭代38：关卡过渡叙事 */
+    if (LEVEL_NARRATIVES && LEVEL_NARRATIVES[index]) {
+      const _narrativeEl = document.createElement('div');
+      _narrativeEl.style.cssText = 'position:fixed;top:35%;left:50%;transform:translate(-50%,-50%);' +
+        'max-width:70%;text-align:center;color:rgba(200,195,180,0.85);font:15px/1.8 Georgia,serif;' +
+        'text-shadow:0 0 8px rgba(0,0,0,0.9);z-index:100;pointer-events:none;opacity:0;transition:opacity 1.5s ease;';
+      _narrativeEl.textContent = LEVEL_NARRATIVES[index];
+      document.body.appendChild(_narrativeEl);
+      setTimeout(() => { _narrativeEl.style.opacity = '0.9'; }, 100);
+      setTimeout(() => { _narrativeEl.style.opacity = '0'; }, 4500);
+      setTimeout(() => { _narrativeEl.remove(); }, 6500);
+    }
 
     if (!run) this.levelTime = 0;
     this.stats = { biscuits: 0, waters: 0 };
@@ -12576,6 +14474,19 @@ class Game {
     this.hbTimer = 0;
     this.whisperTimer = 10;
     this.flickerT = 0;
+
+    /* 重置事件系统计时器，避免跨关卡残留 */
+    this._randomSoundTimer = 15 + Math.random() * 25;
+    this._silenceTimer = 60 + Math.random() * 120;
+    this._silenceActive = false;
+    this._silenceDuration = 0;
+    this._powerOutageTimer = 120 + Math.random() * 180;
+    this._powerOutageActive = false;
+    this._powerOutageDuration = 0;
+    this._flashTimer = 0;
+    this._flashCooldown = 5 + Math.random() * 5;
+    this._shakeOnHurt = false;
+    if (this.renderer && this.renderer.shakeContinuous) this.renderer.shakeContinuous(0);
 
     /* 环境解谜系统 */
     this.puzzles = [];
@@ -12922,7 +14833,7 @@ class Game {
     }
   }
 
-  die() {
+  die(cause) {
     // 允许从 playing 或 dying 状态进入死亡——_updateDeathSequence 结束时会调用 die()，
     // 此时 state 是 'dying'，如果只接受 'playing' 就会卡在死亡动画里永远出不来
     if (this.state !== 'playing' && this.state !== 'dying') return;
@@ -12942,25 +14853,111 @@ class Game {
       }
     }
 
-        this.state = 'dead';
+    /* 迭代42: 死亡画面升级 — 2秒fade to black */
+    this.state = 'dead';
+    this._deathCause = cause || (this._deathKiller ? ('被 ' + (this._deathKiller.type || '未知实体') + ' 杀死') : '理智崩溃');
+    this._deathLevelName = this.level ? this.level.name : '未知';
+    this._deathLevelIndex = this.levelIndex;
+    this._deathSurvivalTime = this.levelTime;
     this.clearRun();
+
+    /* 播放特殊死亡音效：低频降频tone + 噪声 */
+    if (this.audio && this.audio.ctx) {
+      try {
+        const ctx = this.audio.ctx;
+        const now = ctx.currentTime;
+        /* 低频降频tone */
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 2);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 2.5);
+        /* 噪声 */
+        const bufSize = ctx.sampleRate * 2;
+        const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.15;
+        const noise = ctx.createBufferSource();
+        noise.buffer = buf;
+        const noiseGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, now);
+        filter.frequency.exponentialRampToValueAtTime(100, now + 2);
+        noiseGain.gain.setValueAtTime(0.2, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 2);
+        noise.connect(filter);
+        filter.connect(noiseGain);
+        noiseGain.connect(ctx.destination);
+        noise.start(now);
+        noise.stop(now + 2);
+      } catch(e) { /* ignore */ }
+    }
+
     this.audio.gameOver();
     this.audio.setHum(0);
     this.input.exitLock();
     this.hud.setPrompt(null);
-    const el = document.getElementById('dead-text');
-    if (el) el.textContent = DEATH_LINES[(Math.random() * DEATH_LINES.length) | 0];
-    showScreen('dead');
-    this.hud.hide();
-    /* 更新死亡按钮文字 */
-    const drb = document.getElementById('dead-restart-btn');
-    if (drb) {
-      if (this.progress.maxUnlocked >= 2 && this.levelIndex > 2) {
-        drb.textContent = '返回中枢';
-      } else {
-        drb.textContent = '重新尝试';
-      }
+
+    /* 2秒fade to black */
+    const fadeEl = document.querySelector('.fade');
+    if (fadeEl) {
+      fadeEl.classList.add('on');
     }
+
+    /* 延迟显示死亡画面 */
+    setTimeout(() => {
+      const el = document.getElementById('dead-text');
+      if (el) el.textContent = DEATH_LINES[(Math.random() * DEATH_LINES.length) | 0];
+
+      /* 显示死亡原因 */
+      const causeEl = document.getElementById('dead-cause');
+      if (causeEl) causeEl.textContent = '死因: ' + this._deathCause;
+
+      /* 显示存活时间和到达的关卡 */
+      const statsEl = document.getElementById('dead-stats');
+      if (statsEl) {
+        const mins = Math.floor(this._deathSurvivalTime / 60);
+        const secs = Math.floor(this._deathSurvivalTime % 60);
+        statsEl.innerHTML = '到达层级: <b>' + (this._deathLevelName || '未知') + '</b><br>' +
+          '存活时间: <b>' + mins + '分' + secs + '秒</b>';
+      }
+
+      /* 死亡画面背景粒子 */
+      const particleContainer = document.getElementById('dead-screen-particles');
+      if (particleContainer) {
+        particleContainer.innerHTML = '';
+        for (let i = 0; i < 20; i++) {
+          const p = document.createElement('div');
+          p.className = 'dead-particle';
+          p.style.left = Math.random() * 100 + '%';
+          p.style.animationDuration = (8 + Math.random() * 12) + 's';
+          p.style.animationDelay = (Math.random() * 10) + 's';
+          p.style.width = p.style.height = (2 + Math.random() * 4) + 'px';
+          particleContainer.appendChild(p);
+        }
+      }
+
+      if (fadeEl) fadeEl.classList.remove('on');
+      showScreen('dead');
+      this.hud.hide();
+
+      /* 更新死亡按钮文字 */
+      const drb = document.getElementById('dead-restart-btn');
+      if (drb) {
+        if (this.progress.maxUnlocked >= 2 && this.levelIndex > 2) {
+          drb.textContent = '返回中枢';
+        } else {
+          drb.textContent = '重新尝试';
+        }
+      }
+    }, 2000);
   }
 
   completeLevel() {
@@ -13146,7 +15143,14 @@ class Game {
             /* 简易生成：在玩家附近5格内找个空位 */
             const ex = this.player.x + (Math.random() - 0.5) * 10;
             const ey = this.player.y + (Math.random() - 0.5) * 10;
-            this.entities.push({ type: 'hound', x: ex, y: ey, hp: 30, speed: 3, state: 'chase' });
+            if (idx(w, ex, ey) >= 0 && w.height[idx(w, ex, ey)] <= 0.3) {
+              const spec = { type: 'hound', x: ex, y: ey, z: 0 };
+              const newEnt = new Entity(spec, w, 9999 + Math.floor(ex * 97 + ey * 13));
+              newEnt.speedMul = (this.level.speedMul || 1.0);
+              newEnt.onDeath = (ent) => { this.levelKills++; };
+              newEnt._gameRef = this;
+              this.entities.push(newEnt);
+            }
           }
           this.hud.toast('什么东西进来了……', 3);
         } else if (Math.floor(this._roomTimers[roomKey]) % 10 === 0 && this._roomTimers[roomKey] < 60) {
@@ -13241,7 +15245,7 @@ class Game {
       if (this.creativeMode) {
         this.openSpawner();
       } else if (p.hasWater) {
-        if (p.drinkFromCanteen(this.audio)) this.hud.toast('饮水 · 口渴 +35', 1.5);
+        if (p.drinkFromCanteen(this.audio)) this.hud.toast('饮水 · 口渴 +55', 1.5);
         else this.hud.toast('口渴度已满', 1.2);
       } else {
         this.hud.toast('没有水壶', 1.2);
@@ -13263,6 +15267,88 @@ class Game {
 
     /* 玩家 */
     p.update(dt, w, cmd, this.audio);
+
+    /* 迭代37：跳跃恐惧系统 */
+    /* 1. 转身时2%概率看到黑色人影闪过 */
+    const _angleDelta = Math.abs(((p.angle - this._jsLastAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    this._jsLastAngle = p.angle;
+    if (_angleDelta > 0.5 && this._jsTurnTimer <= 0 && Math.random() < 0.02) {
+      this._jsShadowFigureTime = 0.1;
+      this._jsTurnTimer = 5;
+      p.sanity = Math.max(0, p.sanity - 5);
+      if (this.audio) this.audio.whisper && this.audio.whisper();
+    }
+    if (this._jsTurnTimer > 0) this._jsTurnTimer -= dt;
+    if (this._jsShadowFigureTime > 0) this._jsShadowFigureTime -= dt;
+
+    /* 2. 停电期间10%概率听到身后脚步声接近 */
+    if (this._powerOutageActive && this._jsFootstepTimer <= 0 && Math.random() < 0.1 * dt) {
+      this._jsFootstepTimer = 8;
+      p.sanity = Math.max(0, p.sanity - 8);
+      this.hud.toast('……身后有脚步声。', 2);
+      if (this.audio) this.audio.whisper && this.audio.whisper();
+    }
+    if (this._jsFootstepTimer > 0) this._jsFootstepTimer -= dt;
+
+    /* 3. sanity<15时每30秒20%概率幻听幻视 */
+    this._jsHallucinationTimer -= dt;
+    if (p.sanity < 15 && this._jsHallucinationTimer <= 0) {
+      this._jsHallucinationTimer = 30;
+      if (Math.random() < 0.20) {
+        p.sanity = Math.max(0, p.sanity - 12);
+        const _halluTexts = ['"……帮帮我……"', '"……你不该在这里……"', '"……转过头来……"', '"……我看见你了……"'];
+        this.hud.toast(_halluTexts[Math.floor(Math.random() * _halluTexts.length)], 3);
+        if (this.audio) this.audio.whisper && this.audio.whisper();
+      }
+    }
+
+    /* 迭代35：安全屋效果 — 玩家在安全屋内恢复理智 */
+    this._inSafeRoom = false;
+    if (w.safeRooms && w.safeRooms.length) {
+      for (const sr of w.safeRooms) {
+        if (Math.hypot(p.x - sr.x, p.y - sr.y) < sr.r) {
+          this._inSafeRoom = true;
+          p.sanity = Math.min(p.maxSanity, p.sanity + 1.5 * dt);
+          break;
+        }
+      }
+    }
+
+    /* 迭代36：陷阱房触发 — 玩家进入后30秒内从两个方向生成entity */
+    if (w.trapRooms && w.trapRooms.length && this.state === 'playing') {
+      for (const tr of w.trapRooms) {
+        const _dist = Math.hypot(p.x - tr.x, p.y - tr.y);
+        if (!tr.triggered && _dist < tr.r) {
+          tr.triggered = true;
+          tr.timer = 30;
+          this.hud.toast('……门在身后关上了。', 3);
+        }
+        if (tr.triggered && tr.timer > 0) {
+          tr.timer -= dt;
+          if (tr.timer <= 0) {
+            /* 生成2个entity从不同方向夹击 */
+            if (this.entities && this.level && this.level.entities) {
+              const entType = this.level.entities[0] || { type: 'hound' };
+              for (let side = 0; side < 2; side++) {
+                const ang = side === 0 ? Math.PI * 0.25 : Math.PI * 1.25;
+                const ex = tr.x + Math.cos(ang) * 6;
+                const ey = tr.y + Math.sin(ang) * 6;
+                const spec = { type: entType.type, x: ex, y: ey, key: 'trap_' + tr.x + '_' + side, minDist: 5 };
+                const newEnt = new Entity(spec, w, 9999 + side);
+                newEnt.speedMul = this.level.speedMul || 1.0;
+                newEnt.state = 'chase';
+                newEnt.alert = 1;
+                newEnt.rage = 1;
+                newEnt.onDeath = (ent) => { this.levelKills++; };
+                newEnt._gameRef = this;
+                this.entities.push(newEnt);
+              }
+            }
+            this.hud.toast('它们从两个方向涌来！', 3);
+          }
+        }
+      }
+    }
 
     /* 成就追踪：手电筒使用时间 + 已访问格子 */
     if (p.flashlight && p.heldItem === 'flashlight' && p.battery > 0) this.flashlightTime += dt;
@@ -13328,7 +15414,52 @@ class Game {
     this.updateInteraction();
     this.updatePuzzleInteraction();
     this.updateSwitchInteraction();
-    if (inp.hit('KeyE') && !p.grabbing) this.doInteract();
+    /* 迭代16：储物柜躲藏 — 按E键面对储物柜可躲藏/退出 */
+    if (inp.hit('KeyE') && !p.grabbing) {
+      if (p.hiding) {
+        p.hiding = false;
+        this.hud.toast('离开储物柜', 1.2);
+      } else {
+        const fx = p.x + Math.cos(p.angle) * 0.7;
+        const fy = p.y + Math.sin(p.angle) * 0.7;
+        const fi = idx(w, fx, fy);
+        if (fi >= 0 && w.type[fi] === TILE.LOCKER) {
+          /* 迭代37：5%概率发现entity在储物柜里 */
+          if (Math.random() < 0.05) {
+            p.sanity = Math.max(0, p.sanity - 10);
+            this.hud.toast('储物柜里有什么东西——！', 2);
+            if (this.audio) this.audio.whisper && this.audio.whisper();
+            this._jsShadowFigureTime = 0.15;
+          } else {
+            p.hiding = true;
+            p.x = Math.floor(fx) + 0.5;
+            p.y = Math.floor(fy) + 0.5;
+            p.crouch = true;
+            this.hud.toast('躲入储物柜 · 再次按E退出', 2);
+          }
+        } else {
+          this.doInteract();
+        }
+      }
+    }
+    /* 迭代18：门防御 — 面对EXIT门按F键关门/开门 */
+    if (inp.hit('KeyF')) {
+      const dfx = p.x + Math.cos(p.angle) * 0.7;
+      const dfy = p.y + Math.sin(p.angle) * 0.7;
+      const di = idx(w, dfx, dfy);
+      if (di >= 0 && w.type[di] === TILE.EXIT) {
+        const key = Math.floor(dfx) + ',' + Math.floor(dfy);
+        if (!w.doorStates) w.doorStates = {};
+        w.doorStates[key] = !w.doorStates[key];
+        /* 迭代49: 关门阻挡8秒后自动打开 */
+        if (w.doorStates[key]) {
+          if (!w.doorTimers) w.doorTimers = {};
+          w.doorTimers[key] = 8.0;
+        }
+        if (this.audio) this.audio.door();
+        this.hud.toast(w.doorStates[key] ? '门已关闭（8秒后自动开启）' : '门已打开', 1.5);
+      }
+    }
     this.updateHold(dt, inp);
 
     /* 洪水逃生系统（Level 4） */
@@ -13340,6 +15471,17 @@ class Game {
     /* 罗盘：没集齐就指最近的目标物，集齐了指出口 */
     this.updateCompass(dt);
 
+    /* 迭代49: 门计时器倒计时 */
+    if (this.world && this.world.doorTimers) {
+      for (const key in this.world.doorTimers) {
+        this.world.doorTimers[key] -= dt;
+        if (this.world.doorTimers[key] <= 0) {
+          delete this.world.doorTimers[key];
+          if (this.world.doorStates) this.world.doorStates[key] = false;
+        }
+      }
+    }
+
     /* 自动存档 */
     this.runSaveTimer -= dt;
     if (this.runSaveTimer <= 0) {
@@ -13350,10 +15492,64 @@ class Game {
     /* 心跳 / 幻听 */
     this.updateAudioCues(dt);
 
+    /* PostFX CSS overlay 动态更新 */
+    this._postFXUpdate(dt);
+
+    /* 随机远处声音 */
+    this._randomSoundsUpdate(dt);
+
+    /* 突然沉默事件 */
+    this._silenceEventUpdate(dt);
+
+    /* 摄像机震动触发逻辑 */
+    this._cameraShakeUpdate(dt);
+
+    /* 随机停电事件 */
+    this._powerOutageUpdate(dt);
+
     /* HUD */
     this.hud.update(dt, p, this);
     this.hud.setGrab(p.grabbing);
     this.updateObjectiveText();
+
+    /* 迭代46: 追逐音乐系统 */
+    if (this.audio && this.entities) {
+      let chaseIntensity = 0;
+      let anyChasing = false;
+      for (const e of this.entities) {
+        if (e.isDead) continue;
+        if (e.state === 'chase') {
+          const d = Math.hypot(e.x - p.x, e.y - p.y);
+          if (d < 15) {
+            anyChasing = true;
+            chaseIntensity += 1 - d / 15;
+          }
+        }
+      }
+      chaseIntensity = Math.min(1, chaseIntensity);
+      if (anyChasing) {
+        this.audio.startChaseMusic(chaseIntensity);
+      } else {
+        this.audio.stopChaseMusic();
+      }
+    }
+
+    /* 迭代45: 水下/涉水特效 */
+    if (this._wasInWater === undefined) this._wasInWater = false;
+    const inWater = !!p.inWater;
+    if (inWater !== this._wasInWater) {
+      this._wasInWater = inWater;
+      if (this.audio) this.audio.setUnderwater(inWater);
+      const waterOv = document.getElementById('water-overlay');
+      if (waterOv) waterOv.classList.toggle('on', inWater);
+      if (inWater) {
+        this.hud.toast('涉水而行……', 2);
+      }
+    }
+    /* 水中sanity额外-0.3/秒 */
+    if (inWater && !this.creativeMode) {
+      p.sanity = Math.max(0, p.sanity - 0.3 * dt);
+    }
 
     /* 死亡判定 */
     if (!this.creativeMode && p.sanity <= 0) {
@@ -13403,7 +15599,9 @@ class Game {
       savedHoldKey = this.holdItem.key;
       savedHoldVal = this.holdItem.hold || 0;
     }
-    const res = w.content(p.x, p.y, 26, this.taken, 9);
+    /* 迭代40：应用环境变化的实体数量调整 */
+    const _maxEntAdj = 9 + (this.level._entityCountAdj || 0);
+    const res = w.content(p.x, p.y, 26, this.taken, _maxEntAdj);
 
     this.items = res.items;
     /* 彩蛋关卡：签名物不被 refreshContent 覆盖 */
@@ -13423,15 +15621,54 @@ class Game {
     }
 
     const map = this.entMap, next = [], seen = new Set();
+    /* 迭代39：精英生成 - 5%概率 */
+    const eliteRoll = this._eliteRoll !== undefined ? this._eliteRoll : 0.05;
+    this._eliteRoll = eliteRoll;
+    /* 迭代39：群体生成 - 困难段以上30%概率 */
+    const groupChance = (this.levelIndex >= 8) ? 0.30 : 0;
     for (const spec of res.ents) {
       let e = map.get(spec.key);
       if (!e) {
+        /* 迭代39：精英个体判定 */
+        const isElite = Math.random() < eliteRoll;
         e = new Entity(spec, w, 1234 + Math.floor(spec.x * 97 + spec.y * 13));
+        e.isElite = isElite;
+        /* 迭代39：精英属性增强 */
+        if (isElite) {
+          e.hp = e.maxHp = Math.round(e.hp * 1.5);
+          e.speedMul = (this.level.speedMul || 1.0) * 1.2;
+        } else {
+          e.speedMul = (this.level.speedMul || 1.0);
+        }
         e.onDeath = (ent) => {
           this.levelKills++;
           this.unlockAchievement('first_kill');
+          /* 迭代26：看到entity死亡时sanity -15 */
+          this.player.sanity = Math.max(0, this.player.sanity - 15);
         };
+        e._gameRef = this; /* 迭代29：howler需要访问其他entity */
         map.set(spec.key, e);
+
+        /* 迭代39：群体生成 - 30%概率生成同类型伙伴 */
+        if (Math.random() < groupChance && next.length < 20) {
+          const spec2 = {
+            key: spec.key + '_g',
+            type: spec.type,
+            x: spec.x + (Math.random() - 0.5) * 4,
+            y: spec.y + (Math.random() - 0.5) * 4,
+            z: spec.z || 0
+          };
+          /* 确保伙伴位置可通行 */
+          if (w.get(spec2.x, spec2.y) !== 1) {
+            let e2 = new Entity(spec2, w, 1234 + Math.floor(spec2.x * 97 + spec2.y * 13));
+            e2.speedMul = (this.level.speedMul || 1.0);
+            e2.onDeath = e.onDeath;
+            e2._gameRef = this;
+            map.set(spec2.key, e2);
+            seen.add(spec2.key);
+            next.push(e2);
+          }
+        }
       }
       seen.add(spec.key);
       next.push(e);
@@ -13500,7 +15737,29 @@ class Game {
       const e = this.entities[j];
       // 极端情况下（窗口刚重建）实体可能落在窗口外，先别让它按错位的距离场走
       if (idx(w, e.x, e.y) < 0) continue;
+      /* 迭代47: LOD — 距离>40格的entity降低AI更新频率（每0.5秒更新一次） */
+      const _eDist = Math.hypot(e.x - p.x, e.y - p.y);
+      if (_eDist > 40) {
+        if (!e._lodUpdateTimer) e._lodUpdateTimer = 0;
+        e._lodUpdateTimer += dt;
+        if (e._lodUpdateTimer < 0.5) continue;
+        e._lodUpdateTimer = 0;
+      }
       e.update(dt, w, p, this.field, this.audio);
+
+      /* 迭代35：安全屋 — 非追逐状态的entity不进入安全屋 */
+      if (w.safeRooms && w.safeRooms.length && e.state !== 'chase' && e.state !== 'stare') {
+        for (const sr of w.safeRooms) {
+          const _ed = Math.hypot(e.x - sr.x, e.y - sr.y);
+          if (_ed < sr.r + 2 && _ed > 0.1) {
+            /* 推离安全屋 */
+            e.x += (e.x - sr.x) / _ed * dt * 3;
+            e.y += (e.y - sr.y) / _ed * dt * 3;
+            e.alert = Math.max(0, e.alert - dt * 0.5);
+            break;
+          }
+        }
+      }
 
       /* 杏仁水净化光环：附近实体被驱退 */
       if (p.purifyAura > 0 && !e.isDead) {
@@ -13522,7 +15781,8 @@ class Game {
       const d = Math.hypot(e.x - p.x, e.y - p.y);
       if (d < 12 && (e.state === 'chase' || e.state === 'stare')) anyNear = true;
 
-      if (d < 0.8) {
+      const _contactDist = (e.type === 'duller') ? 1.2 : 0.8;
+      if (d < _contactDist) {
         /* 接触：一碰即死（自动攻击已移除） */
         if (this.state === 'playing' && !this.creativeMode) {
           this._startDeathSequence(e);
@@ -13531,6 +15791,121 @@ class Game {
         /* 梦境追逐者：理智消耗双倍 */
         const drainMult = (e.type === 'dream_chaser') ? 4.0 : 2.0;
         p.sanity -= (1 - d / 8.5) * drainMult * dt;
+      }
+    }
+
+    /* 迭代39：伏击生成 - 玩家背后的走廊死角10%概率生成entity */
+    if (!this._ambushTimer) this._ambushTimer = 8;
+    this._ambushTimer -= dt;
+    if (this._ambushTimer <= 0 && this.entities.length < 12 && !this.creativeMode) {
+      this._ambushTimer = 12 + Math.random() * 8;
+      if (Math.random() < 0.10 && this.level && this.level.entities && this.level.entities.length > 0) {
+        /* 找玩家背后的位置 */
+        const behindAng = p.angle + Math.PI;
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const dist = 10 + Math.random() * 6;
+          const ax = p.x + Math.cos(behindAng + (Math.random() - 0.5) * 0.6) * dist;
+          const ay = p.y + Math.sin(behindAng + (Math.random() - 0.5) * 0.6) * dist;
+          if (w.get(ax, ay) !== 1) {
+            const eType = this.level.entities[Math.floor(Math.random() * this.level.entities.length)];
+            const spec = { key: 'ambush_' + Date.now(), type: eType, x: ax, y: ay, z: 0 };
+            const ambEnt = new Entity(spec, w, 9999 + Math.floor(ax * 97 + ay * 13));
+            ambEnt.speedMul = this.level.speedMul || 1.0;
+            ambEnt.onDeath = (ent) => { this.levelKills++; };
+            ambEnt._gameRef = this;
+            ambEnt.alert = 5; /* 直接警觉 */
+            ambEnt.state = 'chase';
+            this.entities.push(ambEnt);
+            if (this.audio) this.audio.playWhisper();
+            break;
+          }
+        }
+      }
+    }
+
+    /* 迭代22-23：实体协调系统 */
+    this._entityCoordination(dt, w, p);
+
+    /* 迭代27：手电筒战术效果 */
+    if (p.flashlight && p._flashOn && p.heldItem === 'flashlight') {
+      for (const e of this.entities) {
+        if (e.isDead) continue;
+        const d = Math.hypot(e.x - p.x, e.y - p.y);
+        if (d < 12 && lineOfSight(w, e.x, e.y, p.x, p.y, 0.62)) {
+          /* 检查entity是否在手电光束内 */
+          const angToE = Math.atan2(e.y - p.y, e.x - p.x);
+          let da = Math.abs(((angToE - p.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+          if (da < 0.5) {
+            /* 手电照射效果 */
+            if (e.type === 'smiler') {
+              /* smiler完全冻结且后退 */
+              e.freeze = true;
+              e.state = 'stare';
+              const retreatAng = Math.atan2(e.y - p.y, e.x - p.x);
+              e.x += Math.cos(retreatAng) * 2 * dt;
+              e.y += Math.sin(retreatAng) * 2 * dt;
+            } else if (e.type === 'watcher') {
+              /* watcher受伤（已有机制增强） */
+              e.hp -= 15 * dt;
+              e.litUp = true;
+              if (e.hp <= 0 && !e.isDead) {
+                e.isDead = true;
+                e.deathAnim = 0;
+              }
+            } else if (e.type === 'partygoer') {
+              /* partygoer不被冻结但减速50% */
+              e._litSlow = 0.5;
+            } else if (e.type === 'duller') {
+              /* 迭代30：duller被手电减速到30% */
+              e._litSlow = 0.7;
+            }
+          }
+        }
+      }
+    }
+    /* 清除_litSlow标记 */
+    for (const e of this.entities) {
+      if (e._litSlow !== undefined && (!p.flashlight || !p._flashOn)) {
+        e._litSlow = undefined;
+      }
+    }
+
+    /* 迭代26：理智幻觉系统 */
+    this._sanityHallucinations(dt, p, w);
+
+    /* 迭代27：手电筒开关吸引entity */
+    if (p._flashToggle) {
+      p._flashToggle = false;
+      for (const e of this.entities) {
+        if (e.isDead) continue;
+        const d = Math.hypot(e.x - p.x, e.y - p.y);
+        if (d < 8) {
+          /* 吸引entity前来调查 */
+          if (e.state === 'patrol') {
+            e.state = 'investigate';
+            e.lastHeardX = p.x;
+            e.lastHeardY = p.y;
+            e._investigateTimer = 0;
+          }
+        }
+      }
+    }
+
+    /* 近距离呼吸声：距离玩家<5格的实体 */
+    let nearestEntity = null;
+    let nearestDist = 999;
+    for (const e of this.entities) {
+      if (e.isDead) continue;
+      const bd = Math.hypot(e.x - p.x, e.y - p.y);
+      if (bd < nearestDist) { nearestDist = bd; nearestEntity = e; }
+    }
+    if (nearestEntity && nearestDist < 5 && this.audio && this.audio.ready) {
+      /* 呼吸声频率随距离减小而加快 */
+      this._breathTimer = (this._breathTimer || 0) - dt;
+      const breathInterval = nearestDist < 3 ? 0.7 : 1.2;
+      if (this._breathTimer <= 0) {
+        this._breathTimer = breathInterval;
+        this.audio.breathing(nearestDist, nearestEntity.x - p.x, nearestEntity.y - p.y);
       }
     }
 
@@ -13551,17 +15926,39 @@ class Game {
     const p = this.player;
     const sanity = p.sanity / p.maxSanity;
 
-    // 心跳
+    // 心跳加速系统：基于最近实体距离
     let nearest = 999;
     for (const e of this.entities) {
+      if (e.isDead) continue;
       nearest = Math.min(nearest, Math.hypot(e.x - p.x, e.y - p.y));
     }
-    const intensity = Math.max(1 - sanity, nearest < 10 ? (10 - nearest) / 10 : 0);
-    if (intensity > 0.25) {
+    /* minDist<12 时开始心跳，minDist<5 时间隔降到 0.3 秒 */
+    let hbIntensity = 0;
+    let hbInterval = 999;
+    if (nearest < 12) {
+      /* 距离越近，强度越高 */
+      hbIntensity = (12 - nearest) / 12;
+      /* 间隔 = (minDist/12)*1.2 + 0.4，最近时降到 0.3 */
+      hbInterval = (nearest / 12) * 1.2 + 0.4;
+      if (nearest < 5) hbInterval = Math.max(0.3, 0.3 + (nearest - 5) * 0.04);
+    }
+    /* sanity<30 时额外增加心跳强度（焦虑感） */
+    if (sanity < 0.3) {
+      hbIntensity = Math.max(hbIntensity, (0.3 - sanity) / 0.3 * 0.7);
+      if (hbInterval > 1.0) hbInterval = 1.0;
+    }
+    /* 基础理智低也会有心跳 */
+    if (sanity < 0.4) {
+      hbIntensity = Math.max(hbIntensity, (0.4 - sanity) / 0.4 * 0.5);
+      if (hbInterval > 1.5) hbInterval = 1.5;
+    }
+    /* 心跳音量随距离减小而增大 */
+    const hbVolume = Math.min(1.3, hbIntensity * (1 + (1 - sanity) * 0.3));
+    if (hbIntensity > 0.2) {
       this.hbTimer -= dt;
       if (this.hbTimer <= 0) {
-        this.hbTimer = 1.25 - intensity * 0.7;
-        this.audio.heartbeat(Math.min(1.2, intensity));
+        this.hbTimer = hbInterval;
+        this.audio.heartbeat(hbVolume);
       }
     }
 
@@ -13574,6 +15971,362 @@ class Game {
         if (sanity < 0.3 && Math.random() < 0.4) {
           this.hud.toast(['……你听见了吗', '有人在你左边', '别回头', '这里不是真的'][(Math.random() * 4) | 0], 2.2);
         }
+      }
+    }
+  }
+
+  /* ====== PostFX: CSS overlay 动态强度控制 ====== */
+  _getFXEls() {
+    if (!this._fxEls) {
+      this._fxEls = {
+        grain: document.getElementById('fx-grain'),
+        vignette: document.getElementById('fx-vignette'),
+        scanlines: document.getElementById('fx-scanlines'),
+        chromatic: document.getElementById('fx-chromatic'),
+        danger: document.getElementById('fx-danger'),
+        flash: document.getElementById('fx-flash'),
+        desaturate: document.getElementById('fx-desaturate'),
+        overlay: document.getElementById('postfx-overlay')
+      };
+    }
+    return this._fxEls;
+  }
+
+  _postFXUpdate(dt) {
+    const p = this.player;
+    if (!p) return;
+    const fx = this._getFXEls();
+    if (!fx.overlay) return;
+    const sanity = p.sanity / (p.maxSanity || 100);
+    const danger = p.dangerNear ? 1 : 0;
+
+    /* 色差：sanity<50 开始出现，<20 强烈 */
+    let ca = 0;
+    if (sanity < 0.5) ca = (0.5 - sanity) / 0.5;
+    if (sanity < 0.2) ca = Math.min(1, ca + (0.2 - sanity) / 0.2 * 0.6);
+    if (fx.chromatic) {
+      fx.chromatic.style.opacity = (ca * 0.4).toFixed(3);
+      fx.chromatic.style.filter = ca > 0.1 ? 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'ca\'><feColorMatrix type=\'matrix\' values=\'1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0\'/></filter></svg>")' : 'none';
+    }
+
+    /* 暗角：sanity 越低越重 */
+    if (fx.vignette) fx.vignette.style.opacity = (0.25 + (1 - sanity) * 0.6).toFixed(3);
+
+    /* 红色危险脉冲：entity 在 8 格内 */
+    if (fx.danger) {
+      let nearest = 999;
+      for (const e of this.entities) {
+        if (e.isDead) continue;
+        nearest = Math.min(nearest, Math.hypot(e.x - p.x, e.y - p.y));
+      }
+      const dangerLevel = nearest < 8 ? (8 - nearest) / 8 : 0;
+      fx.danger.style.setProperty('--danger-op', dangerLevel.toFixed(3));
+      fx.danger.style.opacity = dangerLevel > 0 ? '1' : '0';
+    }
+
+    /* 胶片颗粒：随 sanity 降低而增加；sanity<20 时变成粗颗粒 */
+    if (fx.grain) {
+      let grainOp = 0.05 + (1 - sanity) * 0.2;
+      if (sanity < 0.2) grainOp = Math.min(0.5, grainOp + (0.2 - sanity) / 0.2 * 0.15);
+      fx.grain.style.opacity = grainOp.toFixed(3);
+      /* 粗颗粒：放大背景 */
+      if (sanity < 0.2) {
+        fx.grain.style.transform = 'scale(1.5)';
+        fx.grain.style.animationDuration = '0.06s';
+      } else {
+        fx.grain.style.transform = 'scale(1)';
+        fx.grain.style.animationDuration = '0.1s';
+      }
+    }
+
+    /* 扫描线：sanity<30 时出现 */
+    if (fx.scanlines) fx.scanlines.style.opacity = sanity < 0.3 ? ((0.3 - sanity) / 0.3 * 0.5).toFixed(3) : '0';
+
+    /* 理智临界视觉扭曲：sanity<20 画面轻微旋转 */
+    if (sanity < 0.2) {
+      if (fx.overlay) {
+        const rot = (Math.random() - 0.5) * 0.6; /* ±0.3 度 */
+        fx.overlay.style.transform = 'rotate(' + rot.toFixed(3) + 'deg)';
+      }
+    } else if (fx.overlay) {
+      fx.overlay.style.transform = 'rotate(0deg)';
+    }
+
+    /* 闪回效果（sanity<20 时偶尔全屏闪） */
+    this._flashCooldown -= dt;
+    if (this._flashTimer > 0) {
+      this._flashTimer -= dt;
+      if (fx.flash) fx.flash.style.opacity = (this._flashTimer * 3).toFixed(3);
+    } else if (sanity < 0.2 && this._flashCooldown <= 0) {
+      this._flashTimer = 0.12;
+      this._flashCooldown = 5 + Math.random() * 5;
+      if (fx.flash) {
+        fx.flash.style.background = Math.random() < 0.4 ? '#ff2020' : '#ffffff';
+        fx.flash.style.opacity = '1';
+      }
+    } else if (fx.flash) {
+      fx.flash.style.opacity = '0';
+    }
+
+    /* 去饱和：sanity<60 轻微 10%，<30 中等 40%，<10 强 70% */
+    let desat = 0;
+    if (sanity < 0.6) desat = (0.6 - sanity) / 0.6 * 0.1;
+    if (sanity < 0.3) desat = Math.max(desat, (0.3 - sanity) / 0.3 * 0.4);
+    if (sanity < 0.1) desat = Math.max(desat, 0.7);
+    if (danger) desat = Math.min(0.9, desat + 0.1);
+    if (fx.desaturate) fx.desaturate.style.opacity = desat.toFixed(3);
+
+    /* 迭代24：体力<20时屏幕轻微模糊 */
+    if (p.stamina < 20) {
+      const blurAmount = ((20 - p.stamina) / 20 * 2).toFixed(1);
+      if (fx.overlay) {
+        const existingFilter = fx.overlay.style.filter || '';
+        if (!existingFilter.includes('blur')) {
+          fx.overlay.style.filter = existingFilter + ' blur(' + blurAmount + 'px)';
+        }
+      }
+    } else if (fx.overlay) {
+      const filt = fx.overlay.style.filter || '';
+      if (filt.includes('blur')) {
+        fx.overlay.style.filter = filt.replace(/\s*blur\([^)]*\)/g, '');
+      }
+    }
+
+    /* 迭代25：口渴<5时蓝色暗角（复用danger层，需恢复背景） */
+    if (p.thirst < 5) {
+      const thirstOp = ((5 - p.thirst) / 5 * 0.5).toFixed(3);
+      if (fx.danger) {
+        /* 复用danger层但改为蓝色 */
+        fx.danger.style.background = 'radial-gradient(ellipse at center, transparent 30%, rgba(20,40,80,0.8) 100%)';
+        fx.danger.style.opacity = thirstOp;
+      }
+    } else if (fx.danger && fx.danger.style.background && fx.danger.style.background.indexOf('rgba(20,40,80') !== -1) {
+      /* 恢复原始红色危险背景 */
+      fx.danger.style.background = '';
+    }
+  }
+
+  /* ====== 随机远处声音事件 ====== */
+  _randomSoundsUpdate(dt) {
+    this._randomSoundTimer -= dt;
+    if (this._randomSoundTimer <= 0) {
+      this._randomSoundTimer = 15 + Math.random() * 25;
+      const sounds = ['drip', 'metalCreak', 'distantWhisper', 'electricBuzz'];
+      const pick = sounds[(Math.random() * sounds.length) | 0];
+      if (this.audio && this.audio.ready) {
+        if (pick === 'drip') this.audio.drip();
+        else if (pick === 'metalCreak') this.audio.metalCreak();
+        else if (pick === 'distantWhisper') this.audio.distantWhisper();
+        else if (pick === 'electricBuzz') this.audio.electricBuzz();
+      }
+    }
+  }
+
+  /* ====== 突然沉默事件 ====== */
+  _silenceEventUpdate(dt) {
+    if (this._silenceActive) {
+      this._silenceDuration -= dt;
+      if (this._silenceDuration <= 0) {
+        /* 沉默结束：hum 恢复 + electricBuzz */
+        this._silenceActive = false;
+        this._silenceTimer = 60 + Math.random() * 120;
+        if (this.audio && this.audio.ready) {
+          this.audio.setHum(1);
+          this.audio.electricBuzz();
+        }
+      }
+    } else {
+      this._silenceTimer -= dt;
+      if (this._silenceTimer <= 0) {
+        /* 触发沉默事件 */
+        this._silenceActive = true;
+        this._silenceDuration = 2 + Math.random() * 3;
+        if (this.audio && this.audio.ready) {
+          this.audio.setHum(0);
+          /* 极低频 sub-bass tone 造成不安感 */
+          this.audio._tone(20 + Math.random() * 10, this._silenceDuration, 0.08, 'sine', 18);
+        }
+        /* sanity>40 时显示微弱提示 */
+        const p = this.player;
+        if (p && p.sanity / (p.maxSanity || 100) > 0.4) {
+          const hints = ['灯...灭了？', '...太安静了', '不对劲', '听不见了...'];
+          this.hud.toast(hints[(Math.random() * hints.length) | 0], 2.5);
+        }
+      }
+    }
+  }
+
+  /* ====== 摄像机震动触发 ====== */
+  _cameraShakeUpdate(dt) {
+    const r = this.renderer;
+    if (!r || !r.shake) return;
+    const p = this.player;
+    /* 计算最近实体距离 */
+    let minDist = 999;
+    for (const e of this.entities) {
+      if (e.isDead) continue;
+      minDist = Math.min(minDist, Math.hypot(e.x - p.x, e.y - p.y));
+    }
+    /* entity 距离 < 4 时持续低强度震动 (0.005-0.02) */
+    let contShake = 0;
+    if (minDist < 4) {
+      contShake = 0.005 + (4 - minDist) / 4 * 0.015;
+    }
+    /* sanity < 15 时持续微弱震动 */
+    if (p.sanity < 15) {
+      contShake = Math.max(contShake, 0.003 + (15 - p.sanity) / 15 * 0.007);
+    }
+    r.shakeContinuous(contShake);
+
+    /* 受伤时高强度震动 (0.05, 0.3 秒) */
+    if (p.hurtFlash > 0 && !this._shakeOnHurt) {
+      this._shakeOnHurt = true;
+      r.shake(0.05, 0.3);
+    }
+    if (p.hurtFlash <= 0) this._shakeOnHurt = false;
+  }
+
+  /* 迭代22-23：实体协调 — 包围战术 + 声音诱饵 */
+  _entityCoordination(dt, world, player) {
+    const chasers = this.entities.filter(e => !e.isDead && e.state === 'chase');
+    if (chasers.length >= 2) {
+      chasers.sort((a, b) => Math.hypot(b.x - player.x, b.y - player.y) - Math.hypot(a.x - player.x, a.y - player.y));
+      for (let i = 0; i < chasers.length; i++) {
+        const e = chasers[i];
+        const d = Math.hypot(e.x - player.x, e.y - player.y);
+        if (d >= 8 && d <= 20) {
+          const baseAngle = Math.atan2(e.y - player.y, e.x - player.x);
+          const targetAngle = baseAngle + (i / chasers.length) * Math.PI * 2;
+          e._flankX = player.x + Math.cos(targetAngle) * (d * 0.9);
+          e._flankY = player.y + Math.sin(targetAngle) * (d * 0.9);
+        } else {
+          e._flankX = undefined;
+          e._flankY = undefined;
+        }
+      }
+    }
+    /* 迭代23：声音诱饵 */
+    for (const e of this.entities) {
+      if (e.isDead) continue;
+      if (e._lureCooldown > 0) e._lureCooldown -= dt;
+      if (e.state === 'investigate' && e._lureCooldown <= 0) {
+        if (Math.random() < 0.2 * dt) {
+          e._lureCooldown = 30;
+          for (const other of this.entities) {
+            if (other === e || other.isDead) continue;
+            if (other.state === 'patrol' || other.state === 'investigate') {
+              const od = Math.hypot(other.x - e.x, other.y - e.y);
+              if (od < 15) {
+                other.state = 'investigate';
+                other.lastHeardX = e.x;
+                other.lastHeardY = e.y;
+                other._investigateTimer = 0;
+              }
+            }
+          }
+          if (this.audio) this.audio.whisper(Math.hypot(e.x - player.x, e.y - player.y));
+        }
+      }
+    }
+  }
+
+  /* 迭代26：理智幻觉系统 */
+  _sanityHallucinations(dt, player, world) {
+    if (player.sanity < 30) {
+      this._hallucinationTimer = (this._hallucinationTimer || 0) - dt;
+      const interval = player.sanity < 10 ? 3 + Math.random() * 4 : 8 + Math.random() * 8;
+      if (this._hallucinationTimer <= 0) {
+        this._hallucinationTimer = interval;
+        if (!this._hallucinations) this._hallucinations = [];
+        const ang = Math.random() * Math.PI * 2;
+        const dist = 4 + Math.random() * 6;
+        this._hallucinations.push({
+          x: player.x + Math.cos(ang) * dist,
+          y: player.y + Math.sin(ang) * dist,
+          life: 1.0,
+          type: ['hound', 'crawler', 'stalker', 'rot'][Math.floor(Math.random() * 4)]
+        });
+        if (player.sanity < 10 && Math.random() < 0.3 && this.audio) {
+          const sounds = ['door', 'step', 'growl', 'whisper'];
+          const fn = sounds[Math.floor(Math.random() * sounds.length)];
+          if (this.audio[fn]) this.audio[fn]();
+        }
+      }
+      for (let i = this._hallucinations.length - 1; i >= 0; i--) {
+        this._hallucinations[i].life -= dt;
+        if (this._hallucinations[i].life <= 0) {
+          this._hallucinations.splice(i, 1);
+        }
+      }
+    } else {
+      this._hallucinationTimer = 0;
+      if (this._hallucinations) this._hallucinations = [];
+    }
+  }
+
+  /* ====== 随机停电事件 ====== */
+  _powerOutageUpdate(dt) {
+    if (this._powerOutageActive) {
+      this._powerOutageDuration -= dt;
+      /* 逐个恢复灯光 */
+      if (this._powerOutageRestoreList && this._powerOutageRestoreList.length > 0) {
+        this._powerOutageRestoreTimer -= dt;
+        if (this._powerOutageRestoreTimer <= 0) {
+          this._powerOutageRestoreTimer = 0.3 + Math.random() * 0.4;
+          const lampIdx = this._powerOutageRestoreList.shift();
+          /* 标记灯光恢复（通过 renderer 的灯光状态） */
+          if (this.renderer && this.renderer._flickerStates && this.renderer._flickerStates[lampIdx]) {
+            this.renderer._flickerStates[lampIdx].mode = 'surge';
+          }
+        }
+      }
+      if (this._powerOutageDuration <= 0) {
+        /* 停电结束 */
+        this._powerOutageActive = false;
+        this._powerOutageTimer = 120 + Math.random() * 180;
+        /* 恢复灯光 */
+        this._powerOutageState = false;
+        if (this.audio && this.audio.ready) {
+          this.audio.setHum(1);
+        }
+        /* 恢复环境光 */
+        if (this.player) this.player.forceDark = false;
+      }
+    } else {
+      this._powerOutageTimer -= dt;
+      if (this._powerOutageTimer <= 0) {
+        /* 触发停电 */
+        this._powerOutageActive = true;
+        this._powerOutageDuration = 3 + Math.random() * 5;
+        this._powerOutageState = true;
+        this._powerOutageRestoreList = [];
+        this._powerOutageRestoreTimer = 0;
+        /* 停电开始：electricBuzz + hum 骤降 */
+        if (this.audio && this.audio.ready) {
+          this.audio.electricBuzz();
+          this.audio.setHum(0.05);
+        }
+        /* 关闭所有点光源：记录灯光索引用于逐个恢复 */
+        if (this.renderer && this.renderer._lamps) {
+          for (let i = 0; i < this.renderer._lamps.length; i++) {
+            this._powerOutageRestoreList.push(i);
+          }
+          /* 随机打乱恢复顺序 */
+          this._powerOutageRestoreList.sort(() => Math.random() - 0.5);
+        }
+        /* ambient 降到 0.05 */
+        if (this.player) this.player.forceDark = true;
+        /* 停电期间 entity 活动增加 speed+20% */
+        for (const e of this.entities) {
+          if (!e.isDead) e._powerOutageBoost = true;
+        }
+        this.hud.toast('⚠ 停电！', 3);
+      }
+    }
+    /* 停电期间重置 entity boost */
+    if (!this._powerOutageActive) {
+      for (const e of this.entities) {
+        if (e._powerOutageBoost) e._powerOutageBoost = false;
       }
     }
   }
@@ -14569,7 +17322,9 @@ class Game {
         isDead: e.isDead || false,
         deathAnim: e.deathAnim || 0,
         litUp: e.litUp || false,
-        beingWatched: e.beingWatched || false
+        beingWatched: e.beingWatched || false,
+        isElite: e.isElite || false,
+        howling: e.howling || false
       });
     }
 
@@ -14646,7 +17401,8 @@ class Game {
       diag: this.diagMode || false,
       fps: this._fps || 0,
       entCount: (this.sprites || []).filter(s => !s.texKey).length,
-      itemCount: (this.sprites || []).filter(s => s.texKey).length
+      itemCount: (this.sprites || []).filter(s => s.texKey).length,
+      shadowFigure: this._jsShadowFigureTime || 0
     }, t);
     // 帧时长回喂给渲染器，自动升降内部采样分辨率
     r.tune(dt);
