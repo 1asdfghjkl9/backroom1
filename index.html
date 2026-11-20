@@ -6998,7 +6998,7 @@ function generateWorld(level, seed) {
     if (r < propP * 1.75) return TILE.PIPE;
     if (r < propP * 1.95) return TILE.VENT;
     /* 储物柜：走廊/旅馆/停车场沿墙壁生成，约每15-20格一个 */
-    if ((gen === 'corridor' || gen === 'hotel' || gen === 'parking') && !onSpine(seed, rx, ry, lx, ly, RS)) {
+    if ((gen === 'corridor' || gen === 'hotel' || gen === 'parking') && !onSpine(seed, rx, ry, ix + 1, iy + 1, RS)) {
       if (hash3(ax + 31, ay + 17, 88) < 0.022) return TILE.LOCKER;
     }
     return TILE.EMPTY;
@@ -19228,7 +19228,7 @@ class Game {
       console.error('[backrooms] action("' + name + '") error:', e);
       var dbg = document.createElement('div');
       dbg.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;color:#ff6644;background:rgba(0,0,0,.92);padding:10px 16px;font:13px/1.6 monospace;white-space:pre-wrap';
-      dbg.textContent = '[action:' + name + '] ' + (e && e.message ? e.message : String(e));
+      dbg.textContent = '[action:' + name + '] ' + (e && e.message ? e.message : String(e)) + '\n' + (e && e.stack ? e.stack.split('\n').slice(0,5).join('\n') : '');
       document.body.appendChild(dbg);
       setTimeout(function() { dbg.remove(); }, 10000);
     }
