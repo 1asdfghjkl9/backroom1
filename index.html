@@ -19123,6 +19123,7 @@ class Game {
   }
 
   action(name) {
+    try {
     const run = this.loadRun();
     switch (name) {
       case 'continue':
@@ -19217,6 +19218,13 @@ class Game {
         break;
       default:
         break;
+    }
+    } catch(err) {
+      console.error('[backrooms] action("' + name + '") error:', err);
+      const dbg = document.getElementById('diag-status') || document.createElement('div');
+      if (!dbg.id) { dbg.id = 'diag-status'; dbg.style.cssText = 'position:fixed;bottom:10px;left:10px;z-index:99999;background:rgba(0,0,0,.9);color:#ff4444;padding:8px 12px;font:12px monospace;max-width:90vw;white-space:pre-wrap;border-radius:4px'; document.body.appendChild(dbg); }
+      dbg.textContent = '[action:' + name + '] ' + (err && err.message ? err.message : String(err));
+      dbg.style.display = 'block';
     }
   }
 
@@ -22678,6 +22686,20 @@ class Game {
 
 
 const canvas = document.getElementById('view');
+
+/* 临时诊断：全局错误捕获 */
+window.addEventListener('error', function(e) {
+  var d = document.createElement('div');
+  d.style.cssText = 'position:fixed;bottom:10px;right:10px;z-index:99999;background:rgba(0,0,0,.95);color:#ff4444;padding:10px 14px;font:12px monospace;max-width:45vw;white-space:pre-wrap;border-radius:4px;border:1px solid #5a2222';
+  d.textContent = '[全局错误] ' + (e.error && e.error.message ? e.error.message : e.message) + '\n' + (e.error && e.error.stack ? e.error.stack.split('\n').slice(0,3).join('\n') : '');
+  document.body.appendChild(d);
+});
+window.addEventListener('unhandledrejection', function(e) {
+  var d = document.createElement('div');
+  d.style.cssText = 'position:fixed;bottom:10px;right:10px;z-index:99999;background:rgba(0,0,0,.95);color:#ff8800;padding:10px 14px;font:12px monospace;max-width:45vw;white-space:pre-wrap;border-radius:4px;border:1px solid #5a4422';
+  d.textContent = '[Promise错误] ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason));
+  document.body.appendChild(d);
+});
 
 let game;
 try {
