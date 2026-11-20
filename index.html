@@ -6147,6 +6147,7 @@ function onSpine(seed, rx, ry, lx, ly, RS) {
 
 /* ---------------- 生成器 ---------------- */
 function generateWorld(level, seed) {
+  const seededRand = mulberry32(seed || 1);
   const RS = Math.max(8, level.roomSize ?? 11);
   const gen = level.gen || 'rooms';
   const gapP = level.gapP ?? 0.16;
