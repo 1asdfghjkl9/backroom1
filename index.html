@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>XXX_CACHE_TEST_XXX</title>
+<title>逃离后室 · Backrooms 3D</title>
 <style>
 :root{
   --font: ui-monospace, Menlo, "Courier New", monospace;
@@ -1955,7 +1955,6 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
 
 (function(){
 "use strict";
-document.title='DBG:IIFE_STARTED';
 /* ===== js/core/rng.js ===== */
 /* 确定性随机数：关卡按种子生成，保证同一关每次布局一致 */
 function mulberry32(seed) {
@@ -19124,7 +19123,6 @@ class Game {
   }
 
   action(name) {
-    try {
     const run = this.loadRun();
     switch (name) {
       case 'continue':
@@ -19219,13 +19217,6 @@ class Game {
         break;
       default:
         break;
-    }
-    } catch(err) {
-      console.error('[backrooms] action("' + name + '") error:', err);
-      const dbg = document.getElementById('diag-status') || document.createElement('div');
-      if (!dbg.id) { dbg.id = 'diag-status'; dbg.style.cssText = 'position:fixed;bottom:10px;left:10px;z-index:99999;background:rgba(0,0,0,.9);color:#ff4444;padding:8px 12px;font:12px monospace;max-width:90vw;white-space:pre-wrap;border-radius:4px'; document.body.appendChild(dbg); }
-      dbg.textContent = '[action:' + name + '] ' + (err && err.message ? err.message : String(err));
-      dbg.style.display = 'block';
     }
   }
 
@@ -22688,27 +22679,10 @@ class Game {
 
 const canvas = document.getElementById('view');
 
-/* 临时诊断：全局错误捕获 */
-window.addEventListener('error', function(e) {
-  var d = document.createElement('div');
-  d.style.cssText = 'position:fixed;bottom:10px;right:10px;z-index:99999;background:rgba(0,0,0,.95);color:#ff4444;padding:10px 14px;font:12px monospace;max-width:45vw;white-space:pre-wrap;border-radius:4px;border:1px solid #5a2222';
-  d.textContent = '[全局错误] ' + (e.error && e.error.message ? e.error.message : e.message) + '\n' + (e.error && e.error.stack ? e.error.stack.split('\n').slice(0,3).join('\n') : '');
-  document.body.appendChild(d);
-});
-window.addEventListener('unhandledrejection', function(e) {
-  var d = document.createElement('div');
-  d.style.cssText = 'position:fixed;bottom:10px;right:10px;z-index:99999;background:rgba(0,0,0,.95);color:#ff8800;padding:10px 14px;font:12px monospace;max-width:45vw;white-space:pre-wrap;border-radius:4px;border:1px solid #5a4422';
-  d.textContent = '[Promise错误] ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason));
-  document.body.appendChild(d);
-});
-
 let game;
-document.title='DBG:BEFORE_NEW_GAME';
 try {
   game = new Game(canvas);
-  document.title='DBG:GAME_CONSTRUCTED';
   game.start();
-  document.title='DBG:GAME_STARTED';
   window.__BACKROOMS__ = game;
   window.game = game;
 
@@ -22726,7 +22700,6 @@ try {
     menuScreen.classList.add('active');
   }
 } catch (err) {
-  document.title='DBG:ERR:'+(err&&err.message?err.message:String(err));
   console.error('[backrooms] 启动失败', err);
   const box = document.createElement('pre');
   box.style.cssText =
@@ -22754,6 +22727,13 @@ if (!game || !window.__BACKROOMS__) {
       else if (act === 'feedback') { showScreen('feedback'); }
       else if (act === 'custom-levels') { showScreen('custom-levels'); }
       else if (act === 'menu') { showScreen('menu'); }
+      else if (act === 'continue' || act === 'start-over' || act === 'resume-run') {
+        var _wgl = document.createElement('div');
+        _wgl.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9999;color:#ff6644;background:rgba(0,0,0,.92);padding:20px 28px;font:15px/1.8 sans-serif;border:1px solid #5a2222;border-radius:8px;max-width:85vw;text-align:center;white-space:pre-wrap';
+        _wgl.innerHTML = '⚠️ 您的设备或浏览器不支持 WebGL，无法运行 3D 游戏。<br><br>请尝试以下方法：<br>• 更换浏览器（Chrome / Edge / Firefox）<br>• 在电脑端打开<br>• 更新浏览器至最新版本';
+        document.body.appendChild(_wgl);
+        setTimeout(function() { _wgl.remove(); }, 8000);
+      }
     });
   });
   /* 确保菜单可见 */
@@ -22774,34 +22754,6 @@ if (game && game.state !== 'playing') {
   const tu = document.getElementById('touch-ui');
   if (tu) tu.style.display = 'none';
 }
-
-/* 临时诊断：显示游戏初始化状态 */
-document.title='DBG:REACH_SETTIMEOUT';
-setTimeout(function() {
-  var d = document.createElement('div');
-  d.id = 'diag-banner';
-  d.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;background:rgba(0,0,0,.95);color:#00ff00;padding:20px 30px;font:14px monospace;white-space:pre-wrap;border-radius:8px;border:2px solid #00ff00;text-align:center;max-width:90vw';
-  var info = '=== 诊断信息 ===\n';
-  info += 'window.game: ' + (typeof window.game) + '\n';
-  info += 'window.__BACKROOMS__: ' + (typeof window.__BACKROOMS__) + '\n';
-  info += 'window.THREE: ' + (typeof window.THREE) + '\n';
-  if (window.game) {
-    info += 'game.state: ' + window.game.state + '\n';
-    info += 'game.renderer: ' + (typeof window.game.renderer) + '\n';
-    info += 'game.progress: ' + (window.game.progress ? JSON.stringify(window.game.progress).substring(0,100) : 'null') + '\n';
-    var btn = document.getElementById('btn-continue');
-    info += 'btn-continue存在: ' + (!!btn) + '\n';
-    if (btn) info += 'btn-continue._bound: ' + (btn._bound || '未设置') + '\n';
-    info += 'btn-continue有listener: ' + (typeof btn.onclick === 'function' || btn._bound ? '可能' : '未知') + '\n';
-  } else {
-    info += 'Game构造失败！\n';
-    var errBox = document.querySelector('pre[style*="position:fixed"]');
-    if (errBox) info += '错误框文本: ' + errBox.textContent.substring(0, 200) + '\n';
-  }
-  d.textContent = info;
-  document.body.appendChild(d);
-  setTimeout(function() { d.remove(); }, 10000);
-}, 2000);
 
 /* 首次交互解锁音频上下文 */
 const unlock = () => {
