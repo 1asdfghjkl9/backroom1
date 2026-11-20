@@ -7345,6 +7345,7 @@ function generateWorld(level, seed) {
 
   /* ==================== 迭代29: 物品放置智能化 ==================== */
   /* 在地标房间放置额外物资（2-3个），走廊少放物资 */
+  const items = [], ents = [];
   if (_landmarks.length > 0) {
     for (const lm of _landmarks) {
       /* 每个地标房间放2-3个物资 */
