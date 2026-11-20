@@ -1955,6 +1955,7 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
 
 (function(){
 "use strict";
+document.title='DBG:IIFE_STARTED';
 /* ===== js/core/rng.js ===== */
 /* 确定性随机数：关卡按种子生成，保证同一关每次布局一致 */
 function mulberry32(seed) {
@@ -22702,9 +22703,12 @@ window.addEventListener('unhandledrejection', function(e) {
 });
 
 let game;
+document.title='DBG:BEFORE_NEW_GAME';
 try {
   game = new Game(canvas);
+  document.title='DBG:GAME_CONSTRUCTED';
   game.start();
+  document.title='DBG:GAME_STARTED';
   window.__BACKROOMS__ = game;
   window.game = game;
 
@@ -22722,6 +22726,7 @@ try {
     menuScreen.classList.add('active');
   }
 } catch (err) {
+  document.title='DBG:ERR:'+(err&&err.message?err.message:String(err));
   console.error('[backrooms] 启动失败', err);
   const box = document.createElement('pre');
   box.style.cssText =
@@ -22771,6 +22776,7 @@ if (game && game.state !== 'playing') {
 }
 
 /* 临时诊断：显示游戏初始化状态 */
+document.title='DBG:REACH_SETTIMEOUT';
 setTimeout(function() {
   var d = document.createElement('div');
   d.id = 'diag-banner';
