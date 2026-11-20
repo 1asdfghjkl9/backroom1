@@ -22770,6 +22770,33 @@ if (game && game.state !== 'playing') {
   if (tu) tu.style.display = 'none';
 }
 
+/* 临时诊断：显示游戏初始化状态 */
+setTimeout(function() {
+  var d = document.createElement('div');
+  d.id = 'diag-banner';
+  d.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;background:rgba(0,0,0,.95);color:#00ff00;padding:20px 30px;font:14px monospace;white-space:pre-wrap;border-radius:8px;border:2px solid #00ff00;text-align:center;max-width:90vw';
+  var info = '=== 诊断信息 ===\n';
+  info += 'window.game: ' + (typeof window.game) + '\n';
+  info += 'window.__BACKROOMS__: ' + (typeof window.__BACKROOMS__) + '\n';
+  info += 'window.THREE: ' + (typeof window.THREE) + '\n';
+  if (window.game) {
+    info += 'game.state: ' + window.game.state + '\n';
+    info += 'game.renderer: ' + (typeof window.game.renderer) + '\n';
+    info += 'game.progress: ' + (window.game.progress ? JSON.stringify(window.game.progress).substring(0,100) : 'null') + '\n';
+    var btn = document.getElementById('btn-continue');
+    info += 'btn-continue存在: ' + (!!btn) + '\n';
+    if (btn) info += 'btn-continue._bound: ' + (btn._bound || '未设置') + '\n';
+    info += 'btn-continue有listener: ' + (typeof btn.onclick === 'function' || btn._bound ? '可能' : '未知') + '\n';
+  } else {
+    info += 'Game构造失败！\n';
+    var errBox = document.querySelector('pre[style*="position:fixed"]');
+    if (errBox) info += '错误框文本: ' + errBox.textContent.substring(0, 200) + '\n';
+  }
+  d.textContent = info;
+  document.body.appendChild(d);
+  setTimeout(function() { d.remove(); }, 10000);
+}, 2000);
+
 /* 首次交互解锁音频上下文 */
 const unlock = () => {
   if (game && game.audio) game.audio.init();
