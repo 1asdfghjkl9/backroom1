@@ -19129,6 +19129,7 @@ class Game {
 
   action(name) {
     const run = this.loadRun();
+    try {
     switch (name) {
       case 'continue':
         if (run) { this.startLevel(run.levelIndex, run); }
@@ -19222,6 +19223,14 @@ class Game {
         break;
       default:
         break;
+    }
+    } catch(e) {
+      console.error('[backrooms] action("' + name + '") error:', e);
+      var dbg = document.createElement('div');
+      dbg.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;color:#ff6644;background:rgba(0,0,0,.92);padding:10px 16px;font:13px/1.6 monospace;white-space:pre-wrap';
+      dbg.textContent = '[action:' + name + '] ' + (e && e.message ? e.message : String(e));
+      document.body.appendChild(dbg);
+      setTimeout(function() { dbg.remove(); }, 10000);
     }
   }
 
@@ -21177,7 +21186,7 @@ class Game {
       }
     }
 
-    /* 去饱和：sanity<60 轻微 10%，<30 中等 40%，<10 强 70% */
+  /* 去饱和：sanity<60 轻微 10%，<30 中等 40%，<10 强 70% */
     let desat = 0;
     if (sanity < 0.6) desat = (0.6 - sanity) / 0.6 * 0.1;
     if (sanity < 0.3) desat = Math.max(desat, (0.3 - sanity) / 0.3 * 0.4);
