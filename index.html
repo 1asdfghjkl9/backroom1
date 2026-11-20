@@ -9643,7 +9643,7 @@ const ENTITY_DEF = {
     worldW: 0.5,
     sprite: 'smiler',
     damage: 35,
-    hp: 80
+    hp: 70  /* 迭代44: hp 80→70 平衡黑暗中加速优势 */
   },
   stalker: {
     name: '影行者',
@@ -9727,7 +9727,7 @@ const ENTITY_DEF = {
   /* 迭代28：剥皮者 — 潜伏、背对时加速 */
   skin_stealer: {
     name: '剥皮者',
-    speed: 1.8,
+    speed: 1.7,  /* 迭代44: speed 1.8→1.7 平衡潜伏+骨刺强度 */
     sight: 10,
     hear: 14,
     worldH: 0.9,
@@ -9746,7 +9746,7 @@ const ENTITY_DEF = {
     worldW: 0.7,
     sprite: 'hound',
     damage: 30,
-    hp: 60
+    hp: 50  /* 迭代44: hp 60→50 嚎叫连锁很强，降低生存力 */
   },
   /* 迭代30：钝化者 — 被注视时减速玩家 */
   duller: {
@@ -9757,7 +9757,7 @@ const ENTITY_DEF = {
     worldH: 1.5,
     worldW: 0.8,
     sprite: 'rot',
-    damage: 20,
+    damage: 15,  /* 迭代44: damage 20→15 减少减速效果带来的挫败感 */
     hp: 100
   }
 };
@@ -9990,7 +9990,8 @@ class Entity {
     this.knockbackX *= 0.5;
     this.knockbackY *= 0.5;
 
-    const _effSight = (player.flashlight && !player._flashOn) ? def.sight * 0.7 : def.sight;
+    const _baseSight = def.sight + (this._howlSightBoost ? 5 : 0); /* v13.0 迭代36: Howler嚎叫连锁 — sight+5 */
+    const _effSight = (player.flashlight && !player._flashOn) ? _baseSight * 0.7 : _baseSight;
     const losRaw = dist < _effSight && lineOfSight(world, this.x, this.y, player.x, player.y, 0.62);
     /* 躲藏/隐藏的玩家更难被发现 */
     let hearRange = def.hear * (player.crouch ? 0.4 : player.sprinting ? 1.75 : 1);
@@ -10232,6 +10233,16 @@ class Entity {
     if (this._skinSpeedMult) speed *= this._skinSpeedMult;
     /* 迭代27/30：手电照射减速 */
     if (this._litSlow) speed *= (1 - this._litSlow);
+    /* v13.0 迭代37: Smiler在黑暗中追逐时速度更快 speed * 1.3 */
+    if (this.type === 'smiler' && this.state === 'chase' && !this.litUp && player && (!player._flashOn || player.battery <= 0)) {
+      speed *= 1.3;
+    }
+    /* v13.0 迭代36: Howler嚎叫连锁反应 — 附近实体速度提升 */
+    if (this._howlSpeedBoost) speed *= 1.25;
+    /* v13.0 迭代36: Howler嚎叫连锁反应 — chase范围扩大 */
+    if (this._howlSightBoost) {
+      /* 临时增大检测范围 */
+    }
 
     if (this.state === 'chase') {
       /* 迭代22：如果被分配了侧翼目标，向侧翼目标移动 */
@@ -10550,6 +10561,8 @@ class ThreeJSRendererBridge {
     this._lastOy = -999999;
     this._entityMeshes = [];
     this._itemMeshes = [];
+    this._activeParticleCount = 0;  /* 迭代42: 当前活跃粒子总数 */
+    this._maxParticles = 200;       /* 迭代42: 粒子总数上限 */
     this._holidayDecor = null;   /* 节日装饰 Group */
     this._holidayParticles = null; /* 节日粒子系统 */
     this._holiday = null;        /* 当前节日配置对象 */
@@ -10684,9 +10697,17 @@ class ThreeJSRendererBridge {
       partygoer: this._makePartygoer.bind(this),
       watcher: this._makeWatcher.bind(this),
       dream_chaser: this._makeDreamChaser.bind(this),
-      smile_demon: this._makeSmileDemon.bind(this)
+      smile_demon: this._makeSmileDemon.bind(this),
+      howler: this._makeHowler.bind(this),
+      skin_stealer: this._makeSkinStealer.bind(this),
+      duller: this._makeDuller.bind(this)
     };
     this._entityModelCache = {};
+    /* 迭代41: 材质缓存 — 每种实体类型的材质定义只创建一次，后续clone复用 */
+    this._entityMatCache = {};
+    /* 迭代42: 粒子总数追踪 */
+    this._activeParticleCount = 0;
+    this._maxParticles = 200;
     this._curWeapon = null;
     this._weaponMesh = null;
 
@@ -11543,8 +11564,16 @@ class ThreeJSRendererBridge {
     /* Clear old entity meshes */
     for (const m of this._entityMeshes) {
       this.renderer.scene.remove(m);
-      if (m.geometry) m.geometry.dispose();
-      if (m.material) { if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose()); else m.material.dispose(); }
+      /* fix: traverse children + cleanup scene-level particles/trails */
+      if (m.userData) {
+        if (m.userData._hurtParticles) { for (const p of m.userData._hurtParticles) { this.renderer.scene.remove(p); if (p.geometry) p.geometry.dispose(); if (p.material) p.material.dispose(); } m.userData._hurtParticles = null; }
+        if (m.userData._trails) { for (const t of m.userData._trails) { this.renderer.scene.remove(t); if (t.geometry) t.geometry.dispose(); if (t.material) t.material.dispose(); } m.userData._trails = null; }
+        if (m.userData._trailClones) { for (const tc of m.userData._trailClones) { if (tc.parent) tc.parent.remove(tc); if (tc.geometry) tc.geometry.dispose(); if (tc.material) tc.material.dispose(); } m.userData._trailClones = null; }
+      }
+      m.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) { if (Array.isArray(child.material)) child.material.forEach(mt => mt.dispose()); else child.material.dispose(); }
+      });
     }
     this._entityMeshes.length = 0;
     /* Clear old item billboards */
@@ -13924,335 +13953,679 @@ class ThreeJSRendererBridge {
   /* ---------- Entity 3D models ---------- */
   _eye(r, color) {
     const THREE = window.THREE;
-    return new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), new THREE.MeshBasicMaterial({ color }));
+    const eyeMesh = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), new THREE.MeshBasicMaterial({ color }));
+    eyeMesh.userData.isEye = true; /* v13.0 迭代34: 标记为眼睛，用于黑暗中眼睛效果 */
+    return eyeMesh;
+  }
+
+  /* 迭代41: 材质缓存 — 缓存实体材质定义，避免每次创建实体时重复new材质 */
+  _cachedMat(type, key, factory) {
+    if (!this._entityMatCache[type]) this._entityMatCache[type] = {};
+    if (!this._entityMatCache[type][key]) {
+      this._entityMatCache[type][key] = factory();
+    }
+    /* clone以确保每个实体实例有独立材质（运行时可单独修改opacity/emissive） */
+    return this._entityMatCache[type][key].clone();
   }
 
   _makeHound() {
     const THREE = window.THREE;
     const g = new THREE.Group();
-    const skin = new THREE.MeshPhongMaterial({ color: 0x1d1815, shininess: 12, specular: 0x2a1e16 });
-    const skinDark = new THREE.MeshPhongMaterial({ color: 0x100c08, shininess: 8, specular: 0x1a1208 });
-    const bone = new THREE.MeshPhongMaterial({ color: 0xcfc7ae, emissive: 0x3a0808, emissiveIntensity: 0.5, shininess: 30 });
-    const flesh = new THREE.MeshPhongMaterial({ color: 0x4a1810, shininess: 20, specular: 0x802010 });
+    /* 迭代4: 更腐烂的皮肤质感 — 灰绿色腐烂皮肤 */
+    /* 迭代41: 使用材质缓存 */
+    const skin = this._cachedMat('hound', 'skin', () => new THREE.MeshPhongMaterial({ color: 0x2a3520, shininess: 8, specular: 0x1a2818, emissive: 0x080a04, emissiveIntensity: 0.15 }));
+    const skinDark = this._cachedMat('hound', 'skinDark', () => new THREE.MeshPhongMaterial({ color: 0x141810, shininess: 6, specular: 0x0e1208, emissive: 0x050602, emissiveIntensity: 0.1 }));
+    /* 暴露的肌肉组织 — 深红 */
+    const flesh = this._cachedMat('hound', 'flesh', () => new THREE.MeshPhongMaterial({ color: 0x6a1810, shininess: 25, specular: 0xa02010, emissive: 0x200404, emissiveIntensity: 0.3 }));
+    const fleshDark = this._cachedMat('hound', 'fleshDark', () => new THREE.MeshPhongMaterial({ color: 0x3a0c08, shininess: 15, specular: 0x501008 }));
+    const bone = this._cachedMat('hound', 'bone', () => new THREE.MeshPhongMaterial({ color: 0xcfc7ae, emissive: 0x3a0808, emissiveIntensity: 0.5, shininess: 30 }));
+    /* 半透明腐烂皮 — 可以隐约看到骨骼 */
+    const rotSkin = this._cachedMat('hound', 'rotSkin', () => new THREE.MeshPhongMaterial({ color: 0x3a4830, transparent: true, opacity: 0.55, shininess: 4, specular: 0x202818, emissive: 0x080a04, emissiveIntensity: 0.1 }));
 
-    /* Ribcage / torso — tapered cylinder for organic shape */
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 0.85, 10), skin);
+    /* Ribcage / torso — 更腐烂的锥形 */
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 0.85, 10), skin);
     torso.position.set(0, 0.62, 0.05); torso.rotation.x = -0.06; g.add(torso);
-    /* Lower torso/belly */
-    const belly = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.20, 0.30, 10), skinDark);
+    /* 半透明皮肤层 — 隐约可见骨骼 */
+    const torsoSkin = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.27, 0.85, 10, 1, true), rotSkin);
+    torsoSkin.position.set(0, 0.62, 0.05); torsoSkin.rotation.x = -0.06; g.add(torsoSkin);
+    /* Lower torso/belly — 暴露的肌肉 */
+    const belly = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.20, 0.30, 10), fleshDark);
     belly.position.set(0, 0.52, 0.25); g.add(belly);
 
-    /* Exposed spine bones — jagged along back */
-    const spikes = [];
-    for (let i = 0; i < 8; i++) {
-      const z = 0.42 - i * 0.12;
-      const s = new THREE.Mesh(new THREE.ConeGeometry(0.05 + (i < 2 || i > 5 ? 0.015 : 0), 0.18 - i * 0.005, 6), bone);
-      s.position.set(0, 0.82, z); s.rotation.x = -0.3 + i * 0.03;
-      g.add(s); spikes.push(s);
-    }
-    /* Rib hints — curved lines on torso sides */
-    for (let i = 0; i < 5; i++) {
-      const z = 0.3 - i * 0.14;
+    /* 暴露的肋骨 — 更明显，从皮肤中穿出 */
+    for (let i = 0; i < 6; i++) {
+      const z = 0.32 - i * 0.13;
       [-1, 1].forEach(sd => {
-        const rib = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.012, 4, 8, Math.PI * 0.7), bone);
-        rib.position.set(0.14 * sd, 0.64, z); rib.rotation.set(0.3, 0, sd * 0.4);
-        rib.scale.set(0.7, 0.6, 1); g.add(rib);
+        const rib = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.014, 4, 8, Math.PI * 0.7), bone);
+        rib.position.set(0.15 * sd, 0.66, z); rib.rotation.set(0.3, 0, sd * 0.4);
+        rib.scale.set(0.75, 0.65, 1); g.add(rib);
       });
     }
+    /* 腐烂下垂的肉块 */
+    for (let i = 0; i < 5; i++) {
+      const z = 0.30 - i * 0.16;
+      const s = i % 2 ? -1 : 1;
+      const flap = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12 + Math.random() * 0.06, 5), flesh);
+      flap.position.set(0.18 * s, 0.42, z); flap.rotation.x = 0.4; flap.rotation.z = s * 0.3;
+      g.add(flap);
+    }
 
-    /* Neck — angled connector */
+    /* Exposed spine bones — 更高更尖的骨刺 */
+    const spikes = [];
+    for (let i = 0; i < 10; i++) {
+      const z = 0.45 - i * 0.11;
+      const h = 0.22 + (i < 2 || i > 7 ? 0.04 : 0) - i * 0.006;
+      const s = new THREE.Mesh(new THREE.ConeGeometry(0.055 + (i < 2 || i > 7 ? 0.020 : 0), h, 6), bone);
+      s.position.set(0, 0.85, z); s.rotation.x = -0.35 + i * 0.03;
+      g.add(s); spikes.push(s);
+      /* 骨刺根部肌肉连接 */
+      const muscle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.06, 5), flesh);
+      muscle.position.set(0, 0.80, z); g.add(muscle);
+    }
+
+    /* Neck — 带暴露肌腱 */
     const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.22, 8), skin);
     neck.position.set(0, 0.72, -0.40); neck.rotation.x = -0.9; g.add(neck);
+    /* 颈部暴露的肌腱 */
+    [-1, 1].forEach(sd => {
+      const tendon = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.012, 0.20, 4), flesh);
+      tendon.position.set(0.06 * sd, 0.72, -0.40); tendon.rotation.x = -0.9;
+      g.add(tendon);
+    });
 
-    /* Head — elongated skull */
-    const head = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.45, 8), skinDark);
+    /* Head — 更明显的头骨结构 */
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.48, 8), skinDark);
     head.position.set(0, 0.76, -0.65); head.rotation.x = -1.4; g.add(head);
-    /* Skull cap highlight */
+    /* 半透明头皮 — 可以看到头骨 */
+    const headSkin = new THREE.Mesh(new THREE.ConeGeometry(0.185, 0.48, 8, 1, true), rotSkin);
+    headSkin.position.set(0, 0.76, -0.65); headSkin.rotation.x = -1.4; g.add(headSkin);
+    /* Skull cap — 更明显的骨骼 */
     const skullCap = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.5), bone);
     skullCap.position.set(0, 0.80, -0.58); skullCap.scale.set(1, 0.5, 1.3); g.add(skullCap);
+    /* 头骨裂缝 */
+    for (let i = 0; i < 3; i++) {
+      const crack = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.10, 0.005), fleshDark);
+      crack.position.set(-0.04 + i * 0.04, 0.84, -0.58 - i * 0.02);
+      crack.rotation.z = (i - 1) * 0.3;
+      g.add(crack);
+    }
 
-    /* Snout/jaw — lower jaw separate for menace */
+    /* Snout/jaw — 下颌骨分离 */
     const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.28), skinDark);
     jaw.position.set(0, 0.58, -0.82); g.add(jaw);
-    /* Teeth — jagged upper */
-    for (let i = 0; i < 6; i++) {
-      const x = -0.06 + i * 0.022;
-      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.04 + (i % 2) * 0.02, 4), bone);
+    /* 更多暴露的牙齿 — 不规则、断裂 */
+    for (let i = 0; i < 8; i++) {
+      const x = -0.07 + i * 0.019;
+      const broken = i === 2 || i === 5 ? 0.5 : 1.0;
+      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.012, (0.04 + (i % 2) * 0.02) * broken, 4), bone);
       tooth.position.set(x, 0.61, -0.88 + (i % 2) * 0.01); tooth.rotation.x = Math.PI;
+      tooth.rotation.z = (Math.random() - 0.5) * 0.3;
       g.add(tooth);
     }
-    /* Teeth — lower jaw */
-    for (let i = 0; i < 5; i++) {
-      const x = -0.05 + i * 0.022;
-      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.010, 0.03 + (i % 2) * 0.015, 4), bone);
+    /* Lower teeth — 更多更不规则 */
+    for (let i = 0; i < 7; i++) {
+      const x = -0.06 + i * 0.018;
+      const broken = i === 3 ? 0.4 : 1.0;
+      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.010, (0.03 + (i % 2) * 0.015) * broken, 4), bone);
       tooth.position.set(x, 0.55, -0.85 + (i % 2) * 0.01);
+      tooth.rotation.z = (Math.random() - 0.5) * 0.4;
       g.add(tooth);
     }
-
-    /* Eyes — glowing red, deeply recessed */
+    /* 獠牙 — 两颗特别长的大齿 */
     [-1, 1].forEach(s => {
-      const socket = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), skinDark);
-      socket.position.set(0.09 * s, 0.80, -0.70); g.add(socket);
-      const e = this._eye(0.035, 0xe8342a); e.position.set(0.09 * s, 0.80, -0.72); g.add(e);
-      /* Eye glow sphere */
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5),
-        new THREE.MeshBasicMaterial({ color: 0xc8342a, transparent: true, opacity: 0.3 }));
-      glow.position.set(0.09 * s, 0.80, -0.72); g.add(glow);
+      const fang = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.07, 5), bone);
+      fang.position.set(0.06 * s, 0.58, -0.90); fang.rotation.x = Math.PI;
+      g.add(fang);
     });
 
-    /* Ears — torn, ragged */
+    /* Eyes — 更深陷的眼窝，更明亮的红光 */
+    [-1, 1].forEach(s => {
+      const socket = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), fleshDark);
+      socket.position.set(0.09 * s, 0.80, -0.70); socket.scale.set(1, 0.8, 0.6); g.add(socket);
+      const e = this._eye(0.04, 0xff2a1a); e.position.set(0.09 * s, 0.80, -0.73); g.add(e);
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5),
+        new THREE.MeshBasicMaterial({ color: 0xff2a1a, transparent: true, opacity: 0.4 }));
+      glow.position.set(0.09 * s, 0.80, -0.73); g.add(glow);
+    });
+
+    /* Ears — 更破损 */
     [-1, 1].forEach(s => {
       const ear = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 4), skinDark);
-      ear.position.set(0.12 * s, 0.92, -0.58); ear.rotation.z = s * 0.5; g.add(ear);
+      ear.position.set(0.12 * s, 0.92, -0.58); ear.rotation.z = s * 0.5;
+      /* 耳朵缺口 */
+      ear.scale.y = 0.8;
+      g.add(ear);
     });
 
-    /* Legs — 4 articulated with upper/lower joints + paws */
+    /* Legs — 4条，带暴露肌腱和腐烂效果 */
     const legs = [];
-    [[-0.16, -0.30, 0.46], [0.16, -0.30, 0.46], [-0.16, -0.30, 0.36], [0.16, -0.30, 0.36]].forEach(([lx, ly, lz]) => {
+    [[-0.16, -0.30, 0.46], [0.16, -0.30, 0.46], [-0.16, -0.30, 0.36], [0.16, -0.30, 0.36]].forEach(([lx, ly, lz], idx) => {
       const pivot = new THREE.Group();
       pivot.position.set(lx, 0.46, lz);
       const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.26, 6), skin);
       upper.position.y = -0.13; pivot.add(upper);
+      /* 腿部暴露的肌肉 */
+      const muscle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.020, 0.20, 5), flesh);
+      muscle.position.set(0.03, -0.13, 0); pivot.add(muscle);
       const knee = new THREE.Group(); knee.position.y = -0.26; pivot.add(knee);
       const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.035, 0.24, 6), skinDark);
       lower.position.y = -0.12; knee.add(lower);
+      /* 露骨的关节 */
+      const kneeBone = new THREE.Mesh(new THREE.SphereGeometry(0.04, 5, 4), bone);
+      kneeBone.position.y = 0; knee.add(kneeBone);
       /* Paw */
       const paw = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.04, 0.08), skinDark);
       paw.position.set(0, -0.24, 0.02); knee.add(paw);
-      /* Claws */
+      /* Claws — 更长更尖 */
       for (let c = 0; c < 3; c++) {
-        const claw = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.03, 4), bone);
-        claw.position.set(-0.02 + c * 0.02, -0.27, 0.06); claw.rotation.x = -0.5;
+        const claw = new THREE.Mesh(new THREE.ConeGeometry(0.010, 0.04, 4), bone);
+        claw.position.set(-0.02 + c * 0.02, -0.28, 0.06); claw.rotation.x = -0.5;
         knee.add(claw);
       }
       g.add(pivot); legs.push(pivot);
     });
 
-    /* Tail — segmented,鞭状 */
+    /* Tail — 带骨节 */
     const tailBase = new THREE.Group(); tailBase.position.set(0, 0.68, 0.48); g.add(tailBase);
     let tailParent = tailBase;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       const seg = new THREE.Group();
       seg.position.z = i === 0 ? 0 : 0.08;
       const m = new THREE.Mesh(new THREE.CylinderGeometry(0.04 - i * 0.006, 0.03 - i * 0.005, 0.10, 5), skin);
       m.rotation.x = Math.PI / 2; m.position.z = 0.05; seg.add(m);
+      /* 尾椎骨 */
+      const tailBone = new THREE.Mesh(new THREE.SphereGeometry(0.025 - i * 0.003, 5, 4), bone);
+      seg.add(tailBone);
       tailParent.add(seg); tailParent = seg;
     }
-    g.userData = { legs, spikes, tail: tailBase, type: 'hound', glow: 0xc8342a, glowPos: [0, 0.80, -0.72] };
+    g.userData = { legs, spikes, tail: tailBase, jaw, head, torso, type: 'hound', glow: 0xff2a1a, glowPos: [0, 0.80, -0.73] };
     return g;
   }
 
   _makeCrawler() {
     const THREE = window.THREE;
     const g = new THREE.Group();
-    const shell = new THREE.MeshPhongMaterial({ color: 0x1a1512, shininess: 80, specular: 0x4a4038 });
-    const shellDark = new THREE.MeshPhongMaterial({ color: 0x0e0a08, shininess: 60, specular: 0x2a2018 });
-    const flesh = new THREE.MeshPhongMaterial({ color: 0x3a2818, shininess: 15, specular: 0x502810 });
+    /* 迭代5: 更虫形恐怖 — 甲壳质外骨骼 */
+    /* 迭代41: 使用材质缓存 */
+    const shell = this._cachedMat('crawler', 'shell', () => new THREE.MeshPhongMaterial({ color: 0x1a1512, shininess: 80, specular: 0x4a4038, emissive: 0x080604, emissiveIntensity: 0.1 }));
+    const shellDark = this._cachedMat('crawler', 'shellDark', () => new THREE.MeshPhongMaterial({ color: 0x0e0a08, shininess: 60, specular: 0x2a2018, emissive: 0x040302, emissiveIntensity: 0.08 }));
+    const shellRidge = this._cachedMat('crawler', 'shellRidge', () => new THREE.MeshPhongMaterial({ color: 0x282018, shininess: 100, specular: 0x5a4838 }));
+    const flesh = new THREE.MeshPhongMaterial({ color: 0x4a2818, shininess: 15, specular: 0x602810, emissive: 0x100402, emissiveIntensity: 0.2 });
 
-    /* Segmented body — 5 segments with tapered shape */
+    /* Segmented body — 7段，每段有独立甲壳板 */
     const segs = [];
-    const N = 5;
+    const N = 7;
     for (let i = 0; i < N; i++) {
       const seg = new THREE.Group();
-      const w = 0.44 - i * 0.04;
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.5, w * 0.45, 0.28, 8), i % 2 ? shell : shellDark);
+      const w = 0.44 - i * 0.035;
+      /* 主甲壳板 */
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.5, w * 0.45, 0.24, 8), i % 2 ? shell : shellDark);
       m.rotation.x = Math.PI / 2; m.position.z = 0; seg.add(m);
-      /* Segment plates — dorsal ridge */
+      /* 背甲脊 — 更明显 */
       if (i < N - 1) {
-        const ridge = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.10, 5), shellDark);
-        ridge.position.set(0, 0.10, 0.08); ridge.rotation.x = 0.3; seg.add(ridge);
+        const ridge = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.12, 5), shellRidge);
+        ridge.position.set(0, 0.11, 0.08); ridge.rotation.x = 0.3; seg.add(ridge);
+        /* 脊刺 — 两侧小刺 */
+        [-1, 1].forEach(sd => {
+          const spine = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.05, 4), shellDark);
+          spine.position.set(0.10 * sd, 0.08, 0.08); spine.rotation.z = sd * 0.5;
+          seg.add(spine);
+        });
       }
-      seg.position.z = -i * 0.28; g.add(seg); segs.push(seg);
+      /* 腹部暴露的肉质组织 — 每段底部 */
+      if (i > 0 && i < N - 1) {
+        const belly = new THREE.Mesh(new THREE.SphereGeometry(w * 0.35, 6, 4, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5), flesh);
+        belly.position.set(0, -0.02, 0); belly.scale.set(1, 0.5, 1.5);
+        seg.add(belly);
+      }
+      /* 体节间膜 — 半透明连接 */
+      if (i < N - 1) {
+        const membrane = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.42, (w - 0.035) * 0.42, 0.06, 6),
+          new THREE.MeshPhongMaterial({ color: 0x2a1810, transparent: true, opacity: 0.6, shininess: 5 }));
+        membrane.rotation.x = Math.PI / 2; membrane.position.z = -0.12; seg.add(membrane);
+      }
+      seg.position.z = -i * 0.24; g.add(seg); segs.push(seg);
     }
 
-    /* Head — wide, low with mandibles */
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), shellDark);
-    head.position.set(0, 0.14, -N * 0.28 - 0.10); head.scale.set(1, 0.7, 1.3); g.add(head);
-    /* Mandibles */
+    /* Head — 更昆虫化，复眼集群 + 发达上颚 */
+    const headZ = -N * 0.24 - 0.10;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), shellDark);
+    head.position.set(0, 0.14, headZ); head.scale.set(1.1, 0.7, 1.4); g.add(head);
+    /* 头顶甲壳 */
+    const headPlate = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 4, 0, Math.PI * 2, 0, Math.PI * 0.4), shellRidge);
+    headPlate.position.set(0, 0.15, headZ); headPlate.scale.set(1.1, 0.6, 1.4); g.add(headPlate);
+    /* 大颚 — 更发达，锯齿状 */
     [-1, 1].forEach(s => {
-      const mand = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.12, 4), shell);
-      mand.position.set(0.06 * s, 0.08, -N * 0.28 - 0.22); mand.rotation.set(0.3, 0, s * 0.4);
+      const mand = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.16, 5), shell);
+      mand.position.set(0.07 * s, 0.07, headZ - 0.12); mand.rotation.set(0.4, 0, s * 0.5);
       g.add(mand);
+      /* 颚齿 */
+      for (let t = 0; t < 3; t++) {
+        const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.03, 3), shellDark);
+        tooth.position.set(0.07 * s, 0.07 - 0.03 - t * 0.03, headZ - 0.12 + t * 0.04);
+        tooth.rotation.x = -0.5;
+        g.add(tooth);
+      }
     });
-    /* Compound eyes — cluster of small red dots */
-    [[-0.07, -0.21], [0.07, -0.21], [-0.03, -0.24], [0.03, -0.24], [0, -0.19]].forEach(([ex, ez]) => {
-      const e = this._eye(0.025, 0xcc6622);
-      e.position.set(ex, 0.18, -N * 0.28 + ez); g.add(e);
+    /* 触角 */
+    [-1, 1].forEach(s => {
+      const antBase = new THREE.Group(); antBase.position.set(0.05 * s, 0.20, headZ + 0.02);
+      const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.003, 0.22, 4), shellDark);
+      ant.position.y = 0.11; ant.rotation.z = s * 0.4; antBase.add(ant);
+      g.add(antBase);
     });
-    /* Eye glow */
-    const eyeGlow = new THREE.Mesh(new THREE.SphereGeometry(0.10, 6, 5),
-      new THREE.MeshBasicMaterial({ color: 0xcc6622, transparent: true, opacity: 0.15 }));
-    eyeGlow.position.set(0, 0.18, -N * 0.28 - 0.18); g.add(eyeGlow);
+    /* 复眼集群 — 更多更密集 */
+    const eyePositions = [
+      [-0.08, -0.22], [0.08, -0.22], [-0.04, -0.26], [0.04, -0.26], [0, -0.18],
+      [-0.10, -0.18], [0.10, -0.18], [-0.06, -0.14], [0.06, -0.14]
+    ];
+    eyePositions.forEach(([ex, ez]) => {
+      const e = this._eye(0.022, 0xcc6622);
+      e.position.set(ex, 0.18, headZ + ez); g.add(e);
+    });
+    /* Eye glow — 更大 */
+    const eyeGlow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 5),
+      new THREE.MeshBasicMaterial({ color: 0xcc6622, transparent: true, opacity: 0.18 }));
+    eyeGlow.position.set(0, 0.18, headZ - 0.18); g.add(eyeGlow);
 
-    /* 8 articulated arms with shoulder + elbow + claw */
+    /* 8条肢体 — 6前肢 + 2后腿 */
     const arms = [];
+    /* 前肢6条 (3对) */
     [[-1, 0], [-1, 1], [-1, 2], [1, 0], [1, 1], [1, 2]].forEach(([s, k]) => {
       const shoulder = new THREE.Group();
-      shoulder.position.set(0.22 * s, 0.10, -0.10 - k * 0.28);
+      shoulder.position.set(0.22 * s, 0.10, -0.10 - k * 0.24);
       const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.03, 0.36, 6), shell);
       upper.position.y = -0.18; upper.rotation.z = s * 0.5; shoulder.add(upper);
-      /* Shoulder joint sphere */
       const joint = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 5), shellDark);
       shoulder.add(joint);
       const elbow = new THREE.Group(); elbow.position.set(s * 0.10, -0.32, 0); shoulder.add(elbow);
       const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.018, 0.34, 6), shellDark);
       lower.position.y = -0.17; elbow.add(lower);
-      /* Claw — sharp pincer */
+      /* Claw — sharp pincer + 锯齿 */
       [-0.015, 0.015].forEach(cs => {
-        const claw = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.06, 4), shell);
+        const claw = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.07, 4), shell);
         claw.position.set(cs, -0.34, 0); claw.rotation.x = -0.3; elbow.add(claw);
       });
       g.add(shoulder); arms.push({ shoulder, elbow });
     });
+    /* 2条后腿 — 更粗壮 */
+    [[-1, N - 2], [1, N - 2]].forEach(([s, k]) => {
+      const shoulder = new THREE.Group();
+      shoulder.position.set(0.20 * s, 0.12, -0.10 - k * 0.24);
+      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.035, 0.40, 6), shellDark);
+      upper.position.y = -0.20; upper.rotation.z = s * 0.6; shoulder.add(upper);
+      const joint = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 5), shell);
+      shoulder.add(joint);
+      const elbow = new THREE.Group(); elbow.position.set(s * 0.12, -0.36, 0); shoulder.add(elbow);
+      const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.022, 0.36, 6), shell);
+      lower.position.y = -0.18; elbow.add(lower);
+      /* 后腿爪 — 更大 */
+      for (let c = 0; c < 3; c++) {
+        const claw = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.06, 4), shellDark);
+        claw.position.set(-0.02 + c * 0.02, -0.38, 0); claw.rotation.x = -0.4;
+        elbow.add(claw);
+      }
+      g.add(shoulder); arms.push({ shoulder, elbow });
+    });
 
-    /* Dripping ichor — small spheres under body */
-    for (let i = 0; i < 4; i++) {
-      const drip = new THREE.Mesh(new THREE.SphereGeometry(0.015, 4, 4),
-        new THREE.MeshBasicMaterial({ color: 0x6a3010, transparent: true, opacity: 0.6 }));
-      drip.position.set((Math.random() - 0.5) * 0.3, 0.02, -i * 0.25); g.add(drip);
+    /* 滴落的体液 — 更多更明显 */
+    for (let i = 0; i < 7; i++) {
+      const drip = new THREE.Mesh(new THREE.SphereGeometry(0.018 + Math.random() * 0.008, 4, 4),
+        new THREE.MeshBasicMaterial({ color: 0x8a4020, transparent: true, opacity: 0.7 }));
+      drip.position.set((Math.random() - 0.5) * 0.35, 0.01, -i * 0.22 - Math.random() * 0.1); g.add(drip);
+      /* 拖尾 */
+      const trail = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.002, 0.06, 3),
+        new THREE.MeshBasicMaterial({ color: 0x6a3010, transparent: true, opacity: 0.4 }));
+      trail.position.copy(drip.position); trail.position.y = 0.05;
+      g.add(trail);
     }
 
-    g.userData = { segs, arms, type: 'crawler', glow: 0xcc6622, glowPos: [0, 0.18, -N * 0.28 - 0.18] };
+    g.userData = { segs, arms, head, type: 'crawler', glow: 0xcc6622, glowPos: [0, 0.18, headZ - 0.18] };
     return g;
   }
 
   _makeSmiler() {
     const THREE = window.THREE;
-    let mat;
-    if (this._smilerTex) {
-      mat = new THREE.MeshBasicMaterial({ map: this._smilerTex, transparent: true, depthWrite: false, fog: true });
-    } else {
-      mat = new THREE.MeshBasicMaterial({ color: 0x040404, transparent: true, depthWrite: false, fog: true });
+    const g = new THREE.Group();
+    /* 迭代6: 3D笑脸 — 半透明黑色，只有笑脸发光 */
+    const darkMat = new THREE.MeshPhongMaterial({ color: 0x080808, transparent: true, opacity: 0.35, depthWrite: false, shininess: 5 });
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.9 });
+    glowMat.userData_baseOp = 0.9;
+    const glowSoftMat = new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.3 });
+    glowSoftMat.userData_baseOp = 0.3;
+
+    /* 半球基底 — "脸"的轮廓，半透明黑色 */
+    const face = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), darkMat);
+    face.position.y = 0.95; face.rotation.x = -0.1;
+    g.add(face);
+    /* 脸的后半部分 — 更暗 */
+    const faceBack = new THREE.Mesh(new THREE.SphereGeometry(0.36, 12, 8, 0, Math.PI * 2, Math.PI * 0.4, Math.PI * 0.6), darkMat);
+    faceBack.position.y = 0.95;
+    g.add(faceBack);
+
+    /* 发光的光晕 — 包裹脸部 */
+    const faceGlow = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.06, depthWrite: false }));
+    faceGlow.position.y = 0.95;
+    faceGlow.userData.isGlow = true;
+    g.add(faceGlow);
+
+    /* 弯月形发光眼睛 — 使用TorusGeometry部分弧 */
+    const eyes = [];
+    [-1, 1].forEach(s => {
+      /* 月牙眼 — 半个torus弧 */
+      const eyeArc = new THREE.Mesh(
+        new THREE.TorusGeometry(0.06, 0.014, 6, 12, Math.PI * 1.1),
+        glowMat
+      );
+      eyeArc.position.set(0.13 * s, 1.06, 0.32);
+      eyeArc.rotation.set(0.2, s * 0.3, s > 0 ? -0.3 : 0.3);
+      eyeArc.userData.isEye = true;
+      g.add(eyeArc); eyes.push(eyeArc);
+      /* 眼睛光晕 */
+      const eyeGlow = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5), glowSoftMat);
+      eyeGlow.position.set(0.13 * s, 1.06, 0.32);
+      eyeGlow.userData.isGlow = true;
+      g.add(eyeGlow);
+    });
+
+    /* 巨大咧嘴笑容 — TorusGeometry弧 + 尖牙 */
+    const smile = new THREE.Mesh(
+      new THREE.TorusGeometry(0.15, 0.022, 8, 16, Math.PI * 0.95),
+      glowMat
+    );
+    smile.position.set(0, 0.86, 0.34);
+    smile.rotation.set(0.1, 0, Math.PI);
+    smile.userData.isGlow = true;
+    g.add(smile);
+    /* 笑容光晕 */
+    const smileGlow = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), glowSoftMat);
+    smileGlow.position.set(0, 0.86, 0.34);
+    smileGlow.scale.set(1.5, 0.6, 0.5);
+    smileGlow.userData.isGlow = true;
+    g.add(smileGlow);
+
+    /* 尖牙 — 上下各几颗 */
+    for (let i = 0; i < 5; i++) {
+      const a = -0.35 + i * 0.17;
+      /* 上排牙 */
+      const toothU = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.04, 4), glowMat);
+      toothU.position.set(Math.sin(a) * 0.15, 0.83 - Math.cos(a) * 0.15 * 0.3, 0.35);
+      toothU.rotation.x = Math.PI + a * 0.5;
+      toothU.userData.isGlow = true;
+      g.add(toothU);
+      /* 下排牙 */
+      const toothD = new THREE.Mesh(new THREE.ConeGeometry(0.010, 0.03, 4), glowMat);
+      toothD.position.set(Math.sin(a) * 0.14, 0.89 + Math.cos(a) * 0.15 * 0.2, 0.35);
+      toothD.rotation.x = a * 0.5;
+      toothD.userData.isGlow = true;
+      g.add(toothD);
     }
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.35), mat);
-    m.position.y = 0.68;
-    m.userData = { type: 'smiler', billboard: true, glow: 0xf2ead6, glowPos: [0, 1.0, 0] };
-    return m;
+
+    /* 身体轮廓 — 半透明黑色的人形剪影 */
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, 0.55, 6), darkMat);
+    body.position.y = 0.40;
+    g.add(body);
+    /* 肩部 */
+    const shoulders = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.06, 0.10), darkMat);
+    shoulders.position.y = 0.62;
+    g.add(shoulders);
+
+    g.userData = { type: 'smiler', billboard: false, glow: 0xffee88, glowPos: [0, 1.0, 0.2], face, eyes: eyes };
+    return g;
   }
 
   _makeStalker() {
     const THREE = window.THREE;
     const g = new THREE.Group();
-    const mat = new THREE.MeshPhongMaterial({
-      color: 0x2a1a3a, transparent: true, opacity: 0.80, emissive: 0x180828, emissiveIntensity: 0.6,
-      shininess: 20, specular: 0x4a2a60
-    });
-    const matSolid = new THREE.MeshPhongMaterial({
-      color: 0x1a0e2a, transparent: true, opacity: 0.85, emissive: 0x100420, emissiveIntensity: 0.4,
-      shininess: 10
-    });
+    /* 迭代7-8: 苍白灰白皮肤，极度消瘦，大红眼，食蚁兽吻部 */
+    /* 迭代41: 使用材质缓存 */
+    const skin = this._cachedMat('stalker', 'skin', () => new THREE.MeshPhongMaterial({
+      color: 0xc8c0b8, transparent: true, opacity: 0.88, emissive: 0x181410, emissiveIntensity: 0.15,
+      shininess: 8, specular: 0x807870
+    }));
+    const skinDark = this._cachedMat('stalker', 'skinDark', () => new THREE.MeshPhongMaterial({
+      color: 0x988e80, transparent: true, opacity: 0.85, emissive: 0x100c08, emissiveIntensity: 0.1,
+      shininess: 5
+    }));
+    const bone = this._cachedMat('stalker', 'bone', () => new THREE.MeshPhongMaterial({ color: 0xd0c8b8, shininess: 10, emissive: 0x100804, emissiveIntensity: 0.2 }));
 
-    /* Torso — elongated, gaunt ribcage */
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.20, 1.10, 8), mat);
-    torso.position.y = 1.25; g.add(torso);
-    /* Rib hints */
-    for (let i = 0; i < 4; i++) {
-      const y = 1.55 - i * 0.22;
+    /* Torso — 极度消瘦的躯干，2.5格高 */
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 1.30, 8), skin);
+    torso.position.y = 1.40; g.add(torso);
+    /* 半透明皮层 — 可以看到骨骼 */
+    const torsoSkin = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.19, 1.30, 8, 1, true),
+      new THREE.MeshPhongMaterial({ color: 0xb8b0a0, transparent: true, opacity: 0.4, shininess: 3 }));
+    torsoSkin.position.y = 1.40; g.add(torsoSkin);
+
+    /* 清晰可见的肋骨 — 更多更明显 */
+    for (let i = 0; i < 7; i++) {
+      const y = 1.80 - i * 0.18;
       [-1, 1].forEach(s => {
-        const rib = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.01, 4, 8, Math.PI * 0.6), matSolid);
-        rib.position.set(0.13 * s, y, 0); rib.rotation.set(0, 0, s * 0.5);
-        g.add(rib);
+        const rib = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.012, 4, 8, Math.PI * 0.65), bone);
+        rib.position.set(0.12 * s, y, 0); rib.rotation.set(0, 0, s * 0.5);
+        rib.scale.set(0.85, 0.7, 1); g.add(rib);
+      });
+    }
+    /* 胸骨 */
+    const sternum = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.50, 0.03), bone);
+    sternum.position.set(0, 1.55, 0.08); g.add(sternum);
+
+    /* 迭代8: 后背脊椎突出 */
+    const spineBones = [];
+    for (let i = 0; i < 8; i++) {
+      const y = 1.05 + i * 0.16;
+      const vert = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.08, 5), bone);
+      vert.position.set(0, y, -0.10); vert.rotation.x = Math.PI;
+      g.add(vert); spineBones.push(vert);
+    }
+
+    /* Head — 头骨 + 食蚁兽管状吻部，没有嘴 */
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 7), skin);
+    head.position.y = 2.18; head.scale.set(0.9, 1.1, 0.95); g.add(head);
+    /* 头骨可见 */
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 5, 0, Math.PI * 2, 0, Math.PI * 0.6), bone);
+    skull.position.y = 2.22; skull.scale.set(0.9, 0.6, 0.95); g.add(skull);
+    /* 食蚁兽般的管状吻部 — 没有嘴 */
+    const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.025, 0.28, 8), skinDark);
+    snout.position.set(0, 2.10, 0.14); snout.rotation.x = Math.PI / 2 - 0.3;
+    g.add(snout);
+    /* 吻部末端 — 小鼻孔 */
+    const nostril = new THREE.Mesh(new THREE.SphereGeometry(0.025, 5, 4), skinDark);
+    nostril.position.set(0, 2.08, 0.27); nostril.scale.set(1, 0.6, 0.8);
+    g.add(nostril);
+
+    /* 迭代8: 青色静脉纹路 — 更丰富的纹理 */
+    const veins = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.195, 1.32, 8, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x44ccaa, transparent: true, opacity: 0.0, side: THREE.DoubleSide }));
+    veins.position.y = 1.40; g.add(veins);
+    /* 额外静脉细节 — 身体表面的纹路 */
+    for (let i = 0; i < 5; i++) {
+      const y = 1.10 + i * 0.20;
+      [-1, 1].forEach(s => {
+        const veinLine = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.004, 3, 6, Math.PI * 0.5),
+          new THREE.MeshBasicMaterial({ color: 0x44ccaa, transparent: true, opacity: 0.0 }));
+        veinLine.position.set(0.10 * s, y, 0.05); veinLine.rotation.set(0, 0, s * 0.6);
+        g.add(veinLine);
       });
     }
 
-    /* Head — elongated skull */
-    const head = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.30, 8), mat);
-    head.position.y = 1.95; head.rotation.x = Math.PI; g.add(head);
-    /* Jaw */
-    const jaw = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.15, 6), matSolid);
-    jaw.position.set(0, 1.84, 0.05); g.add(jaw);
-
-    /* Vein glow layer */
-    const veins = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.205, 1.12, 8, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xb450f0, transparent: true, opacity: 0.0, side: THREE.DoubleSide }));
-    veins.position.y = 1.25; g.add(veins);
-
-    /* Arms — long, thin with extra joints */
+    /* 迭代8: 更长更多的手指 — 每手4根骨瘦如柴的手指 */
     const arms = [];
     [-1, 1].forEach(s => {
-      const p = new THREE.Group(); p.position.set(0.20 * s, 1.68, 0);
-      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.03, 0.50, 6), mat);
-      upper.position.y = -0.25; p.add(upper);
-      const midJoint = new THREE.Group(); midJoint.position.y = -0.50; p.add(midJoint);
-      const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.02, 0.50, 6), mat);
-      lower.position.y = -0.25; midJoint.add(lower);
-      /* Long clawed fingers */
-      for (let c = 0; c < 3; c++) {
-        const claw = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.08, 4),
-          new THREE.MeshBasicMaterial({ color: 0x9040d0 }));
-        claw.position.set(-0.02 + c * 0.02, -0.54, 0); claw.rotation.x = 0.2; midJoint.add(claw);
+      const p = new THREE.Group(); p.position.set(0.18 * s, 1.85, 0);
+      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.028, 0.55, 6), skin);
+      upper.position.y = -0.27; p.add(upper);
+      /* 上臂骨骼可见 */
+      const upperBone = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.010, 0.50, 4), bone);
+      upperBone.position.y = -0.27; p.add(upperBone);
+      const midJoint = new THREE.Group(); midJoint.position.y = -0.55; p.add(midJoint);
+      const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.018, 0.55, 6), skin);
+      lower.position.y = -0.27; midJoint.add(lower);
+      const lowerBone = new THREE.Mesh(new THREE.CylinderGeometry(0.010, 0.008, 0.50, 4), bone);
+      lowerBone.position.y = -0.27; midJoint.add(lowerBone);
+      /* 4根骨瘦如柴的手指 */
+      for (let c = 0; c < 4; c++) {
+        const ang = -0.15 + c * 0.10;
+        const finger = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.005, 0.14, 4), skinDark);
+        finger.position.set(Math.sin(ang) * 0.03, -0.58, 0); finger.rotation.x = 0.15;
+        midJoint.add(finger);
+        /* 指甲/爪 */
+        const nail = new THREE.Mesh(new THREE.ConeGeometry(0.006, 0.04, 3), bone);
+        nail.position.set(Math.sin(ang) * 0.03, -0.66, 0); nail.rotation.x = 0.15;
+        nail.userData.isClaw = true;
+        midJoint.add(nail);
       }
       g.add(p); arms.push(p);
     });
 
-    /* Legs — digitigrade with knee joints */
+    /* 迭代8: 脚趾抓地 — 更明显的digitigrade腿 */
     const legs = [];
     [-1, 1].forEach(s => {
-      const p = new THREE.Group(); p.position.set(0.10 * s, 0.78, 0);
-      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.04, 0.42, 6), mat);
-      thigh.position.y = -0.21; p.add(thigh);
-      const knee = new THREE.Group(); knee.position.y = -0.42; p.add(knee);
-      const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.03, 0.38, 6), mat);
-      shin.position.y = -0.19; knee.add(shin);
-      /* Foot */
-      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.03, 0.10), matSolid);
-      foot.position.set(0, -0.38, 0.03); knee.add(foot);
+      const p = new THREE.Group(); p.position.set(0.10 * s, 0.85, 0);
+      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.038, 0.48, 6), skin);
+      thigh.position.y = -0.24; p.add(thigh);
+      const thighBone = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.010, 0.44, 4), bone);
+      thighBone.position.y = -0.24; p.add(thighBone);
+      const knee = new THREE.Group(); knee.position.y = -0.48; p.add(knee);
+      /* 膝盖骨突出 */
+      const kneeBone = new THREE.Mesh(new THREE.SphereGeometry(0.03, 5, 4), bone);
+      knee.add(kneeBone);
+      const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.025, 0.42, 6), skin);
+      shin.position.y = -0.21; knee.add(shin);
+      const shinBone = new THREE.Mesh(new THREE.CylinderGeometry(0.010, 0.007, 0.38, 4), bone);
+      shinBone.position.y = -0.21; knee.add(shinBone);
+      /* 脚 — digitigrade，脚趾抓地 */
+      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.018, 0.14, 5), skinDark);
+      foot.position.set(0, -0.42, 0.05); foot.rotation.x = 0.5; knee.add(foot);
+      /* 脚趾 — 3根抓地趾 */
+      for (let t = 0; t < 3; t++) {
+        const toe = new THREE.Mesh(new THREE.ConeGeometry(0.010, 0.06, 4), bone);
+        toe.position.set(-0.02 + t * 0.02, -0.50, 0.12); toe.rotation.x = -0.3;
+        knee.add(toe);
+      }
       g.add(p); legs.push(p);
     });
 
-    /* Eyes — glowing purple, recessed */
+    /* 巨大红眼 — 深陷眼窝 */
     [-1, 1].forEach(s => {
-      const e = this._eye(0.03, 0xd060ff); e.position.set(0.05 * s, 2.0, 0.08); g.add(e);
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5),
-        new THREE.MeshBasicMaterial({ color: 0xb450f0, transparent: true, opacity: 0.25 }));
-      glow.position.set(0.05 * s, 2.0, 0.08); g.add(glow);
+      /* 深陷眼窝 */
+      const socket = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), skinDark);
+      socket.position.set(0.07 * s, 2.20, 0.10); socket.scale.set(1, 0.8, 0.6); g.add(socket);
+      const e = this._eye(0.045, 0xff2200); e.position.set(0.07 * s, 2.20, 0.12); g.add(e);
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5),
+        new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.4 }));
+      glow.position.set(0.07 * s, 2.20, 0.12); g.add(glow);
     });
 
-    g.userData = { legs, arms, veins, type: 'stalker', glow: 0xb450f0, glowPos: [0, 2.0, 0.08] };
+    g.userData = { legs, arms, veins, type: 'stalker', glow: 0xff2200, glowPos: [0, 2.20, 0.12] };
     return g;
   }
 
   _makeRot() {
     const THREE = window.THREE;
     const g = new THREE.Group();
-    const geo = new THREE.IcosahedronGeometry(0.40, 3);
+    /* 迭代9: 更大的有机质团块，更多真菌和脓疱 */
+    /* 迭代41: 使用材质缓存 */
+    const geo = new THREE.IcosahedronGeometry(0.50, 3);
     const pos = geo.attributes.position;
     const base = new Float32Array(pos.array);
-    const mat = new THREE.MeshPhongMaterial({ color: 0x2a3418, emissive: 0x0a1004, emissiveIntensity: 0.4, flatShading: true, shininess: 5, specular: 0x3a4028 });
+    const mat = this._cachedMat('rot', 'blob', () => new THREE.MeshPhongMaterial({ color: 0x2a3418, emissive: 0x0a1004, emissiveIntensity: 0.4, flatShading: true, shininess: 5, specular: 0x3a4028 }));
     const blob = new THREE.Mesh(geo, mat);
-    blob.position.y = 0.42; g.add(blob);
-    /* Fungal patches on surface */
+    blob.position.y = 0.50; g.add(blob);
+
+    /* 更多真菌突起 — 12个，更鲜艳的毒绿色 */
     const fungi = [];
-    for (let i = 0; i < 8; i++) {
-      const f = new THREE.Mesh(new THREE.SphereGeometry(0.03 + Math.random() * 0.02, 6, 5),
-        new THREE.MeshPhongMaterial({ color: 0x5a7028, emissive: 0x183008, emissiveIntensity: 0.3 }));
+    for (let i = 0; i < 12; i++) {
+      const fType = i % 3;
+      const fColor = fType === 0 ? 0x7aff30 : (fType === 1 ? 0x5ae020 : 0xa0ff40);
+      const f = new THREE.Mesh(new THREE.SphereGeometry(0.035 + Math.random() * 0.025, 6, 5),
+        new THREE.MeshPhongMaterial({ color: fColor, emissive: 0x204008, emissiveIntensity: 0.4, shininess: 15 }));
       const a = Math.random() * Math.PI * 2, b = (Math.random() - 0.5) * Math.PI;
-      f.position.set(Math.cos(a) * Math.cos(b) * 0.38, 0.42 + Math.sin(b) * 0.38, Math.sin(a) * Math.cos(b) * 0.38);
+      const r = 0.48;
+      f.position.set(Math.cos(a) * Math.cos(b) * r, 0.50 + Math.sin(b) * r, Math.sin(a) * Math.cos(b) * r);
       g.add(f); fungi.push(f);
+      /* 真菌帽 — 伞状 */
+      if (i % 2 === 0) {
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.03, 5, 4, 0, Math.PI * 2, 0, Math.PI * 0.4),
+          new THREE.MeshPhongMaterial({ color: 0x90ff50, emissive: 0x305010, emissiveIntensity: 0.3 }));
+        cap.position.copy(f.position);
+        cap.position.y += 0.03;
+        g.add(cap);
+      }
     }
+
+    /* 更大更恶心的脓疱 — 有脉动效果准备 */
     const pustules = [];
-    [[0.28, 0.52, 0.18], [-0.26, 0.40, -0.20], [0.08, 0.62, -0.28], [-0.10, 0.30, 0.30]].forEach(p => {
-      const pu = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8),
-        new THREE.MeshPhongMaterial({ color: 0x64a028, emissive: 0x205008, emissiveIntensity: 0.5, transparent: true, opacity: 0.85 }));
+    const pustuleData = [
+      [0.32, 0.62, 0.20, 0.12], [-0.30, 0.48, -0.22, 0.10],
+      [0.10, 0.72, -0.30, 0.14], [-0.12, 0.36, 0.34, 0.11],
+      [0.28, 0.40, -0.32, 0.09], [-0.24, 0.66, 0.22, 0.10]
+    ];
+    pustuleData.forEach(p => {
+      const pu = new THREE.Mesh(new THREE.SphereGeometry(p[3], 10, 8),
+        new THREE.MeshPhongMaterial({ color: 0x80c838, emissive: 0x306008, emissiveIntensity: 0.6, transparent: true, opacity: 0.85, shininess: 30 }));
       pu.position.set(p[0], p[1], p[2]); g.add(pu); pustules.push(pu);
+      /* 脓疱顶部 — 更亮 */
+      const top = new THREE.Mesh(new THREE.SphereGeometry(p[3] * 0.4, 6, 5),
+        new THREE.MeshBasicMaterial({ color: 0xc0ff60, transparent: true, opacity: 0.5 }));
+      top.position.set(p[0] * 1.05, p[1] * 1.05 + 0.02, p[2] * 1.05);
+      g.add(top);
     });
+
+    /* 暴露的骨头碎片 */
+    const boneMat = new THREE.MeshPhongMaterial({ color: 0xd0c8b0, shininess: 20, emissive: 0x100804, emissiveIntensity: 0.1 });
+    for (let i = 0; i < 4; i++) {
+      const a = Math.random() * Math.PI * 2, b = (Math.random() - 0.5) * Math.PI;
+      const r = 0.46;
+      const bone = new THREE.Mesh(new THREE.ConeGeometry(0.015, 0.10 + Math.random() * 0.06, 4), boneMat);
+      bone.position.set(Math.cos(a) * Math.cos(b) * r, 0.50 + Math.sin(b) * r, Math.sin(a) * Math.cos(b) * r);
+      bone.rotation.set(b, a, Math.random() * Math.PI);
+      g.add(bone);
+    }
+
+    /* 3条触手状伪足 */
+    const tentacles = [];
+    for (let i = 0; i < 3; i++) {
+      const ang = (i / 3) * Math.PI * 2 + 0.5;
+      const root = new THREE.Group();
+      root.position.set(Math.cos(ang) * 0.35, 0.30, Math.sin(ang) * 0.35);
+      let parent = root;
+      for (let s = 0; s < 4; s++) {
+        const seg = new THREE.Group();
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.06 - s * 0.012, 0.045 - s * 0.010, 0.16, 6), mat);
+        m.position.y = -0.08; seg.add(m);
+        /* 触手表面的脓疱 */
+        if (s < 2) {
+          const tp = new THREE.Mesh(new THREE.SphereGeometry(0.025, 5, 4),
+            new THREE.MeshPhongMaterial({ color: 0x64a028, emissive: 0x205008, emissiveIntensity: 0.4 }));
+          tp.position.set(0.04, -0.08, 0); seg.add(tp);
+        }
+        seg.position.y = s === 0 ? 0 : -0.16;
+        seg.rotation.z = Math.sin(s + i) * 0.3;
+        parent.add(seg); parent = seg;
+      }
+      g.add(root); tentacles.push(root);
+    }
+
     [-1, 1].forEach(s => {
-      const e = this._eye(0.04, 0xc8f03c); e.position.set(0.10 * s, 0.48, 0.36); g.add(e);
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5),
-        new THREE.MeshBasicMaterial({ color: 0xc8f03c, transparent: true, opacity: 0.2 }));
-      glow.position.set(0.10 * s, 0.48, 0.36); g.add(glow);
+      const e = this._eye(0.045, 0xc8f03c); e.position.set(0.12 * s, 0.56, 0.42); g.add(e);
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5),
+        new THREE.MeshBasicMaterial({ color: 0xc8f03c, transparent: true, opacity: 0.25 }));
+      glow.position.set(0.12 * s, 0.56, 0.42); g.add(glow);
     });
-    g.userData = { blob, base, pustules, type: 'rot', glow: 0x64a028, glowPos: [0, 0.5, 0.3] };
+    g.userData = { blob, base, pustules, type: 'rot', glow: 0x64a028, glowPos: [0, 0.56, 0.42], tentacles: tentacles };
     return g;
   }
 
   _makeEcho() {
     const THREE = window.THREE;
     const g = new THREE.Group();
+    /* 迭代14: 4层残影，面部扭曲 */
     const mat = (op) => new THREE.MeshPhongMaterial({
       color: 0xbcc0d0, transparent: true, opacity: op, emissive: 0x202430, emissiveIntensity: 0.4, shininess: 30, specular: 0x505060
     });
-    const figure = (op) => {
+    const figure = (op, distort) => {
       const f = new THREE.Group();
       const t = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.19, 0.75, 7), mat(op));
       t.position.y = 0.95; f.add(t);
@@ -14261,6 +14634,26 @@ class ThreeJSRendererBridge {
       sh.position.y = 1.28; f.add(sh);
       const h = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), mat(op));
       h.position.y = 1.5; f.add(h);
+      /* 面部扭曲 — 在头部添加扭曲特征 */
+      if (distort) {
+        /* 扭曲的眼窝 — 不对称黑洞 */
+        [-1, 1].forEach(s => {
+          const socket = new THREE.Mesh(new THREE.SphereGeometry(0.04, 5, 4),
+            new THREE.MeshBasicMaterial({ color: 0x000000 }));
+          socket.position.set(0.05 * s, 1.52, 0.10); socket.scale.set(1, 1.5, 0.5);
+          f.add(socket);
+        });
+        /* 扭曲的嘴 — 斜向裂缝 */
+        const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.012, 0.01),
+          new THREE.MeshBasicMaterial({ color: 0x000000 }));
+        mouth.position.set(0.02, 1.44, 0.11); mouth.rotation.z = 0.3;
+        f.add(mouth);
+        /* 扭曲的脸颊 — 不对称凹陷 */
+        const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.03, 4, 3),
+          new THREE.MeshBasicMaterial({ color: 0x08080c, transparent: true, opacity: 0.6 }));
+        cheek.position.set(0.06, 1.48, 0.09); cheek.scale.set(0.8, 1.2, 0.5);
+        f.add(cheek);
+      }
       /* Waist */
       const waist = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.10, 0.20, 6), mat(op * 0.8));
       waist.position.y = 0.55; f.add(waist);
@@ -14272,66 +14665,108 @@ class ThreeJSRendererBridge {
       });
       return f;
     };
-    const main = figure(0.72), ghost1 = figure(0.32), ghost2 = figure(0.15);
-    g.add(ghost2, ghost1, main);
-    [-1, 1].forEach(s => { const e = this._eye(0.03, 0xdcdcf0); e.position.set(0.06 * s, 1.53, 0.11); g.add(e); });
-    g.userData = { main, ghost1, ghost2, prevPos: new THREE.Vector3(), type: 'echo', glow: 0xdcdcf0, glowPos: [0, 1.53, 0.11] };
+    /* 4层残影 — 透明度递减，主层有面部扭曲 */
+    const main = figure(0.72, true), ghost1 = figure(0.32, false), ghost2 = figure(0.18, false), ghost3 = figure(0.08, false);
+    g.add(ghost3, ghost2, ghost1, main);
+    [-1, 1].forEach(s => { const e = this._eye(0.03, 0xdcdcf0); e.position.set(0.05 * s, 1.52, 0.11); g.add(e); });
+    g.userData = { main, ghost1, ghost2, ghost3, prevPos: new THREE.Vector3(), type: 'echo', glow: 0xdcdcf0, glowPos: [0, 1.53, 0.11] };
     return g;
   }
 
   _makePartygoer() {
     const THREE = window.THREE;
     const g = new THREE.Group();
-    const skin = new THREE.MeshPhongMaterial({ color: 0xe8d95a, emissive: 0x4a3a08, emissiveIntensity: 0.3, shininess: 15, specular: 0x806020 });
-    const dark = new THREE.MeshPhongMaterial({ color: 0x6a5a18, shininess: 8 });
-    /* Tapered torso */
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.55, 7), skin);
-    body.position.y = 0.78; g.add(body);
-    /* Shoulders */
-    const sh = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.18), skin);
-    sh.position.y = 1.02; g.add(sh);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), skin);
-    head.position.y = 1.20; head.scale.set(1, 1.1, 0.9); g.add(head);
-    /* Party hat */
-    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.26, 8),
-      new THREE.MeshPhongMaterial({ color: 0xc84030, emissive: 0x401008, emissiveIntensity: 0.35 }));
-    hat.position.y = 1.53; g.add(hat);
-    /* Hat pom-pom */
-    const pom = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 5),
-      new THREE.MeshBasicMaterial({ color: 0xfff0a0 }));
-    pom.position.y = 1.67; g.add(pom);
-    /* Glowing smile face */
+    /* 迭代12: 更扭曲的鲜黄色身体 */
+    const skin = new THREE.MeshPhongMaterial({ color: 0xffe028, emissive: 0x4a3a08, emissiveIntensity: 0.35, shininess: 20, specular: 0x907020 });
+    const dark = new THREE.MeshPhongMaterial({ color: 0x8a7a18, shininess: 10, emissive: 0x201804, emissiveIntensity: 0.2 });
+    const suctionMat = new THREE.MeshPhongMaterial({ color: 0xffd010, emissive: 0x403008, emissiveIntensity: 0.2, shininess: 30 });
+
+    /* Tapered torso — 更扭曲 */
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 0.58, 7), skin);
+    body.position.y = 0.78; body.rotation.z = 0.05; g.add(body);
+    /* Shoulders — 不对称 */
+    const sh = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.08, 0.18), skin);
+    sh.position.y = 1.02; sh.rotation.z = -0.05; g.add(sh);
+    /* 扭曲的头部 */
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8), skin);
+    head.position.set(0.02, 1.20, 0); head.scale.set(1, 1.15, 0.9); g.add(head);
+
+    /* 章鱼吸盘手臂 — CylinderGeometry + SphereGeometry吸盘阵列 */
+    const arms = [];
+    [-1, 1].forEach(s => {
+      const p = new THREE.Group(); p.position.set(0.24 * s, 1.0, 0);
+      /* 上臂 — 触手形状（锥形） */
+      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.038, 0.24, 8), skin);
+      upper.position.y = -0.12; upper.rotation.z = s * 0.1; p.add(upper);
+      /* 上臂吸盘 */
+      for (let su = 0; su < 3; su++) {
+        const cup = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 5, 0, Math.PI * 2, 0, Math.PI * 0.5), suctionMat);
+        cup.position.set(s * 0.045, -0.06 - su * 0.07, 0.035); cup.rotation.x = -Math.PI / 2;
+        p.add(cup);
+      }
+      const elbow = new THREE.Group(); elbow.position.y = -0.24; p.add(elbow);
+      /* 前臂 — 触手更细长 */
+      const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.022, 0.28, 8), dark);
+      lower.position.y = -0.14; lower.rotation.z = s * 0.15; elbow.add(lower);
+      /* 前臂吸盘 */
+      for (let su = 0; su < 4; su++) {
+        const cup = new THREE.Mesh(new THREE.SphereGeometry(0.015, 5, 4, 0, Math.PI * 2, 0, Math.PI * 0.5), suctionMat);
+        cup.position.set(s * 0.035, -0.04 - su * 0.06, 0.028); cup.rotation.x = -Math.PI / 2;
+        elbow.add(cup);
+      }
+      /* 触手末端 — 尖细卷曲 */
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.015, 0.08, 5), dark);
+      tip.position.set(s * 0.02, -0.30, 0); tip.rotation.z = s * 0.4;
+      elbow.add(tip);
+      g.add(p); arms.push(p);
+    });
+
+    /* 诡异笑脸面具 — 不对称的眼睛，过宽的笑容 */
     const smileCanvas = document.createElement('canvas');
     smileCanvas.width = 128; smileCanvas.height = 128;
     const sg = smileCanvas.getContext('2d');
     sg.clearRect(0, 0, 128, 128);
     const grd = sg.createRadialGradient(64, 64, 20, 64, 64, 56);
-    grd.addColorStop(0, '#ffe860'); grd.addColorStop(1, '#cc9800');
+    grd.addColorStop(0, '#fff070'); grd.addColorStop(1, '#cc9800');
     sg.fillStyle = grd; sg.beginPath(); sg.arc(64, 64, 56, 0, Math.PI * 2); sg.fill();
+    /* 不对称的眼睛 — 左眼大右眼小，位置偏移 */
     sg.fillStyle = '#1a0a00';
-    sg.beginPath(); sg.ellipse(44, 48, 10, 12, 0, 0, Math.PI * 2); sg.fill();
-    sg.beginPath(); sg.ellipse(84, 48, 10, 12, 0, 0, Math.PI * 2); sg.fill();
-    sg.fillStyle = '#fff'; sg.beginPath(); sg.arc(47, 44, 3, 0, Math.PI * 2); sg.fill();
-    sg.beginPath(); sg.arc(87, 44, 3, 0, Math.PI * 2); sg.fill();
-    sg.lineWidth = 6; sg.strokeStyle = '#1a0a00';
-    sg.beginPath(); sg.arc(64, 60, 28, 0.15 * Math.PI, 0.85 * Math.PI); sg.stroke();
+    sg.beginPath(); sg.ellipse(40, 46, 13, 15, 0.2, 0, Math.PI * 2); sg.fill(); /* 左眼更大 */
+    sg.beginPath(); sg.ellipse(88, 50, 8, 10, -0.1, 0, Math.PI * 2); sg.fill(); /* 右眼更小 */
+    /* 瞳孔 — 不对称 */
+    sg.fillStyle = '#ff0000';
+    sg.beginPath(); sg.arc(42, 44, 4, 0, Math.PI * 2); sg.fill();
+    sg.fillStyle = '#fff';
+    sg.beginPath(); sg.arc(90, 48, 2.5, 0, Math.PI * 2); sg.fill();
+    /* 过宽的笑容 — 从边缘到边缘 */
+    sg.lineWidth = 7; sg.strokeStyle = '#1a0a00';
+    sg.beginPath(); sg.arc(64, 58, 34, 0.08 * Math.PI, 0.92 * Math.PI); sg.stroke();
+    /* 笑容尖牙 */
     sg.lineWidth = 2; sg.strokeStyle = '#6a3000';
-    for (let i = 0; i < 10; i++) { const a = 0.2 + i * 0.06; sg.beginPath(); sg.moveTo(64 + Math.cos(a) * 28, 60 + Math.sin(a) * 28); sg.lineTo(64 + Math.cos(a) * 36, 60 + Math.sin(a) * 36); sg.stroke(); }
+    for (let i = 0; i < 14; i++) { const a = 0.12 + i * 0.055; sg.beginPath(); sg.moveTo(64 + Math.cos(a) * 34, 58 + Math.sin(a) * 34); sg.lineTo(64 + Math.cos(a) * 42, 58 + Math.sin(a) * 42); sg.stroke(); }
     const smileTex = new THREE.CanvasTexture(smileCanvas);
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.30, 0.30),
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34),
       new THREE.MeshBasicMaterial({ map: smileTex, transparent: true }));
-    face.position.set(0, 1.20, 0.16); g.add(face);
-    /* Arms with elbows */
-    const arms = [];
-    [-1, 1].forEach(s => {
-      const p = new THREE.Group(); p.position.set(0.22 * s, 1.0, 0);
-      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.22, 6), skin);
-      upper.position.y = -0.11; p.add(upper);
-      const elbow = new THREE.Group(); elbow.position.y = -0.22; p.add(elbow);
-      const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.03, 0.20, 6), dark);
-      lower.position.y = -0.10; elbow.add(lower);
-      g.add(p); arms.push(p);
-    });
+    face.position.set(0.02, 1.20, 0.17); g.add(face);
+
+    /* 红色气球 — 飘在头顶 */
+    const balloonMesh = new THREE.Group();
+    const balloon = new THREE.Mesh(new THREE.SphereGeometry(0.10, 10, 8),
+      new THREE.MeshPhongMaterial({ color: 0xff2020, emissive: 0x400808, emissiveIntensity: 0.3, shininess: 40, specular: 0xff6060 }));
+    balloon.position.y = 1.75; balloon.scale.set(1, 1.15, 1);
+    balloonMesh.add(balloon);
+    /* 气球底部小尖 */
+    const balloonTip = new THREE.Mesh(new THREE.ConeGeometry(0.015, 0.03, 5),
+      new THREE.MeshPhongMaterial({ color: 0xcc1818 }));
+    balloonTip.position.y = 1.63; balloonMesh.add(balloonTip);
+    /* 气球线 — 细圆柱 */
+    const balloonString = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.20, 4),
+      new THREE.MeshBasicMaterial({ color: 0x666666 }));
+    balloonString.position.y = 1.50; balloonMesh.add(balloonString);
+    /* 气球线绑在手上 */
+    balloonMesh.position.x = 0.18;
+    g.add(balloonMesh);
+
     /* Legs */
     const legs = [];
     [-1, 1].forEach(s => {
@@ -14339,63 +14774,118 @@ class ThreeJSRendererBridge {
       const l = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.52, 6), dark);
       l.position.y = -0.26; p.add(l); g.add(p); legs.push(p);
     });
-    g.userData = { legs, arms, face, type: 'partygoer', glow: 0xffcc00, glowPos: [0, 1.2, 0.16] };
+    g.userData = { legs, arms, face, type: 'partygoer', glow: 0xffcc00, glowPos: [0, 1.2, 0.17], balloon: balloonMesh };
     return g;
   }
 
   _makeWatcher() {
     const THREE = window.THREE;
     const g = new THREE.Group();
-    const mat = new THREE.MeshPhongMaterial({ color: 0x1a1a2a, shininess: 80, specular: 0x5a5a7a, emissive: 0x080814, emissiveIntensity: 0.2 });
-    const matDark = new THREE.MeshPhongMaterial({ color: 0x0e0e1a, shininess: 40 });
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 12), mat);
-    body.position.y = 0.85; body.scale.set(1, 0.85, 1); g.add(body);
-    /* Vein patterns on body */
-    for (let i = 0; i < 6; i++) {
-      const v = new THREE.Mesh(new THREE.TorusGeometry(0.10 + i * 0.04, 0.005, 4, 10, Math.PI * 1.2), matDark);
-      v.position.y = 0.85; v.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-      g.add(v);
+    /* 迭代13: 更大更恐怖的球体身体 */
+    const mat = new THREE.MeshPhongMaterial({ color: 0x1a1a2e, shininess: 80, specular: 0x5a5a8a, emissive: 0x080814, emissiveIntensity: 0.2 });
+    const matDark = new THREE.MeshPhongMaterial({ color: 0x0e0e1a, shininess: 40, emissive: 0x040408, emissiveIntensity: 0.1 });
+    const veinMat = new THREE.MeshBasicMaterial({ color: 0x6a3a8a, transparent: true, opacity: 0.4 });
+
+    /* 更大的球体身体 */
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 14), mat);
+    body.position.y = 0.90; body.scale.set(1, 0.88, 1); g.add(body);
+
+    /* 血管跳动效果 — 更多更粗的血管纹路 */
+    const veins = [];
+    for (let i = 0; i < 10; i++) {
+      const v = new THREE.Mesh(new THREE.TorusGeometry(0.12 + i * 0.035, 0.007, 4, 12, Math.PI * 1.3), veinMat);
+      v.position.y = 0.90; v.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+      g.add(v); veins.push(v);
     }
-    /* Large central eye */
-    const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10),
-      new THREE.MeshPhongMaterial({ color: 0xe8e8f0, shininess: 60 }));
-    eyeWhite.position.set(0, 0.88, 0.26); eyeWhite.scale.set(1, 0.75, 0.5); g.add(eyeWhite);
-    const iris = new THREE.Mesh(new THREE.CircleGeometry(0.10, 16),
+    /* 大血管 — 从中央眼球辐射 */
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2;
+      const v = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.22, 4), veinMat);
+      v.position.set(Math.cos(ang) * 0.18, 0.90, Math.sin(ang) * 0.18 + 0.15);
+      v.rotation.set(Math.PI / 2, 0, ang);
+      g.add(v); veins.push(v);
+    }
+
+    /* 更大的中央眼球 — 占身体1/3 */
+    const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 12),
+      new THREE.MeshPhongMaterial({ color: 0xe8e8f0, shininess: 60, specular: 0x9090a0 }));
+    eyeWhite.position.set(0, 0.92, 0.30); eyeWhite.scale.set(1, 0.78, 0.5); g.add(eyeWhite);
+    /* 眼白血丝 */
+    for (let i = 0; i < 4; i++) {
+      const ang = (i / 4) * Math.PI * 2;
+      const vessel = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.006, 0.15, 3),
+        new THREE.MeshBasicMaterial({ color: 0xaa2020, transparent: true, opacity: 0.5 }));
+      vessel.position.set(Math.cos(ang) * 0.12, 0.92, 0.35 + Math.sin(ang) * 0.05);
+      vessel.rotation.set(Math.PI / 2 - 0.3, 0, ang);
+      g.add(vessel);
+    }
+    const iris = new THREE.Mesh(new THREE.CircleGeometry(0.13, 18),
       new THREE.MeshBasicMaterial({ color: 0x4a9eff }));
-    iris.position.set(0, 0.88, 0.42); g.add(iris);
-    const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.05, 12),
+    iris.position.set(0, 0.92, 0.50); g.add(iris);
+    const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.065, 14),
       new THREE.MeshBasicMaterial({ color: 0x0a0a14 }));
-    pupil.position.set(0, 0.88, 0.43); g.add(pupil);
+    pupil.position.set(0, 0.92, 0.51); g.add(pupil);
     /* Eye highlight */
-    const highlight = new THREE.Mesh(new THREE.CircleGeometry(0.015, 6),
+    const highlight = new THREE.Mesh(new THREE.CircleGeometry(0.020, 6),
       new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    highlight.position.set(-0.02, 0.91, 0.44); g.add(highlight);
-    /* Tentacle legs — segmented */
+    highlight.position.set(-0.03, 0.95, 0.52); g.add(highlight);
+
+    /* 6个周围小眼球 — 复眼效果 */
+    const smallEyes = [];
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2 + Math.PI / 6;
+      const elev = Math.sin(i * 1.7) * 0.15;
+      const sw = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6),
+        new THREE.MeshPhongMaterial({ color: 0xd0d0e0, shininess: 40 }));
+      const r = 0.34;
+      sw.position.set(Math.cos(ang) * r, 0.92 + elev, Math.sin(ang) * r * 0.7 + 0.18);
+      sw.scale.set(1, 0.8, 0.5); g.add(sw); smallEyes.push(sw);
+      /* 小眼瞳孔 */
+      const sp = new THREE.Mesh(new THREE.CircleGeometry(0.022, 8),
+        new THREE.MeshBasicMaterial({ color: 0x4a9eff }));
+      sp.position.copy(sw.position);
+      sp.position.x = Math.cos(ang) * (r + 0.05);
+      sp.position.z = Math.sin(ang) * (r * 0.7 + 0.05) + 0.18;
+      sp.lookAt(0, sw.position.y, 0);
+      g.add(sp); smallEyes.push(sp);
+    }
+
+    /* 更有肌肉感的触手腿 */
     const legs = [];
-    for (let i = 0; i < 5; i++) {
-      const ang = (i / 5) * Math.PI * 2 + Math.PI / 5;
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2 + Math.PI / 6;
       const p = new THREE.Group();
-      p.position.set(Math.cos(ang) * 0.24, 0.68, Math.sin(ang) * 0.24);
+      p.position.set(Math.cos(ang) * 0.30, 0.72, Math.sin(ang) * 0.30);
       let parent = p;
-      for (let s = 0; s < 3; s++) {
+      for (let s = 0; s < 4; s++) {
         const seg = new THREE.Group();
-        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05 - s * 0.01, 0.035 - s * 0.008, 0.22, 5), mat);
-        m.position.y = -0.11; m.rotation.z = -Math.cos(ang) * 0.15; seg.add(m);
+        const segR = 0.06 - s * 0.012;
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(segR, segR * 0.75, 0.20, 6), s === 0 ? mat : matDark);
+        m.position.y = -0.10; m.rotation.z = -Math.cos(ang) * 0.15; seg.add(m);
+        /* 触手吸盘 */
+        if (s < 2) {
+          const cup = new THREE.Mesh(new THREE.SphereGeometry(0.015, 5, 4, 0, Math.PI * 2, 0, Math.PI * 0.5), matDark);
+          cup.position.set(Math.cos(ang) * segR, -0.05, Math.sin(ang) * segR);
+          cup.rotation.x = -Math.PI / 2;
+          seg.add(cup);
+        }
         parent.add(seg); parent = seg;
       }
       g.add(p); legs.push(p);
     }
-    const ringGeo = new THREE.RingGeometry(0.20, 0.28, 20);
+
+    const ringGeo = new THREE.RingGeometry(0.24, 0.34, 20);
     const ring = new THREE.Mesh(ringGeo,
       new THREE.MeshBasicMaterial({ color: 0x4a9eff, transparent: true, opacity: 0, side: THREE.DoubleSide }));
-    ring.position.set(0, 0.88, 0.45); g.add(ring);
-    g.userData = { legs, iris, pupil, ring, body, type: 'watcher', glow: 0x4a9eff, glowPos: [0, 0.88, 0.42] };
+    ring.position.set(0, 0.92, 0.53); g.add(ring);
+    g.userData = { legs, iris, pupil, ring, body, type: 'watcher', glow: 0x4a9eff, glowPos: [0, 0.92, 0.50] };
     return g;
   }
 
   _makeDreamChaser() {
     const THREE = window.THREE;
     const g = new THREE.Group();
+    /* 迭代14: 更高更恐怖 — 更长更多的角，黑色雾气层 */
     const mat = new THREE.MeshPhongMaterial({
       color: 0x0a0612, transparent: true, opacity: 0.88, emissive: 0x300010, emissiveIntensity: 0.7,
       shininess: 15, specular: 0x501030
@@ -14403,68 +14893,97 @@ class ThreeJSRendererBridge {
     const matDark = new THREE.MeshPhongMaterial({
       color: 0x050308, transparent: true, opacity: 0.90, emissive: 0x200008, emissiveIntensity: 0.5
     });
-    /* Gaunt torso — tapered */
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.26, 1.35, 8), mat);
-    torso.position.y = 1.5; g.add(torso);
-    /* Rib hints */
-    for (let i = 0; i < 3; i++) {
-      const y = 1.7 - i * 0.3;
+    /* 黑色雾气效果层 — 包裹身体 */
+    const fogMat = new THREE.MeshBasicMaterial({ color: 0x100418, transparent: true, opacity: 0.2, depthWrite: false });
+    const fogLayer = new THREE.Mesh(new THREE.SphereGeometry(0.45, 10, 8), fogMat);
+    fogLayer.position.y = 1.5; fogLayer.scale.set(0.8, 1.8, 0.8);
+    g.add(fogLayer);
+    /* 雾气粒子 */
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2;
+      const p = new THREE.Mesh(new THREE.SphereGeometry(0.08 + Math.random() * 0.04, 6, 5), fogMat);
+      p.position.set(Math.cos(ang) * 0.25, 0.8 + Math.random() * 1.5, Math.sin(ang) * 0.25);
+      g.add(p);
+    }
+
+    /* Gaunt torso — 更高 */
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.26, 1.50, 8), mat);
+    torso.position.y = 1.60; g.add(torso);
+    /* Rib hints — 更多 */
+    for (let i = 0; i < 5; i++) {
+      const y = 1.90 - i * 0.28;
       [-1, 1].forEach(s => {
         const rib = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.008, 3, 6, Math.PI * 0.5), matDark);
         rib.position.set(0.14 * s, y, 0); rib.rotation.set(0, 0, s * 0.4); g.add(rib);
       });
     }
-    /* Elongated head */
-    const head = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.35, 8), mat);
-    head.position.y = 2.35; head.rotation.x = 0.1; g.add(head);
-    /* Horn-like protrusions */
+    /* Elongated head — 更高 */
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.38, 8), mat);
+    head.position.y = 2.55; head.rotation.x = 0.1; g.add(head);
+
+    /* 更多更长的角状突起 — 6根 */
+    /* 主角 — 更长 */
     [-1, 1].forEach(s => {
-      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.12, 5), matDark);
-      horn.position.set(0.08 * s, 2.48, -0.02); horn.rotation.z = s * 0.4; g.add(horn);
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.20, 5), matDark);
+      horn.position.set(0.09 * s, 2.72, -0.02); horn.rotation.z = s * 0.5; g.add(horn);
     });
-    /* Blood-red eyes */
+    /* 侧角 — 从头部两侧向后 */
     [-1, 1].forEach(s => {
-      const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6),
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.14, 4), matDark);
+      horn.position.set(0.14 * s, 2.55, -0.06); horn.rotation.set(0.3, 0, s * 0.8); g.add(horn);
+    });
+    /* 额角 — 从前额向前 */
+    const forehead = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.10, 4), matDark);
+    forehead.position.set(0, 2.68, 0.08); forehead.rotation.x = -0.5; g.add(forehead);
+    /* 颈部棘突 */
+    for (let i = 0; i < 3; i++) {
+      const spine = new THREE.Mesh(new THREE.ConeGeometry(0.020, 0.08, 4), matDark);
+      spine.position.set(0, 2.30 - i * 0.12, -0.08); spine.rotation.x = -0.3; g.add(spine);
+    }
+
+    /* Blood-red eyes — 更大 */
+    [-1, 1].forEach(s => {
+      const e = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6),
         new THREE.MeshBasicMaterial({ color: 0xff0033 }));
-      e.position.set(0.08 * s, 2.38, 0.13); g.add(e);
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5),
-        new THREE.MeshBasicMaterial({ color: 0xff0033, transparent: true, opacity: 0.2 }));
-      glow.position.set(0.08 * s, 2.38, 0.13); g.add(glow);
+      e.position.set(0.08 * s, 2.58, 0.13); g.add(e);
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.10, 6, 5),
+        new THREE.MeshBasicMaterial({ color: 0xff0033, transparent: true, opacity: 0.25 }));
+      glow.position.set(0.08 * s, 2.58, 0.13); g.add(glow);
     });
-    /* Mouth — jagged */
-    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.02),
+    /* Mouth — jagged, 更大 */
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.02),
       new THREE.MeshBasicMaterial({ color: 0xff0033 }));
-    mouth.position.set(0, 2.22, 0.14); g.add(mouth);
-    for (let i = 0; i < 5; i++) {
-      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.03, 4),
+    mouth.position.set(0, 2.42, 0.14); g.add(mouth);
+    for (let i = 0; i < 7; i++) {
+      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.04, 4),
         new THREE.MeshBasicMaterial({ color: 0xff6080 }));
-      tooth.position.set(-0.05 + i * 0.025, 2.20, 0.15); tooth.rotation.x = Math.PI;
+      tooth.position.set(-0.06 + i * 0.020, 2.39, 0.15); tooth.rotation.x = Math.PI;
       g.add(tooth);
     }
-    /* Long arms with joints */
+    /* Long arms with joints — 更长 */
     const arms = [];
     [-1, 1].forEach(s => {
-      const p = new THREE.Group(); p.position.set(0.26 * s, 2.05, 0);
-      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.65, 5), mat);
-      upper.position.y = -0.32; p.add(upper);
-      const elbow = new THREE.Group(); elbow.position.y = -0.65; p.add(elbow);
-      const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.025, 0.65, 5), mat);
-      lower.position.y = -0.32; elbow.add(lower);
-      /* Clawed hands */
-      for (let c = 0; c < 3; c++) {
-        const claw = new THREE.Mesh(new THREE.ConeGeometry(0.01, 0.06, 4),
+      const p = new THREE.Group(); p.position.set(0.28 * s, 2.20, 0);
+      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.70, 5), mat);
+      upper.position.y = -0.35; p.add(upper);
+      const elbow = new THREE.Group(); elbow.position.y = -0.70; p.add(elbow);
+      const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.025, 0.70, 5), mat);
+      lower.position.y = -0.35; elbow.add(lower);
+      /* Clawed hands — 更多爪 */
+      for (let c = 0; c < 4; c++) {
+        const claw = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.08, 4),
           new THREE.MeshBasicMaterial({ color: 0x801020 }));
-        claw.position.set(-0.02 + c * 0.02, -0.68, 0); claw.rotation.x = 0.3; elbow.add(claw);
+        claw.position.set(-0.025 + c * 0.018, -0.72, 0); claw.rotation.x = 0.3; elbow.add(claw);
       }
       g.add(p); arms.push(p);
     });
     const legs = [];
     [-1, 1].forEach(s => {
-      const p = new THREE.Group(); p.position.set(0.12 * s, 0.85, 0);
-      const l = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.045, 0.88, 5), mat);
-      l.position.y = -0.44; p.add(l); g.add(p); legs.push(p);
+      const p = new THREE.Group(); p.position.set(0.12 * s, 0.90, 0);
+      const l = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.045, 0.95, 5), mat);
+      l.position.y = -0.48; p.add(l); g.add(p); legs.push(p);
     });
-    g.userData = { legs, arms, type: 'dream_chaser', glow: 0xff0033, glowPos: [0, 2.38, 0.13] };
+    g.userData = { legs, arms, type: 'dream_chaser', glow: 0xff0033, glowPos: [0, 2.58, 0.13] };
     return g;
   }
 
@@ -14519,6 +15038,406 @@ class ThreeJSRendererBridge {
       g.add(p); legs.push(p);
     });
     g.userData = { legs, body, type: 'smile_demon', glow: 0xff69b4, glowPos: [0, 1.15, 0.55] };
+    return g;
+  }
+
+  /* ====== Howler / Bacteria (Entity 72) — 迭代1-3 ======
+     扭曲人形，由黑色铁丝/触手缠绕组成。内部暗红发光核心。
+     长臂拖地，末端尖锐金属丝。2腿扭曲行走。身高~1.2格。 */
+  _makeHowler() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    /* 铁丝材质 — 黑色金属，微反光 */
+    /* 迭代41: 使用材质缓存 */
+    const wireMat = this._cachedMat('howler', 'wireMat', () => new THREE.MeshPhongMaterial({ color: 0x0a0a0c, shininess: 90, specular: 0x2a2a30, emissive: 0x080404, emissiveIntensity: 0.2 }));
+    const wireDark = this._cachedMat('howler', 'wireDark', () => new THREE.MeshPhongMaterial({ color: 0x050506, shininess: 60, specular: 0x181820, emissive: 0x050202, emissiveIntensity: 0.15 }));
+    /* 内部发光核心 — 暗红色，透过铁丝缝隙可见 */
+    const coreMat = this._cachedMat('howler', 'coreMat', () => new THREE.MeshBasicMaterial({ color: 0xcc1100, transparent: true, opacity: 0.75 }));
+    const coreGlowMat = this._cachedMat('howler', 'coreGlowMat', () => new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.3 }));
+
+    /* --- 内部发光核心 --- */
+    const wireCore = new THREE.Group();
+    const coreInner = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 1), coreMat);
+    wireCore.add(coreInner);
+    const coreOuter = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8), coreGlowMat);
+    wireCore.add(coreOuter);
+    wireCore.position.set(0, 0.72, 0);
+    g.add(wireCore);
+
+    /* --- 躯干铁丝笼 --- 多根弯曲铁丝围绕核心形成扭曲人形轮廓 */
+    const torsoWires = [];
+    for (let i = 0; i < 14; i++) {
+      const ang = (i / 14) * Math.PI * 2;
+      const twist = Math.sin(i * 2.3) * 0.4;
+      const seg = new THREE.Group();
+      /* 弯曲的铁丝 — 用多段圆柱拼接 */
+      let parent = seg;
+      const segCount = 4;
+      for (let s = 0; s < segCount; s++) {
+        const sub = new THREE.Group();
+        const r = 0.018;
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.9, 0.22, 5), i % 2 ? wireMat : wireDark);
+        m.position.y = 0.11;
+        sub.add(m);
+        /* 螺旋扭曲 */
+        sub.position.y = s === 0 ? 0 : 0.22;
+        sub.rotation.z = twist + s * 0.5;
+        sub.rotation.x = Math.sin(s * 1.7 + i) * 0.3;
+        parent.add(sub);
+        parent = sub;
+      }
+      /* 根部位置 — 围绕躯干分布 */
+      const baseY = 0.35 + (i % 3) * 0.22;
+      const radius = 0.22 + Math.sin(i * 1.3) * 0.06;
+      seg.position.set(Math.cos(ang) * radius, baseY, Math.sin(ang) * radius);
+      seg.rotation.z = Math.cos(ang) * 0.5;
+      g.add(seg);
+      torsoWires.push(seg);
+    }
+
+    /* --- 肩部连接铁丝 --- */
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2;
+      const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.010, 0.30, 4), wireDark);
+      wire.position.set(Math.cos(ang) * 0.15, 0.95, Math.sin(ang) * 0.15);
+      wire.rotation.z = Math.cos(ang) * 1.2;
+      wire.rotation.x = -Math.sin(ang) * 1.2;
+      g.add(wire);
+    }
+
+    /* --- 头部铁丝团 --- 没有面部，只是扭曲的铁丝团 */
+    const headWire = new THREE.Group();
+    headWire.position.set(0, 1.08, 0);
+    for (let i = 0; i < 16; i++) {
+      const ang1 = (i / 16) * Math.PI * 2;
+      const ang2 = (i * 0.7) % (Math.PI * 2);
+      const len = 0.10 + (i % 3) * 0.04;
+      const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.010, 0.006, len, 4), i % 2 ? wireMat : wireDark);
+      wire.position.set(
+        Math.cos(ang1) * 0.06 * Math.sin(ang2),
+        0.02 + Math.cos(ang2) * 0.05,
+        Math.sin(ang1) * 0.06 * Math.cos(ang2)
+      );
+      wire.rotation.set(Math.sin(ang1) * 1.5, ang1, Math.cos(ang2) * 1.5);
+      headWire.add(wire);
+    }
+    /* 头部内部微弱红光 — 透过铁丝缝隙可见 */
+    const headCore = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5),
+      new THREE.MeshBasicMaterial({ color: 0xcc1100, transparent: true, opacity: 0.4 }));
+    headCore.position.y = 0.02;
+    headWire.add(headCore);
+    g.add(headWire);
+
+    /* --- 长臂 --- 拖地，末端尖锐金属丝 */
+    const arms = [];
+    [-1, 1].forEach(s => {
+      const pivot = new THREE.Group();
+      pivot.position.set(0.22 * s, 0.95, 0);
+      /* 上臂 — 铁丝缠绕 */
+      const upper = new THREE.Group();
+      const upperMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.035, 0.35, 6), wireMat);
+      upperMesh.position.y = -0.17; upper.add(upperMesh);
+      /* 上臂缠绕铁丝 */
+      for (let w = 0; w < 3; w++) {
+        const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.006, 4, 8), wireDark);
+        wrap.position.y = -0.05 - w * 0.10;
+        wrap.rotation.x = Math.PI / 2;
+        upper.add(wrap);
+      }
+      pivot.add(upper);
+      /* 肘关节 */
+      const elbow = new THREE.Group(); elbow.position.y = -0.35; pivot.add(elbow);
+      /* 前臂 — 更细更长 */
+      const lower = new THREE.Group();
+      const lowerMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.018, 0.50, 5), wireMat);
+      lowerMesh.position.y = -0.25; lower.add(lowerMesh);
+      /* 前臂缠绕铁丝 */
+      for (let w = 0; w < 4; w++) {
+        const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.005, 3, 6), wireDark);
+        wrap.position.y = -0.05 - w * 0.10;
+        wrap.rotation.x = Math.PI / 2;
+        lower.add(wrap);
+      }
+      elbow.add(lower);
+      /* 手部 — 尖锐金属丝束，拖地 */
+      const wrist = new THREE.Group(); wrist.position.y = -0.50; elbow.add(wrist);
+      for (let c = 0; c < 5; c++) {
+        const claw = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.14, 4), wireDark);
+        const ca = (c / 5) * Math.PI * 0.6 - Math.PI * 0.3;
+        claw.position.set(Math.cos(ca) * 0.02, -0.07, Math.sin(ca) * 0.02);
+        claw.rotation.x = Math.PI + ca * 0.3;
+        claw.rotation.z = ca * 0.5;
+        wrist.add(claw);
+      }
+      g.add(pivot); arms.push({ pivot, elbow });
+    });
+
+    /* --- 2条腿 --- 扭曲变形的铁丝腿 */
+    const legs = [];
+    [-1, 1].forEach(s => {
+      const pivot = new THREE.Group();
+      pivot.position.set(0.12 * s, 0.38, 0);
+      /* 大腿 — 铁丝缠绕 */
+      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.038, 0.30, 6), wireMat);
+      thigh.position.y = -0.15; pivot.add(thigh);
+      /* 大腿缠绕铁丝 */
+      for (let w = 0; w < 2; w++) {
+        const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.006, 3, 6), wireDark);
+        wrap.position.y = -0.05 - w * 0.10;
+        wrap.rotation.x = Math.PI / 2;
+        pivot.add(wrap);
+      }
+      /* 膝关节 — 扭曲角度 */
+      const knee = new THREE.Group(); knee.position.y = -0.30; knee.rotation.z = s * 0.25; pivot.add(knee);
+      const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.022, 0.30, 5), wireDark);
+      shin.position.y = -0.15; knee.add(shin);
+      /* 脚 — 铁丝束 */
+      for (let c = 0; c < 3; c++) {
+        const toe = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.08, 4), wireMat);
+        toe.position.set(-0.02 + c * 0.02, -0.32, 0.03);
+        toe.rotation.x = -0.4;
+        knee.add(toe);
+      }
+      g.add(pivot); legs.push(pivot);
+    });
+
+    /* --- 躯干到腿的连接铁丝 --- */
+    for (let i = 0; i < 4; i++) {
+      const s = i < 2 ? -1 : 1;
+      const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.010, 0.008, 0.22, 4), wireDark);
+      wire.position.set(0.12 * s, 0.28, (i % 2) * 0.06 - 0.03);
+      g.add(wire);
+    }
+
+    g.userData = { legs, arms, wireCore, torsoWires, headWire, type: 'howler', glow: 0xcc1100, glowPos: [0, 0.8, 0] };
+    return g;
+  }
+
+  /* ====== Skin-Stealer (Entity 10) — 迭代10 ======
+     人形但皮肤像被剥开，红色肌肉外露，穿着偷来的"皮肤"像披风。 */
+  _makeSkinStealer() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    /* 红色肌肉组织 — 外露 */
+    /* 迭代41: 使用材质缓存 */
+    const muscle = this._cachedMat('skin_stealer', 'muscle', () => new THREE.MeshPhongMaterial({ color: 0x8a2020, shininess: 18, specular: 0xa03020, emissive: 0x200404, emissiveIntensity: 0.25 }));
+    const muscleDark = this._cachedMat('skin_stealer', 'muscleDark', () => new THREE.MeshPhongMaterial({ color: 0x5a1010, shininess: 12, specular: 0x701810, emissive: 0x180302, emissiveIntensity: 0.2 }));
+    /* 偷来的"皮肤" — 半透明，像披风 */
+    const skinCloakMat = this._cachedMat('skin_stealer', 'skinCloak', () => {
+      const m = new THREE.MeshPhongMaterial({ color: 0xc8a890, transparent: true, opacity: 0.55, shininess: 5, side: THREE.DoubleSide, emissive: 0x201810, emissiveIntensity: 0.1 });
+      m.userData_baseOp = 0.55;
+      return m;
+    });
+    skinCloakMat.userData_baseOp = 0.55;
+    const bone = this._cachedMat('skin_stealer', 'bone', () => new THREE.MeshPhongMaterial({ color: 0xd0c8b0, shininess: 20, emissive: 0x100804, emissiveIntensity: 0.15 }));
+
+    /* 躯干 — 暴露的肌肉 */
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.60, 8), muscle);
+    torso.position.y = 0.70; g.add(torso);
+    /* 肌肉纹理 — 条纹 */
+    for (let i = 0; i < 6; i++) {
+      const y = 0.50 + i * 0.08;
+      [-1, 1].forEach(s => {
+        const fiber = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.010, 0.10, 4), muscleDark);
+        fiber.position.set(0.14 * s, y, 0.05); fiber.rotation.z = s * 0.3;
+        g.add(fiber);
+      });
+    }
+    /* 肋骨痕迹 */
+    for (let i = 0; i < 3; i++) {
+      const y = 0.58 + i * 0.12;
+      [-1, 1].forEach(s => {
+        const rib = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.008, 3, 6, Math.PI * 0.5), bone);
+        rib.position.set(0.12 * s, y, 0); rib.rotation.set(0, 0, s * 0.5);
+        g.add(rib);
+      });
+    }
+
+    /* "皮肤"披风 — 不合身地披在身上 */
+    const skinCloak = new THREE.Group();
+    /* 披风主体 — 从肩膀垂下 */
+    const cloakBack = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.28, 0.55, 8, 1, true, Math.PI * 0.3, Math.PI * 1.4), skinCloakMat);
+    cloakBack.position.y = 0.68; cloakBack.position.z = -0.02;
+    skinCloak.add(cloakBack);
+    /* 披风边缘 — 不规则下垂 */
+    for (let i = 0; i < 5; i++) {
+      const ang = Math.PI * 0.4 + (i / 5) * Math.PI * 1.2;
+      const flap = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12 + Math.random() * 0.06, 4), skinCloakMat);
+      flap.position.set(Math.cos(ang) * 0.22, 0.42, Math.sin(ang) * 0.22 - 0.02);
+      flap.rotation.z = Math.cos(ang) * 0.3;
+      skinCloak.add(flap);
+    }
+    /* 披风领口 — 围绕脖子 */
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.02, 5, 10), skinCloakMat);
+    collar.position.y = 0.95; collar.rotation.x = Math.PI / 2;
+    skinCloak.add(collar);
+    g.add(skinCloak);
+
+    /* 头 — 光滑的肉色球体，没有面部特征 */
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), muscle);
+    head.position.y = 0.98; head.scale.set(0.9, 1.05, 0.95); g.add(head);
+    /* 头部也有部分"皮肤"覆盖 — 不完整 */
+    const headSkin = new THREE.Mesh(new THREE.SphereGeometry(0.145, 8, 6, 0, Math.PI * 1.2, 0, Math.PI * 0.7), skinCloakMat);
+    headSkin.position.y = 0.98; headSkin.scale.set(0.9, 1.05, 0.95);
+    g.add(headSkin);
+
+    /* 长臂 — 末端是锐利的骨刺 */
+    const arms = [];
+    [-1, 1].forEach(s => {
+      const p = new THREE.Group(); p.position.set(0.20 * s, 0.92, 0);
+      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.032, 0.40, 6), muscle);
+      upper.position.y = -0.20; p.add(upper);
+      /* 上臂肌肉纹理 */
+      const fiber = new THREE.Mesh(new THREE.CylinderGeometry(0.010, 0.008, 0.30, 4), muscleDark);
+      fiber.position.set(0.02 * s, -0.20, 0); fiber.rotation.z = s * 0.2; p.add(fiber);
+      const elbow = new THREE.Group(); elbow.position.y = -0.40; p.add(elbow);
+      const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.020, 0.42, 6), muscle);
+      lower.position.y = -0.21; elbow.add(lower);
+      /* 骨刺手 — 末端锐利 */
+      for (let c = 0; c < 3; c++) {
+        const spur = new THREE.Mesh(new THREE.ConeGeometry(0.010, 0.10, 4), bone);
+        const ang = -0.15 + c * 0.15;
+        spur.position.set(Math.sin(ang) * 0.02, -0.45, 0); spur.rotation.x = 0.1;
+        spur.userData.isSpike = true;
+        elbow.add(spur);
+      }
+      /* 主骨刺 — 更长 */
+      const mainSpur = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.14, 4), bone);
+      mainSpur.position.set(0, -0.48, 0); mainSpur.rotation.x = 0.05;
+      mainSpur.userData.isSpike = true;
+      elbow.add(mainSpur);
+      g.add(p); arms.push(p);
+    });
+
+    /* 腿 */
+    const legs = [];
+    [-1, 1].forEach(s => {
+      const p = new THREE.Group(); p.position.set(0.10 * s, 0.42, 0);
+      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.038, 0.40, 6), muscle);
+      thigh.position.y = -0.20; p.add(thigh);
+      const knee = new THREE.Group(); knee.position.y = -0.40; p.add(knee);
+      const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.025, 0.38, 6), muscleDark);
+      shin.position.y = -0.19; knee.add(shin);
+      /* 脚 — 骨质 */
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.10), bone);
+      foot.position.set(0, -0.38, 0.03); knee.add(foot);
+      g.add(p); legs.push(p);
+    });
+
+    g.userData = { legs, arms, skinCloak, skinCloakMat, type: 'skin_stealer', glow: 0x8a2020, glowPos: [0, 1.0, 0] };
+    return g;
+  }
+
+  /* ====== Duller — 迭代11 ======
+     巨大笨重人形，灰蓝色皮肤，无面部球体头部，行动迟缓。 */
+  _makeDuller() {
+    const THREE = window.THREE;
+    const g = new THREE.Group();
+    /* 灰蓝色皮肤 */
+    /* 迭代41: 使用材质缓存 */
+    const skin = this._cachedMat('duller', 'skin', () => new THREE.MeshPhongMaterial({ color: 0x4a5868, shininess: 6, specular: 0x607080, emissive: 0x080a10, emissiveIntensity: 0.15 }));
+    const skinDark = this._cachedMat('duller', 'skinDark', () => new THREE.MeshPhongMaterial({ color: 0x384858, shininess: 4, specular: 0x485868, emissive: 0x06080c, emissiveIntensity: 0.1 }));
+    const coreMat = this._cachedMat('duller', 'coreMat', () => new THREE.MeshBasicMaterial({ color: 0x4a8aaa, transparent: true, opacity: 0.6 }));
+    const coreGlowMat = this._cachedMat('duller', 'coreGlowMat', () => new THREE.MeshBasicMaterial({ color: 0x6ab0d0, transparent: true, opacity: 0.2 }));
+
+    /* 巨大笨重的躯干 — 宽0.8 */
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.75, 8), skin);
+    torso.position.y = 0.80; g.add(torso);
+    /* 腹部 — 更宽 */
+    const belly = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), skinDark);
+    belly.position.set(0, 0.55, 0.05); belly.scale.set(1, 0.7, 0.9); g.add(belly);
+    /* 胸部 */
+    const chest = new THREE.Mesh(new THREE.SphereGeometry(0.30, 8, 6), skin);
+    chest.position.set(0, 1.05, 0); chest.scale.set(1, 0.6, 0.8); g.add(chest);
+
+    /* 身体表面不规则凹凸纹理 */
+    for (let i = 0; i < 10; i++) {
+      const a = Math.random() * Math.PI * 2, b = (Math.random() - 0.5) * Math.PI * 0.8;
+      const r = 0.36;
+      const bump = new THREE.Mesh(new THREE.SphereGeometry(0.04 + Math.random() * 0.03, 5, 4),
+        Math.random() > 0.5 ? skin : skinDark);
+      bump.position.set(Math.cos(a) * Math.cos(b) * r, 0.80 + Math.sin(b) * r * 0.8, Math.sin(a) * Math.cos(b) * r);
+      bump.scale.set(1, 0.5, 1);
+      g.add(bump);
+    }
+    /* 凹痕 — 暗色坑 */
+    for (let i = 0; i < 4; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const dent = new THREE.Mesh(new THREE.CircleGeometry(0.05, 6),
+        new THREE.MeshBasicMaterial({ color: 0x283848, side: THREE.DoubleSide }));
+      dent.position.set(Math.cos(a) * 0.34, 0.70 + Math.random() * 0.30, Math.sin(a) * 0.34);
+      dent.lookAt(0, dent.position.y, 0);
+      g.add(dent);
+    }
+
+    /* 胸部蓝色发光核心 */
+    const coreGlow = new THREE.Group();
+    const coreInner = new THREE.Mesh(new THREE.IcosahedronGeometry(0.08, 1), coreMat);
+    coreGlow.add(coreInner);
+    const coreOuter = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), coreGlowMat);
+    coreGlow.add(coreOuter);
+    coreGlow.position.set(0, 1.00, 0.22);
+    g.add(coreGlow);
+    /* 核心透过胸部的光 — 半透明胸甲 */
+    const chestGlow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 5),
+      new THREE.MeshBasicMaterial({ color: 0x4a8aaa, transparent: true, opacity: 0.15 }));
+    chestGlow.position.set(0, 1.00, 0.30);
+    g.add(chestGlow);
+
+    /* 无面部特征的球体头部 — 光滑 */
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), skin);
+    head.position.y = 1.38; g.add(head);
+    /* 头部表面也有凹凸 */
+    for (let i = 0; i < 3; i++) {
+      const a = Math.random() * Math.PI * 2, b = (Math.random() - 0.5) * Math.PI;
+      const bump = new THREE.Mesh(new THREE.SphereGeometry(0.025, 4, 3), skinDark);
+      bump.position.set(0.22 + Math.cos(a) * Math.cos(b) * 0.20, 1.38 + Math.sin(b) * 0.20, Math.sin(a) * Math.cos(b) * 0.20);
+      bump.scale.set(1, 0.4, 1);
+      g.add(bump);
+    }
+    /* 颈部 — 粗壮 */
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.15, 6), skinDark);
+    neck.position.y = 1.22; g.add(neck);
+
+    /* 粗壮的手臂 — 行动迟缓 */
+    const arms = [];
+    [-1, 1].forEach(s => {
+      const p = new THREE.Group(); p.position.set(0.34 * s, 1.10, 0);
+      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.065, 0.40, 7), skin);
+      upper.position.y = -0.20; p.add(upper);
+      /* 肩膀球 */
+      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), skinDark);
+      p.add(shoulder);
+      /* 上臂凹凸 */
+      const bump = new THREE.Mesh(new THREE.SphereGeometry(0.03, 4, 3), skinDark);
+      bump.position.set(0.03 * s, -0.15, 0.03); bump.scale.set(1, 0.5, 1); p.add(bump);
+      const elbow = new THREE.Group(); elbow.position.y = -0.40; p.add(elbow);
+      const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.050, 0.38, 7), skinDark);
+      lower.position.y = -0.19; elbow.add(lower);
+      /* 笨重的拳头 — 没有手指 */
+      const fist = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), skin);
+      fist.position.y = -0.40; elbow.add(fist);
+      g.add(p); arms.push(p);
+    });
+
+    /* 粗壮的腿 */
+    const legs = [];
+    [-1, 1].forEach(s => {
+      const p = new THREE.Group(); p.position.set(0.16 * s, 0.40, 0);
+      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.08, 0.40, 7), skin);
+      thigh.position.y = -0.20; p.add(thigh);
+      const knee = new THREE.Group(); knee.position.y = -0.40; p.add(knee);
+      const kneeBone = new THREE.Mesh(new THREE.SphereGeometry(0.06, 5, 4), skinDark);
+      knee.add(kneeBone);
+      const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.060, 0.36, 7), skinDark);
+      shin.position.y = -0.18; knee.add(shin);
+      /* 宽大的脚 */
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.18), skin);
+      foot.position.set(0, -0.38, 0.04); knee.add(foot);
+      g.add(p); legs.push(p);
+    });
+
+    g.userData = { legs, arms, coreGlow, type: 'duller', glow: 0x4a8aaa, glowPos: [0, 0.8, 0.2] };
     return g;
   }
 
@@ -14644,6 +15563,26 @@ class ThreeJSRendererBridge {
       }
       this.hemi.color.setHex(flash ? 0x440000 : 0x000044);
       this.hemi.intensity = flash ? 0.6 : 0.3;
+    }
+
+    /* v13.0 迭代35: 实体接近时灯光闪烁 — lightPool中灯光intensity随机波动±30% */
+    if (window.game && window.game.player && window.game.player.dangerNear && !window.game._silenceActive) {
+      for (let i = 0; i < this.lightPool.length; i++) {
+        const lp = this.lightPool[i];
+        if (lp && lp.intensity > 0) {
+          const flickerVal = 1 + (Math.random() - 0.5) * 0.6; /* ±30% */
+          if (!lp.userData_baseIntensity) lp.userData_baseIntensity = lp.intensity;
+          lp.intensity = lp.userData_baseIntensity * flickerVal;
+        }
+      }
+    } else {
+      /* 恢复灯光强度 */
+      for (let i = 0; i < this.lightPool.length; i++) {
+        const lp = this.lightPool[i];
+        if (lp && lp.userData_baseIntensity) {
+          lp.intensity = lp.userData_baseIntensity;
+        }
+      }
     }
 
     /* Camera from player */
@@ -14861,8 +15800,34 @@ class ThreeJSRendererBridge {
     while (this._entityMeshes.length > entSprites.length) {
       const m = this._entityMeshes.pop();
       this.scene.remove(m);
-      if (m.geometry) m.geometry.dispose();
-      if (m.material) { if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose()); else m.material.dispose(); }
+      /* 清理孤儿hurt粒子和残影trail */
+      if (m.userData) {
+        if (m.userData._hurtParticles) {
+          m.userData._hurtParticles.forEach(p => {
+            this.scene.remove(p);
+            if (p.geometry) p.geometry.dispose();
+            if (p.material) p.material.dispose();
+            this._activeParticleCount = Math.max(0, this._activeParticleCount - 1);
+          });
+          m.userData._hurtParticles = null;
+        }
+        if (m.userData._trails) {
+          m.userData._trails.forEach(t => {
+            this.scene.remove(t);
+            if (t.geometry) t.geometry.dispose();
+            if (t.material) t.material.dispose();
+          });
+          m.userData._trails = null;
+        }
+      }
+      /* fix: 清理孤儿trails和trailClones */
+      if (m.userData._trails) { for (const t of m.userData._trails) { this.scene.remove(t); if (t.geometry) t.geometry.dispose(); if (t.material) t.material.dispose(); } m.userData._trails = null; }
+      if (m.userData._trailClones) { for (const tc of m.userData._trailClones) { if (tc.parent) tc.parent.remove(tc); if (tc.geometry) tc.geometry.dispose(); if (tc.material) tc.material.dispose(); } m.userData._trailClones = null; }
+      /* 迭代41: 正确释放所有子mesh的geometry和material */
+      m.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) { if (Array.isArray(child.material)) child.material.forEach(mt => mt.dispose()); else child.material.dispose(); }
+      });
     }
     /* Swap mismatched meshes (entity at this slot changed type due to removals) */
     for (let i = 0; i < entSprites.length; i++) {
@@ -14870,8 +15835,32 @@ class ThreeJSRendererBridge {
       let e = this._entityMeshes[i];
       if (e.userData.entityType !== s.entityType) {
         this.scene.remove(e);
-        if (e.geometry) e.geometry.dispose();
-        if (e.material) { if (Array.isArray(e.material)) e.material.forEach(mt => mt.dispose()); else e.material.dispose(); }
+        /* 清理孤儿hurt粒子和残影trail */
+        if (e.userData._hurtParticles) {
+          e.userData._hurtParticles.forEach(p => {
+            this.scene.remove(p);
+            if (p.geometry) p.geometry.dispose();
+            if (p.material) p.material.dispose();
+            this._activeParticleCount = Math.max(0, this._activeParticleCount - 1);
+          });
+          e.userData._hurtParticles = null;
+        }
+        if (e.userData._trails) {
+          e.userData._trails.forEach(t => {
+            this.scene.remove(t);
+            if (t.geometry) t.geometry.dispose();
+            if (t.material) t.material.dispose();
+          });
+          e.userData._trails = null;
+        }
+        /* fix: 清理孤儿trails和trailClones */
+        if (e.userData._trails) { for (const t of e.userData._trails) { this.scene.remove(t); if (t.geometry) t.geometry.dispose(); if (t.material) t.material.dispose(); } e.userData._trails = null; }
+        if (e.userData._trailClones) { for (const tc of e.userData._trailClones) { if (tc.parent) tc.parent.remove(tc); if (tc.geometry) tc.geometry.dispose(); if (tc.material) tc.material.dispose(); } e.userData._trailClones = null; }
+        /* 迭代41: 正确释放所有子mesh的geometry和material */
+        e.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) { if (Array.isArray(child.material)) child.material.forEach(mt => mt.dispose()); else child.material.dispose(); }
+        });
         const maker = this._ENTITY_MAKERS[s.entityType] || this._ENTITY_MAKERS.hound;
         e = maker();
         e.userData.entityType = s.entityType;
@@ -14883,6 +15872,9 @@ class ThreeJSRendererBridge {
     /* Update entity meshes */
     const dt = Math.min(0.05, this._avgDt);
     let nearest = null, nd = 144 * CELL * CELL;
+    /* 迭代30: 追踪chase状态实体用于协调视觉 */
+    const _chaseList = [];
+    let _howlerHowling = false;
     for (let i = 0; i < entSprites.length; i++) {
       const s = entSprites[i];
       const e = this._entityMeshes[i];
@@ -14890,6 +15882,15 @@ class ThreeJSRendererBridge {
       const ex = s.x * CELL, ez = s.y * CELL;
       e.position.set(ex, 0, ez);
       e.visible = true;
+      
+      /* v13.0 迭代39: 实体呼吸效果 — 身体微起伏 */
+      if (!s.isDead) {
+        const walking = s.entityState === 'chase';
+        const bigEntity = s.entityType === 'duller' || s.entityType === 'rot' || s.entityType === 'smile_demon';
+        const breatheAmp = (walking ? 0.02 : 0.01) * (bigEntity ? 1.6 : 1);
+        const breatheSpeed = walking ? 8 : 2;
+        e.position.y += Math.sin(time * breatheSpeed) * breatheAmp;
+      }
 
       const dx = player.x - s.x, dz = player.y - s.y;
       const dist = Math.hypot(dx, dz);
@@ -14899,6 +15900,28 @@ class ThreeJSRendererBridge {
       /* 迭代47: LOD — 距离>25格的entity不渲染3D mesh */
       if (dist > 25) { e.visible = false; continue; }
       e.visible = true;
+
+      /* 迭代41: LOD细节隐藏 — 15-25格距离时隐藏小细节mesh（牙齿/爪子/小装饰） */
+      if (dist > 15) {
+        if (!u._detailHidden) {
+          u._detailHidden = true;
+          e.traverse(child => {
+            if (child.isMesh && child.geometry && !child.userData._meshRadius) {
+              if (!child.geometry.boundingSphere) child.geometry.computeBoundingSphere();
+              child.userData._meshRadius = child.geometry.boundingSphere ? child.geometry.boundingSphere.radius : 1;
+            }
+            if (child.userData._meshRadius && child.userData._meshRadius < 0.09 && child !== u._eliteGlow && child !== u._distortSphere) {
+              child.userData._isDetail = true;
+              child.visible = false;
+            }
+          });
+        }
+      } else if (u._detailHidden) {
+        u._detailHidden = false;
+        e.traverse(child => {
+          if (child.userData._isDetail) child.visible = true;
+        });
+      }
 
       if (u.billboard) {
         e.lookAt(this.camera.position.x, e.position.y + 0.68, this.camera.position.z);
@@ -14926,36 +15949,128 @@ class ThreeJSRendererBridge {
       let dyaw = targetYaw - e.rotation.y;
       while (dyaw > Math.PI) dyaw -= Math.PI * 2;
       while (dyaw < -Math.PI) dyaw += Math.PI * 2;
-      e.rotation.y += dyaw * Math.min(1, dt * 2.2);
+      /* 迭代43: 远距离实体降低yaw插值频率 */
+      if (dist <= 15) {
+        e.rotation.y += dyaw * Math.min(1, dt * 2.2);
+      } else {
+        /* 15-25格: 每3帧更新一次yaw */
+        if (!u._lodFrameCounter) u._lodFrameCounter = 0;
+        u._lodFrameCounter++;
+        if (u._lodFrameCounter >= 3) {
+          u._lodFrameCounter = 0;
+          e.rotation.y += dyaw * Math.min(1, dt * 2.2);
+        }
+      }
 
       const walking = s.entityState === 'chase';
+      /* 迭代30: 收集chase状态实体 */
+      if (walking && !s.isDead) _chaseList.push({ e, u, dist, s });
+      if (s.entityType === 'howler' && s.howling) _howlerHowling = true;
       const ph = time * (walking ? 7.5 : 1.3);
+      /* 迭代43: 15-25格距离实体降低动画更新频率（每3帧更新一次） */
+      const _animSkip = (dist > 15 && u._lodFrameCounter && u._lodFrameCounter < 3);
 
+      /* 迭代43: 远距离实体每3帧才更新一次动画 */
+      if (!_animSkip) {
       if (u.type === 'hound') {
-        for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = Math.sin(ph + k * Math.PI) * (walking ? 0.55 : 0.06);
-        u.tail.rotation.y = Math.sin(time * 5) * 0.35;
-      } else if (u.type === 'crawler') {
-        for (let k = 0; k < u.segs.length; k++) u.segs[k].rotation.y = Math.sin(ph + k * 0.9) * (walking ? 0.28 : 0.10);
-        for (let k = 0; k < u.arms.length; k++) {
-          u.arms[k].shoulder.rotation.x = Math.sin(ph * 1.3 + k * 0.7) * (walking ? 0.6 : 0.15);
-          u.arms[k].elbow.rotation.x = Math.sin(ph * 1.3 + k * 0.7 + 0.6) * 0.4;
+        /* 迭代19: 更凶猛的奔跑动画 */
+        const runBob = walking ? Math.abs(Math.sin(ph)) * 0.06 : 0;
+        e.position.y += runBob;
+        for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = Math.sin(ph + k * Math.PI) * (walking ? 0.65 : 0.06);
+        /* 头部随步伐上下点头 */
+        if (u.head) u.head.rotation.x = -1.4 + Math.sin(ph) * (walking ? 0.12 : 0.03);
+        /* 尾巴更激烈的鞭打 */
+        u.tail.rotation.y = Math.sin(time * (walking ? 9 : 5)) * (walking ? 0.55 : 0.35);
+        u.tail.rotation.z = Math.sin(time * (walking ? 7 : 4)) * 0.15;
+        /* 脊椎骨刺随步伐微微颤动 */
+        if (u.spikes) for (let k = 0; k < u.spikes.length; k++) u.spikes[k].rotation.x = -0.35 + k * 0.03 + Math.sin(ph + k * 0.5) * (walking ? 0.04 : 0.01);
+        /* v13.0 迭代33: Body Horror — Hound追逐时脊椎过度弯曲+头部不自然扭动 */
+        if (walking) {
+          /* 脊椎过度弯曲：torso rotation.x随ph大幅波动±0.3 */
+          if (u.torso) u.torso.rotation.x = Math.sin(ph) * 0.3;
+          /* 头部不自然扭动：rotation.y随机微偏 */
+          if (u.head) u.head.rotation.y = Math.sin(time * 13) * 0.25 + (Math.random() - 0.5) * 0.1;
+        } else {
+          if (u.torso) u.torso.rotation.x = 0;
+          if (u.head) u.head.rotation.y = 0;
         }
+        /* 迭代20: 攻击预备动画 — dist<2且chase时 */
+        if (dist < 2 && walking && u.jaw) {
+          const atkPhase = Math.sin(time * 8);
+          /* 头部后仰再前扑 */
+          if (u.head) u.head.rotation.x = -1.4 - atkPhase * 0.25;
+          /* 嘴巴张开 */
+          u.jaw.rotation.x = 0.3 + Math.max(0, atkPhase) * 0.5;
+          /* 爪子伸出 — 遍历legs中的knee找claws */
+          for (let k = 0; k < u.legs.length; k++) {
+            const knee = u.legs[k].children[2];
+            if (knee) knee.scale.setScalar(1 + Math.max(0, atkPhase) * 0.2);
+          }
+        } else if (u.jaw) {
+          u.jaw.rotation.x = 0.3;
+        }
+      } else if (u.type === 'crawler') {
+        /* 迭代21: 多足协调爬行 — 8条肢体交替着地（奇偶相位差） */
+        const crawlPh = walking ? ph : time * 1.3;
+        for (let k = 0; k < u.arms.length; k++) {
+          const phase = k % 2 === 0 ? 0 : Math.PI; /* 奇偶交替 */
+          u.arms[k].shoulder.rotation.x = Math.sin(crawlPh + k * 0.7 + phase) * (walking ? 0.7 : 0.18);
+          u.arms[k].elbow.rotation.x = Math.sin(crawlPh + k * 0.7 + phase + 0.6) * 0.5;
+        }
+        /* 身体段波浪式蠕动 — 递增相位差 */
+        for (let k = 0; k < u.segs.length; k++) {
+          u.segs[k].rotation.y = Math.sin(crawlPh * 0.7 + k * 0.6) * (walking ? 0.35 : 0.12);
+          u.segs[k].rotation.x = Math.sin(crawlPh * 0.7 + k * 0.4) * (walking ? 0.08 : 0.03);
+          u.segs[k].position.y = Math.abs(Math.sin(crawlPh * 0.7 + k * 0.6)) * (walking ? 0.02 : 0.008);
+        }
+        /* 整体身体上下波动 */
+        e.position.y += Math.abs(Math.sin(crawlPh * 0.7)) * (walking ? 0.03 : 0.01);
+        /* 头部左右扫视 */
+        if (u.head) u.head.rotation.y = Math.sin(time * (walking ? 4 : 2)) * (walking ? 0.3 : 0.15);
       } else if (u.type === 'stalker') {
-        for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = Math.sin(ph + k * Math.PI) * 0.18;
-        for (let k = 0; k < u.arms.length; k++) u.arms[k].rotation.x = Math.sin(ph + k * Math.PI) * 0.22 - 0.1;
-        u.veins.material.opacity = 0.18 + Math.abs(Math.sin(time * 1.8)) * 0.30;
-        /* Teleport charge glow */
+        /* 迭代23: Stalker动画升级 */
+        for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = Math.sin(ph + k * Math.PI) * (walking ? 0.22 : 0.08);
+        for (let k = 0; k < u.arms.length; k++) u.arms[k].rotation.x = Math.sin(ph + k * Math.PI) * (walking ? 0.26 : 0.08) - 0.1;
+        /* 长手指抓握动画 — arms的claws rotation波动 */
+        if (u.arms) for (let k = 0; k < u.arms.length; k++) {
+          u.arms[k].traverse(c => {
+            if (c.userData && c.userData.isClaw) c.rotation.x = Math.sin(ph * 1.5 + k) * 0.15;
+          });
+        }
+        /* 追逐时身体前倾 */
+        if (walking) e.rotation.x = 0.08 + Math.sin(ph) * 0.02;
+        else e.rotation.x = 0;
+        /* 静脉发光更剧烈 */
+        u.veins.material.opacity = walking ? (0.3 + Math.abs(Math.sin(time * 3)) * 0.45) : (0.18 + Math.abs(Math.sin(time * 1.8)) * 0.30);
+        /* v13.0 迭代33: Body Horror — Stalker追逐时身体拉长+四肢不自然伸长 */
         if (s.teleportCharge > 0) {
-          u.veins.material.opacity = Math.max(u.veins.material.opacity, s.teleportCharge);
+          const tc = s.teleportCharge;
+          e.scale.set(1 + tc * 0.3, 1 + tc * 0.15, 1 + tc * 0.3);
+          e.rotation.z = Math.sin(time * 15) * tc * 0.1;
+          u.veins.material.opacity = Math.max(u.veins.material.opacity, tc * 1.5);
+        } else if (!s.isDead) {
+          if (walking) {
+            /* 身体拉长scale.y 1.15倍，四肢伸长 */
+            e.scale.set(1, 1.15, 1);
+            if (u.arms) for (let k = 0; k < u.arms.length; k++) u.arms[k].scale.y = 1.2;
+            if (u.legs) for (let k = 0; k < u.legs.length; k++) u.legs[k].scale.y = 1.15;
+          } else {
+            e.scale.set(1, 1, 1);
+            if (u.arms) for (let k = 0; k < u.arms.length; k++) u.arms[k].scale.y = 1;
+            if (u.legs) for (let k = 0; k < u.legs.length; k++) u.legs[k].scale.y = 1;
+          }
+          e.rotation.z = 0;
         }
       } else if (u.type === 'rot') {
+        /* v13.0 迭代33: Body Horror — Rot追逐时blob变形更剧烈（pulse幅度翻倍） */
         const pulse = Math.sin(time * (walking ? 3.2 : 1.5));
         const pos = u.blob.geometry.attributes.position;
         const arr = pos.array, base = u.base;
+        const pulseAmp = walking ? 0.14 : 0.07; /* 追逐时翻倍 */
         for (let k = 0; k < base.length; k += 3) {
           const h = Math.sin(k * 12.9898) * 43758.5453;
           const n = h - Math.floor(h);
-          const d2 = 1 + pulse * (0.07 + (n - 0.5) * 0.16);
+          const d2 = 1 + pulse * (pulseAmp + (n - 0.5) * (walking ? 0.32 : 0.16));
           arr[k] = base[k] * d2; arr[k + 1] = base[k + 1] * d2; arr[k + 2] = base[k + 2] * d2;
         }
         pos.needsUpdate = true;
@@ -14963,7 +16078,8 @@ class ThreeJSRendererBridge {
         if (!u._normTimer) u._normTimer = 0;
         u._normTimer -= dt;
         if (u._normTimer <= 0) { u._normTimer = 0.05; u.blob.geometry.computeVertexNormals(); }
-        const pp = 1 + Math.abs(Math.sin(time * (walking ? 5 : 2.2))) * 0.25;
+        /* 脓疱膨胀更大 — 追逐时pp增幅更大 */
+        const pp = 1 + Math.abs(Math.sin(time * (walking ? 5 : 2.2))) * (walking ? 0.45 : 0.25);
         for (const p of u.pustules) p.scale.setScalar(pp);
       } else if (u.type === 'echo') {
         const vel = e.position.clone().sub(u.prevPos);
@@ -14971,6 +16087,7 @@ class ThreeJSRendererBridge {
         const k = walking ? 1 : 0.15;
         u.ghost1.position.set(-vel.x * 3 * k, 0, -vel.z * 3 * k);
         u.ghost2.position.set(-vel.x * 6 * k, 0, -vel.z * 6 * k);
+        if (u.ghost3) u.ghost3.position.set(-vel.x * 9 * k, 0, -vel.z * 9 * k);
       } else if (u.type === 'partygoer') {
         /* Weeping Angel: freeze when watched, lurch when not */
         const watched = s.beingWatched;
@@ -14981,7 +16098,7 @@ class ThreeJSRendererBridge {
         u.face.material.opacity = watched ? 1 : 0.6;
       } else if (u.type === 'watcher') {
         /* Floating bob + tentacle sway */
-        e.position.y = 0.05 * Math.sin(time * 1.8);
+        e.position.y += 0.05 * Math.sin(time * 1.8);
         for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = Math.sin(time * 1.5 + k * 1.2) * 0.12;
         /* Iris follows player */
         if (u.iris && u.pupil) {
@@ -14997,13 +16114,259 @@ class ThreeJSRendererBridge {
         const run = walking ? 1.0 : 0.2;
         for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = Math.sin(ph + k * Math.PI) * 0.65 * run;
         for (let k = 0; k < u.arms.length; k++) u.arms[k].rotation.x = Math.sin(ph + k * Math.PI) * 0.55 * run;
-        e.position.y = Math.abs(Math.sin(ph)) * 0.04 * run;
+        e.position.y += Math.abs(Math.sin(ph)) * 0.04 * run;
       } else if (u.type === 'smile_demon') {
         /* 笑魔：弹跳 + 身体脉动 */
         const bob = Math.sin(time * 2.5) * 0.08;
-        e.position.y = bob;
+        e.position.y += bob;
         if (u.body) u.body.scale.y = 1 + Math.sin(time * 3) * 0.05;
         for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = Math.sin(time * 2.5 + k * Math.PI) * 0.15;
+      } else if (u.type === 'howler') {
+        /* 迭代16-18: Howler铁丝缠绕动画 + 嚎叫增强 + 核心脉动 */
+        const sw = walking ? Math.sin(ph) : Math.sin(time * 1.5);
+        /* 迭代16: 铁丝缠绕 — torsoWires持续旋转扭曲 */
+        if (u.torsoWires) {
+          /* v13.0 迭代33: Body Horror — Howler追逐时铁丝旋转速度翻倍 */
+          const wireSpeed = walking ? 1.6 : 0.8;
+          for (let k = 0; k < u.torsoWires.length; k++) {
+            const tw = u.torsoWires[k];
+            const twAng = (k / u.torsoWires.length) * Math.PI * 2;
+            tw.rotation.y = time * wireSpeed + k * 0.45;
+            tw.rotation.z = Math.cos(twAng) * 0.5 + Math.sin(time * (walking ? 4 : 2) + k) * (walking ? 0.3 : 0.15);
+          }
+        }
+        /* 头部铁丝团旋转 */
+        if (u.headWire) {
+          u.headWire.rotation.y = time * 1.2;
+          u.headWire.rotation.x = Math.sin(time * 3) * 0.2;
+        }
+        /* 腿臂动画 — 修正arms结构 */
+        if (u.legs) for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = sw * 0.5 + k * Math.PI * 0.5;
+        if (u.arms) for (let k = 0; k < u.arms.length; k++) {
+          u.arms[k].pivot.rotation.x = sw * 0.3 - k * 0.2;
+          u.arms[k].elbow.rotation.x = Math.sin(ph * 1.2 + k) * 0.3;
+        }
+        /* 迭代16: 身体不自然扭动 — 脊椎扭曲 */
+        /* v13.0 迭代33: Body Horror — Howler追逐时身体扭曲幅度增大 */
+        e.rotation.z = sw * (walking ? 0.12 : 0.06);
+        e.rotation.x = Math.sin(ph * 0.5) * (walking ? 0.06 : 0.03);
+        /* 迭代18: wireCore发光脉动 — 呼吸效果 */
+        if (u.wireCore) {
+          const pulseSpeed = walking ? 8 : 3;
+          const pulseBase = walking ? 0.8 : 0.4;
+          const pulseAmp = walking ? 0.5 : 0.2;
+          u.wireCore.children.forEach(child => {
+            if (child.material) {
+              child.material.transparent = true;
+              if (child.material.emissiveIntensity !== undefined) {
+                child.material.emissiveIntensity = pulseBase + Math.sin(time * pulseSpeed) * pulseAmp;
+              } else {
+                /* MeshBasicMaterial — 用opacity模拟亮度 */
+                child.material.opacity = (child.material.userData_baseOp || 0.75) * (0.6 + Math.sin(time * pulseSpeed) * 0.4);
+              }
+            }
+          });
+          /* 核心持续旋转扭曲 */
+          u.wireCore.rotation.y = time * 1.5;
+          u.wireCore.rotation.x = Math.sin(time * 2) * 0.3;
+        }
+        /* 迭代17: 嚎叫动画增强 */
+        if (s.howling) {
+          /* 身体膨胀 + 剧烈抖动 */
+          const inflate = 1 + Math.sin(time * 12) * 0.12;
+          const shakeX = (Math.random() - 0.5) * 0.03;
+          const shakeZ = (Math.random() - 0.5) * 0.03;
+          e.position.x += shakeX; e.position.z += shakeZ;
+          e.scale.set(inflate, inflate * 1.05, inflate);
+          /* 内部红色核心亮度暴增 */
+          if (u.wireCore) {
+            u.wireCore.children.forEach(child => {
+              if (child.material) {
+                if (child.material.emissiveIntensity !== undefined) {
+                  child.material.emissiveIntensity = 3.0 + Math.sin(time * 15) * 1.0;
+                } else {
+                  child.material.opacity = Math.min(1, (child.material.userData_baseOp || 0.75) * 2.5);
+                }
+              }
+            });
+          }
+        } else if (!s.isDead) {
+          e.scale.set(1, 1, 1);
+        }
+      } else if (u.type === 'smiler') {
+        /* 迭代22: Smiler 3D动画 — 漂浮+扭曲+距离透明度 */
+        /* 漂浮效果 — 叠加在呼吸效果上 */
+        e.position.y += 0.95 + Math.sin(time * 1.5) * 0.05;
+        /* 笑脸扭曲 — face mesh轻微scale波动 */
+        if (u.face) {
+          u.face.scale.x = 1 + Math.sin(time * 3) * 0.04;
+          u.face.scale.y = 1 + Math.cos(time * 3) * 0.04;
+        }
+        /* 重置发光部件opacity（防止黑暗状态残留） */
+        e.traverse(child => {
+          if (child.userData && (child.userData.isEye || child.userData.isGlow) && child.material) {
+            child.material.opacity = child.material.userData_baseOp != null ? child.material.userData_baseOp : 0.9;
+          }
+        });
+        /* 眼睛闪烁 + 距离透明度 */
+        const flicker = 0.6 + Math.sin(time * 8) * 0.3;
+        if (u.eyes) for (const eye of u.eyes) { if (eye.material) eye.material.opacity = flicker; }
+        /* 整体材质opacity随距离变化：远距离更透明，近距离更实体 */
+        const distOp = dist > 15 ? 0.15 : (dist > 8 ? 0.25 : 0.4);
+        if (u.face && u.face.material) u.face.material.opacity = distOp;
+        /* 缓慢旋转 */
+        e.rotation.y += dt * 0.5;
+
+        /* v13.0 迭代37: Smiler的黑暗恐惧增强 */
+        const playerObj37 = window.game ? window.game.player : null;
+        const smilerLitUp = s.litUp; /* 被手电筒照亮 */
+        if (smilerLitUp) {
+          /* 被照亮时：尖叫后退 + scale缩小 + 笑脸变恐惧表情 */
+          const retreatAng37 = Math.atan2(e.position.z / CELL - player.y, e.position.x / CELL - player.x);
+          e.position.x += Math.cos(retreatAng37) * 2 * dt * CELL;
+          e.position.z += Math.sin(retreatAng37) * 2 * dt * CELL;
+          e.scale.multiplyScalar(0.95);
+          if (e.scale.x < 0.3) e.scale.setScalar(0.3);
+          /* 笑脸变恐惧表情 — face mesh Y轴拉伸模拟尖叫 */
+          if (u.face) {
+            u.face.scale.y = 1 + Math.sin(time * 15) * 0.15;
+            u.face.scale.x = 1 - Math.abs(Math.sin(time * 15)) * 0.1;
+          }
+          /* 被照亮时强制为search状态 */
+          if (window.game) {
+            const smilerEntity37 = window.game.entities ? window.game.entities.find(en => !en.isDead && en.type === 'smiler' && Math.abs(en.x - s.x) < 1 && Math.abs(en.y - s.y) < 1) : null;
+            if (smilerEntity37 && smilerEntity37.state === 'chase') {
+              smilerEntity37.state = 'search';
+            }
+          }
+        } else {
+          /* 黑暗中：Smiler完全不可见，只有发光的笑脸和眼睛悬浮 */
+          e.traverse(child => {
+            if (child === e) return;
+            if ((child.userData && child.userData.isEye) || (child.userData && child.userData.isGlow)) {
+              /* 眼睛和发光部件保持高亮 */
+              child.visible = true;
+              if (child.material) {
+                child.material.transparent = true;
+                child.material.opacity = Math.max(child.material.opacity || 0.5, 0.6);
+              }
+            } else if (child.material && child !== u._eliteGlow && child !== u._distortSphere) {
+              /* 身体和暗色脸不可见 */
+              child.material.transparent = true;
+              child.material.opacity = 0.02;
+            }
+          });
+          /* 黑暗中追逐时速度更快 — 在Entity中处理，这里只做视觉效果 */
+          /* 恢复scale */
+          if (e.scale.x < 1) e.scale.multiplyScalar(1.02);
+          if (e.scale.x > 1) e.scale.set(1, 1, 1);
+        }
+      } else if (u.type === 'skin_stealer') {
+        /* 迭代24: Skin Stealer动画升级 */
+        const sw = walking ? Math.sin(time * 4) : 0;
+        if (u.legs) for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = sw * 0.4 + k * Math.PI;
+        if (u.arms) for (let k = 0; k < u.arms.length; k++) u.arms[k].rotation.x = sw * 0.35 - k * 0.15;
+        /* 皮肤披风飘动效果 — 多轴波动 */
+        if (u.skinCloak) {
+          u.skinCloak.rotation.x = 0.1 + Math.sin(time * 2) * 0.08;
+          u.skinCloak.rotation.z = Math.sin(time * 1.5) * 0.06;
+          u.skinCloak.rotation.y = Math.sin(time * 1.8) * 0.04;
+        }
+        /* 潜伏时半透明 — 增强轮廓闪烁 */
+        if (!walking && u.skinCloakMat) {
+          const stealthOp = 0.35 + Math.sin(time * 5) * 0.08;
+          u.skinCloakMat.opacity = stealthOp;
+        }
+        /* 追逐时皮肤披风脱落效果 — opacity降低，模拟"暴露真身" */
+        if (walking && u.skinCloakMat) {
+          const shedOp = Math.max(0.15, (u.skinCloakMat.userData_baseOp || 0.55) - 0.3);
+          u.skinCloakMat.opacity = shedOp + Math.sin(time * 8) * 0.05;
+        }
+        /* 手臂骨刺伸缩动画 */
+        if (u.arms) for (let k = 0; k < u.arms.length; k++) {
+          u.arms[k].traverse(c => {
+            if (c.userData && c.userData.isSpike) c.scale.setScalar(0.8 + Math.sin(time * 4 + k) * 0.2);
+          });
+        }
+      } else if (u.type === 'duller') {
+        /* 迭代25: Duller笨重行走动画 */
+        /* 步伐缓慢沉重 — ph频率已由walking控制，这里额外降低 */
+        const dullPh = walking ? time * 2.5 : time * 0.8;
+        const sw = walking ? Math.sin(dullPh) : Math.sin(time * 0.5) * 0.1;
+        if (u.legs) for (let k = 0; k < u.legs.length; k++) u.legs[k].rotation.x = sw * 0.25 + k * Math.PI;
+        if (u.arms) for (let k = 0; k < u.arms.length; k++) u.arms[k].rotation.x = sw * 0.15 - k * 0.08;
+        /* 每步落地时身体微沉 — 叠加在呼吸效果上，不覆盖 */
+        e.position.y += walking ? -Math.abs(Math.sin(dullPh)) * 0.04 : 0;
+        /* 胸部蓝色核心脉动 — coreGlow是Group，需遍历子mesh */
+        if (u.coreGlow) {
+          const corePulse = walking ? 0.4 + Math.sin(time * 4) * 0.2 : 0.3 + Math.sin(time * 1.5) * 0.1;
+          u._dullerCorePulse = corePulse;
+          u.coreGlow.children.forEach(child => {
+            if (child.material) {
+              child.material.transparent = true;
+              child.material.opacity = corePulse;
+            }
+          });
+        }
+        /* 被注视时核心变亮 — 检测近距离且玩家面向 */
+        if (dist < 10 && walking && u.coreGlow) {
+          const facingBoost = (10 - dist) / 10;
+          const boostedPulse = Math.min(0.9, (u._dullerCorePulse || 0.3) + facingBoost * 0.3);
+          u.coreGlow.children.forEach(child => {
+            if (child.material) {
+              child.material.opacity = boostedPulse;
+            }
+          });
+          /* 减速视觉效果 — 身体微微后倾 */
+          e.rotation.x = -facingBoost * 0.05;
+        } else {
+          e.rotation.x = 0;
+        }
+      }
+      } /* 迭代43: end _animSkip */
+
+      /* ==================== v13.0 迭代34: 黑暗中的眼睛 ==================== */
+      /* 玩家在黑暗中（手电筒关闭或battery=0）且附近有实体时，只能看到实体的眼睛 */
+      {
+        const playerObj = window.game ? window.game.player : null;
+        const inDark = playerObj && (!playerObj._flashOn || playerObj.battery <= 0 || playerObj.forceDark);
+        if (!s.isDead && dist < 15) {
+          if (inDark) {
+            /* 黑暗中：实体身体不可见，只保留发光的眼睛 */
+            e.traverse(child => {
+              if (child === e) return;
+              /* 眼睛和发光部件保持可见（通过userData标记） */
+              if ((child.userData && child.userData.isEye) || (child.userData && child.userData.isGlow)) {
+                child.visible = true;
+                if (child.material) {
+                  child.material.transparent = true;
+                  child.material.opacity = Math.max(0.6, child.material.opacity || 1);
+                  if (child.material.emissiveIntensity !== undefined) {
+                    child.material.emissiveIntensity = 2.0;
+                  }
+                }
+              } else if (child.material && child !== u._eliteGlow && child !== u._distortSphere) {
+                /* 身体不可见 */
+                child.material.transparent = true;
+                child.material.opacity = 0.03;
+              }
+            });
+          } else {
+            /* 手电筒打开：实体瞬间显形（快速fade in） */
+            e.traverse(child => {
+              if (child === e) return;
+              if (child.material && child !== u._eliteGlow && child !== u._distortSphere) {
+                const baseOp = child.material.userData_baseOp || 1;
+                child.material.transparent = true;
+                child.material.opacity = Math.min(baseOp, (child.material.opacity || 0) + dt * 8);
+                if (child.userData && child.userData.isEye && child.material.emissiveIntensity !== undefined) {
+                  /* 眼睛恢复正常亮度 */
+                  child.material.emissiveIntensity = child.material.userData_baseEmissiveInt || 1.0;
+                }
+              }
+            });
+          }
+        }
       }
 
       /* ============================ 迭代44: 实体视觉特效 ============================ */
@@ -15013,8 +16376,11 @@ class ThreeJSRendererBridge {
         /* 远距离：仅显示基本mesh，跳过所有视觉特效 */
         continue;
       }
-      /* 精英实体：周围有微红色光晕 */
+      /* 迭代28: 精英实体视觉升级 — 红色裂纹发光+体积更大+红色粒子环绕 */
       if (s.isElite && !s.isDead) {
+        /* 体积更大 1.15倍 */
+        if (!u._eliteScaled) { u._eliteScaled = true; e.scale.multiplyScalar(1.15); }
+        /* 红色光晕Sprite */
         if (!u._eliteGlow) {
           const THREE = window.THREE;
           const glowMat = new THREE.SpriteMaterial({ color: 0xff2200, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -15025,29 +16391,60 @@ class ThreeJSRendererBridge {
           u._eliteGlow = glowSprite;
         }
         u._eliteGlow.material.opacity = 0.12 + Math.sin(time * 3) * 0.06;
+        /* 红色裂纹发光 — body材质叠加红色emissive pattern */
+        e.traverse(child => {
+          if (child.material && child.material.emissive && child !== u._eliteGlow) {
+            if (child.material.userData_eliteEmissive === undefined) {
+              child.material.userData_eliteEmissive = true;
+              child.material.userData_preEliteEmissive = child.material.emissive.getHex();
+              child.material.userData_preEliteEmissiveInt = child.material.emissiveIntensity || 0;
+            }
+            child.material.emissive.setHex(0xff2200);
+            child.material.emissiveIntensity = 0.3 + Math.sin(time * 4 + child.id) * 0.15;
+          }
+        });
+        /* 红色粒子环绕 */
+        if (dist < 15 && !u._eliteParticles) {
+          const THREE = window.THREE;
+          u._eliteParticles = [];
+          for (let i = 0; i < 8; i++) {
+            const p = new THREE.Mesh(
+              new THREE.SphereGeometry(0.04, 4, 3),
+              new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false })
+            );
+            p.userData = { orbitAngle: (i / 8) * Math.PI * 2, orbitRadius: 0.8 + Math.random() * 0.3, orbitY: 0.3 + Math.random() * 1.0, orbitSpeed: 1 + Math.random() * 0.5 };
+            e.add(p);
+            u._eliteParticles.push(p);
+          }
+        }
+        if (u._eliteParticles) {
+          for (const p of u._eliteParticles) {
+            p.userData.orbitAngle += dt * p.userData.orbitSpeed;
+            p.position.x = Math.cos(p.userData.orbitAngle) * p.userData.orbitRadius;
+            p.position.z = Math.sin(p.userData.orbitAngle) * p.userData.orbitRadius;
+            p.position.y = p.userData.orbitY + Math.sin(time * 2 + p.userData.orbitAngle) * 0.1;
+            p.material.opacity = 0.4 + Math.sin(time * 3 + p.userData.orbitAngle) * 0.2;
+          }
+        }
       }
 
-      /* smiler：黑暗中发光的笑脸 */
+      /* smiler：黑暗中发光的笑脸 — 3D模型自带眼睛，此处只加光照+闪烁 */
       if (entType === 'smiler' && !s.isDead) {
-        if (!u._smilerEyes) {
+        if (!u._smilerLight) {
           const THREE = window.THREE;
-          const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.9 });
-          const eyeGeo = new THREE.SphereGeometry(0.04, 6, 6);
-          const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-          const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-          eyeL.position.set(-0.12, 0.85, 0.01);
-          eyeR.position.set(0.12, 0.85, 0.01);
-          e.add(eyeL); e.add(eyeR);
-          u._smilerEyes = [eyeL, eyeR];
           const pLight = new THREE.PointLight(0xffee88, 0.3, 4);
-          pLight.position.set(0, 0.85, 0);
+          pLight.position.set(0, 1.0, 0.2);
           e.add(pLight);
           u._smilerLight = pLight;
         }
         const flicker = 0.6 + Math.sin(time * 8) * 0.3;
         u._smilerLight.intensity = flicker * 0.4;
-        u._smilerEyes[0].material.opacity = flicker;
-        u._smilerEyes[1].material.opacity = flicker;
+        /* 3D模型的眼睛闪烁 */
+        if (u.eyes) {
+          for (const eye of u.eyes) {
+            if (eye.material) eye.material.opacity = flicker;
+          }
+        }
       }
 
       /* rot：下方绿色毒雾粒子 */
@@ -15072,29 +16469,31 @@ class ThreeJSRendererBridge {
         }
       }
 
-      /* howler：嚎叫时身体膨胀 + 声波环 */
-      if (entType === 'howler' && !s.isDead) {
-        if (s.howling) {
-          const inflate = 1 + Math.sin(time * 10) * 0.15;
-          e.scale.set(inflate, inflate, inflate);
-          if (!u._howlRing) {
-            const THREE = window.THREE;
-            const ringGeo = new THREE.RingGeometry(0.3, 0.5, 16);
-            const ringMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false });
-            const ring = new THREE.Mesh(ringGeo, ringMat);
+      /* 迭代17: howler嚎叫 — 多环声波扩散 + 屏幕红色脉冲标记 */
+      if (entType === 'howler' && !s.isDead && s.howling) {
+        /* 多环声波 — 3个环错相位扩散 */
+        if (!u._howlRings) {
+          const THREE = window.THREE;
+          u._howlRings = [];
+          for (let ri = 0; ri < 3; ri++) {
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+            const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.5, 16), ringMat);
             ring.rotation.x = -Math.PI / 2;
             ring.position.y = 0.5;
+            ring.userData.phase = ri / 3;
             e.add(ring);
-            u._howlRing = ring;
-            u._howlRingTime = 0;
+            u._howlRings.push(ring);
           }
-          u._howlRingTime += dt;
-          const rs = 1 + u._howlRingTime * 3;
-          u._howlRing.scale.set(rs, rs, 1);
-          u._howlRing.material.opacity = Math.max(0, 0.4 - u._howlRingTime * 0.4);
-          if (u._howlRingTime > 1) u._howlRingTime = 0;
-        } else {
-          e.scale.set(1, 1, 1);
+        }
+        for (const ring of u._howlRings) {
+          const cycle = ((time * 0.8 + ring.userData.phase) % 1);
+          const rs = 1 + cycle * 4;
+          ring.scale.set(rs, rs, 1);
+          ring.material.opacity = Math.max(0, 0.5 * (1 - cycle));
+        }
+        /* 屏幕红色脉冲 — 设置标记供render读取 */
+        if (dist < 15) {
+          this._howlerScreenPulse = Math.max(this._howlerScreenPulse || 0, 0.6 * (1 - dist / 15));
         }
       }
 
@@ -15134,6 +16533,8 @@ class ThreeJSRendererBridge {
         const stealth = s.entityState === 'patrol' || s.entityState === 'investigate';
         e.traverse(child => {
           if (child.material) {
+            /* 跳过skinCloak材质 — 由动画代码控制opacity */
+            if (child.material === u.skinCloakMat) return;
             child.material.transparent = true;
             const baseOp = child.material.userData_baseOp || 1;
             if (stealth) {
@@ -15145,14 +16546,41 @@ class ThreeJSRendererBridge {
         });
       }
 
-      /* Death animation: tilt over + sink */
+      /* 迭代26: 通用死亡动画升级 — 身体分解+光芒+膨胀收缩 */
       if (s.isDead && s.deathAnim > 0) {
-        e.rotation.z = s.deathAnim * Math.PI * 0.45;
-        e.position.y = -s.deathAnim * 0.35;
+        const da = s.deathAnim;
+        /* 身体scale先膨胀再收缩 */
+        const deathScale = da < 0.3 ? 1 + da * 0.5 : Math.max(0.3, 1.15 - (da - 0.3) * 1.2);
+        e.scale.set(deathScale, deathScale, deathScale);
+        /* 倾倒 + 下沉 */
+        e.rotation.z = da * Math.PI * 0.45;
+        e.position.y = -da * 0.35;
+        /* 身体分解效果 — 各部位分离飘散 */
+        if (!u._deathParts) u._deathParts = true;
+        e.traverse(child => {
+          if (child !== e && child.position && child.isMesh && child !== u._eliteGlow && child !== u._distortSphere) {
+            child.position.y += dt * 0.5 * (1 - da) * 2;
+            child.position.x += Math.sin(time * 5 + child.id) * dt * 0.1 * (1 - da);
+            child.rotation.x += dt * 2 * (1 - da);
+            child.rotation.z += dt * 1.5 * (1 - da);
+          }
+          if (child.material) {
+            child.material.transparent = true;
+            /* 死亡时发出最后的光芒 — 亮度暴增后快速消失 */
+            if (da < 0.15 && child.material.emissive) {
+              child.material.emissiveIntensity = 3 * (1 - da / 0.15);
+            } else if (child.material.emissive && child.material.userData_origEmissiveIntensity !== undefined) {
+              child.material.emissiveIntensity = child.material.userData_origEmissiveIntensity * (1 - da);
+            }
+            child.material.opacity = (child.material.userData_baseOp || 1) * Math.max(0, 1 - da);
+          }
+        });
       }
 
-      /* Hurt flash: red tint on all materials */
+      /* 迭代27: 受伤闪烁增强 — 红色emissive + scale微缩 + 击退 + 粒子飞溅 */
       if (s.hurtFlash > 0) {
+        const hf = s.hurtFlash;
+        /* 红色emissive闪烁 */
         e.traverse(child => {
           if (child.material && child.material.emissive) {
             if (child.material.userData_origEmissive === undefined) {
@@ -15160,9 +16588,39 @@ class ThreeJSRendererBridge {
               child.material.userData_origEmissiveIntensity = child.material.emissiveIntensity;
             }
             child.material.emissive.setHex(0xff0000);
-            child.material.emissiveIntensity = s.hurtFlash * 0.8;
+            child.material.emissiveIntensity = hf * 0.8;
           }
         });
+        /* 身体scale微缩0.95倍 — 保留精英1.15x倍率 */
+        if (!s.isDead) {
+          const eliteMult = s.isElite ? 1.15 : 1;
+          const hurtScale = (1 - hf * 0.05) * eliteMult;
+          e.scale.set(hurtScale, hurtScale, hurtScale);
+        }
+        /* 向后击退效果 — position微小偏移 */
+        if (!s.isDead) {
+          const kbDir = Math.atan2(e.position.x - player.x, e.position.z - player.y);
+          e.position.x += Math.sin(kbDir) * hf * 0.15;
+          e.position.z += Math.cos(kbDir) * hf * 0.15;
+        }
+        /* 红色粒子飞溅 — 仅近距离时生成 */
+        /* 迭代42: 粒子总数限制 */
+        if (dist < 20 && !u._hurtParticles && this._activeParticleCount < this._maxParticles) {
+          const THREE = window.THREE;
+          u._hurtParticles = [];
+          for (let i = 0; i < 6; i++) {
+            const p = new THREE.Mesh(
+              new THREE.SphereGeometry(0.025, 4, 3),
+              new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 })
+            );
+            p.position.copy(e.position);
+            p.position.y += 0.5 + Math.random() * 0.5;
+            p.userData = { vx: (Math.random() - 0.5) * 2, vy: Math.random() * 2 + 1, vz: (Math.random() - 0.5) * 2, life: 1 };
+            this.scene.add(p);
+            u._hurtParticles.push(p);
+            this._activeParticleCount++;
+          }
+        }
       } else if (!s.isDead) {
         /* Reset emissive to original values when hurtFlash expires */
         e.traverse(child => {
@@ -15173,11 +16631,111 @@ class ThreeJSRendererBridge {
             delete child.material.userData_origEmissiveIntensity;
           }
         });
+        /* 恢复scale — 精英实体恢复1.15x */
+        const eliteMult = s.isElite ? 1.15 : 1;
+        e.scale.set(eliteMult, eliteMult, eliteMult);
       }
 
       /* Stunned: wobble */
       if (s.stunned > 0 && !s.isDead) {
         e.rotation.z = Math.sin(time * 20) * 0.08;
+      }
+
+      /* 迭代27: 受伤粒子更新 */
+      if (u._hurtParticles) {
+        for (let i = u._hurtParticles.length - 1; i >= 0; i--) {
+          const p = u._hurtParticles[i];
+          p.userData.life -= dt * 2;
+          if (p.userData.life <= 0) {
+            this.scene.remove(p);
+            p.geometry.dispose();
+            p.material.dispose();
+            u._hurtParticles.splice(i, 1);
+            this._activeParticleCount = Math.max(0, this._activeParticleCount - 1);
+          } else {
+            p.position.x += p.userData.vx * dt;
+            p.position.y += p.userData.vy * dt;
+            p.position.z += p.userData.vz * dt;
+            p.userData.vy -= 4 * dt;
+            p.material.opacity = p.userData.life * 0.8;
+          }
+        }
+        if (u._hurtParticles.length === 0) u._hurtParticles = null;
+      }
+
+      /* 迭代29: 距离恐怖感 (Proximity Horror) — dist<5且chase时 */
+      if (dist < 5 && walking && !s.isDead) {
+        /* 空气扭曲 — 半透明扭曲Sphere包围实体 */
+        if (!u._distortSphere) {
+          const THREE = window.THREE;
+          const dsMat = new THREE.MeshBasicMaterial({
+            color: u.glow || 0xff0000, transparent: true, opacity: 0.05,
+            blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+          });
+          const ds = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 6), dsMat);
+          ds.position.y = 0.6;
+          e.add(ds);
+          u._distortSphere = ds;
+        }
+        u._distortSphere.material.opacity = 0.05 + (5 - dist) / 5 * 0.1;
+        u._distortSphere.scale.setScalar(1 + Math.sin(time * 5) * 0.1);
+        u._distortSphere.rotation.y = time * 2;
+        /* 眼睛更亮 — emissive intensity提升 */
+        e.traverse(child => {
+          if (child.material && child.material.emissive && child !== u._distortSphere && child !== u._eliteGlow) {
+            const proxBoost = (5 - dist) / 5;
+            if (child.material.userData_proxEmissiveInt === undefined) {
+              child.material.userData_proxEmissiveInt = child.material.emissiveIntensity || 0;
+            }
+            child.material.emissiveIntensity = child.material.userData_proxEmissiveInt + proxBoost * 1.5;
+          }
+        });
+        /* 移动残影 — 创建trail粒子 */
+        if (dist < 15 && !u._trailTimer) u._trailTimer = 0;
+        if (dist < 15) {
+          u._trailTimer -= dt;
+          if (u._trailTimer <= 0) {
+            u._trailTimer = 0.08;
+            if (!u._trails) u._trails = [];
+            if (u._trails.length < 5) {
+              const THREE = window.THREE;
+              const trail = new THREE.Mesh(
+                new THREE.SphereGeometry(0.15, 4, 3),
+                new THREE.MeshBasicMaterial({ color: u.glow || 0xff0000, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false })
+              );
+              trail.position.copy(e.position);
+              trail.position.y += 0.6;
+              trail.userData = { life: 0.5 };
+              this.scene.add(trail);
+              u._trails.push(trail);
+            }
+          }
+        }
+      } else {
+        /* 恢复emissive */
+        if (u._distortSphere) u._distortSphere.material.opacity = 0;
+        e.traverse(child => {
+          if (child.material && child.material.userData_proxEmissiveInt !== undefined) {
+            child.material.emissiveIntensity = child.material.userData_proxEmissiveInt;
+            delete child.material.userData_proxEmissiveInt;
+          }
+        });
+      }
+      /* 残影更新 */
+      if (u._trails) {
+        for (let i = u._trails.length - 1; i >= 0; i--) {
+          const t = u._trails[i];
+          t.userData.life -= dt * 2;
+          if (t.userData.life <= 0) {
+            this.scene.remove(t);
+            t.geometry.dispose();
+            t.material.dispose();
+            u._trails.splice(i, 1);
+          } else {
+            t.material.opacity = t.userData.life * 0.3;
+            t.scale.multiplyScalar(0.95);
+          }
+        }
       }
 
       /* Apply fade */
@@ -15189,6 +16747,214 @@ class ThreeJSRendererBridge {
           }
         });
       }
+
+      /* v13.0 迭代36: Howler嚎叫连锁反应 — 附近实体eyes变红 */
+      const gameRef36 = window.game;
+      if (gameRef36) {
+        const entity36 = gameRef36.entities ? gameRef36.entities.find(en => !en.isDead && en.x !== undefined && Math.abs(en.x - s.x) < 0.5 && Math.abs(en.y - s.y) < 0.5) : null;
+        if (entity36 && entity36._howlChainRedEyes !== undefined && entity36._howlChainRedEyes > 0) {
+          e.traverse(child => {
+            if (child.userData && child.userData.isEye && child.material) {
+              if (child.material.userData_origEyeColor === undefined) {
+                child.material.userData_origEyeColor = child.material.color ? child.material.color.getHex() : 0xffffff;
+              }
+              if (child.material.color) child.material.color.setHex(0xff2200);
+              child.material.opacity = 1.0;
+            }
+          });
+        } else {
+          /* 恢复眼睛颜色 */
+          e.traverse(child => {
+            if (child.userData && child.userData.isEye && child.material && child.material.userData_origEyeColor !== undefined) {
+              if (child.material.color) child.material.color.setHex(child.material.userData_origEyeColor);
+              delete child.material.userData_origEyeColor;
+            }
+          });
+        }
+      }
+    }
+
+    /* 迭代30: 实体间协调视觉 — 多实体同时chase时 */
+    /* fix: 恢复非chase或非focus实体的原始emissiveIntensity和opacity */
+    {
+      /* fix: 使用mesh引用比较，而非未设置的userData.x/y坐标字符串 */
+      if (_chaseList.length > 1) _chaseList.sort((a, b) => a.dist - b.dist);
+      const focusMesh = (_chaseList.length > 1) ? _chaseList[0].e : null;
+      for (let i = 0; i < this._entityMeshes.length; i++) {
+        const m = this._entityMeshes[i];
+        if (!m || !m.userData) continue;
+        if (m !== focusMesh || _chaseList.length <= 1) {
+          m.traverse(child => {
+            if (child.material) {
+              if (child.material.userData_focusBoost) {
+                child.material.emissiveIntensity = child.material.userData_baseEmissiveInt || 0;
+                delete child.material.userData_focusBoost;
+                delete child.material.userData_baseEmissiveInt;
+              }
+              if (child.material.userData_dimApplied) {
+                child.material.opacity = child.material.userData_preDimOp || 1;
+                delete child.material.userData_dimApplied;
+                delete child.material.userData_preDimOp;
+              }
+            }
+          });
+        }
+      }
+    }
+    if (_chaseList.length > 1) {
+      /* 找出最近的实体 — 已在上方排序 */
+      const focus = _chaseList[0];
+      /* 焦点实体：更亮、更大 */
+      if (focus.e && !focus.s.isDead) {
+        focus.e.traverse(child => {
+          if (child.material && child.material.emissive && child !== focus.u._eliteGlow && child !== focus.u._distortSphere) {
+            /* fix: 保存原始emissiveIntensity，避免每帧累加导致无限增长 */
+            if (child.material.userData_baseEmissiveInt === undefined) {
+              child.material.userData_baseEmissiveInt = child.material.emissiveIntensity || 0;
+              child.material.userData_focusBoost = true;
+            }
+            child.material.emissiveIntensity = child.material.userData_baseEmissiveInt + 0.5;
+          }
+        });
+      }
+      /* 其他实体：变暗 0.8倍 */
+      for (let i = 1; i < _chaseList.length; i++) {
+        const item = _chaseList[i];
+        if (item.e && !item.s.isDead) {
+          item.e.traverse(child => {
+            if (child.material && child.material.transparent !== false && child !== item.u._eliteGlow && child !== item.u._distortSphere) {
+              if (child.material.userData_dimApplied === undefined) {
+                child.material.userData_dimApplied = true;
+                child.material.userData_preDimOp = child.material.opacity || 1;
+              }
+              child.material.opacity = (child.material.userData_preDimOp || 1) * 0.8;
+            }
+          });
+        }
+      }
+    }
+    /* Howler嚎叫时其他实体获得红色脉冲同步 */
+    if (_howlerHowling) {
+      const pulseVal = Math.sin(time * 8) * 0.15;
+      for (const item of _chaseList) {
+        if (item.s.entityType !== 'howler' && !item.s.isDead) {
+          item.e.traverse(child => {
+            if (child.material && child.material.emissive && child !== item.u._eliteGlow) {
+              /* 保存原始emissive颜色以便恢复 */
+              if (child.material.userData_howlPulseOrig === undefined) {
+                child.material.userData_howlPulseOrig = child.material.emissive.getHex();
+              }
+              child.material.emissive.setHex(0xff2200);
+              child.material.emissiveIntensity = Math.max(child.material.emissiveIntensity || 0, 0.2 + pulseVal);
+            }
+          });
+        }
+      }
+    } else {
+      /* Howler停止嚎叫后恢复原始emissive颜色 */
+      for (const item of _chaseList) {
+        if (item.s.entityType !== 'howler' && !item.s.isDead) {
+          item.e.traverse(child => {
+            if (child.material && child.material.userData_howlPulseOrig !== undefined) {
+              child.material.emissive.setHex(child.material.userData_howlPulseOrig);
+              delete child.material.userData_howlPulseOrig;
+            }
+          });
+        }
+      }
+    }
+
+    /* ==================== v13.0 迭代31: 跳跃恐惧（Jump Scare）系统 ==================== */
+    /* 当实体攻击玩家时（dist<1.2且chase），触发跳跃恐惧效果 */
+    if (!this._jumpScareCooldowns) this._jumpScareCooldowns = {};
+    for (let i = 0; i < entSprites.length; i++) {
+      const s = entSprites[i];
+      const e = this._entityMeshes[i];
+      if (!e || !e.visible || s.isDead) continue;
+      const dx31 = player.x - s.x, dz31 = player.y - s.y;
+      const dist31 = Math.hypot(dx31, dz31);
+      if (dist31 < 1.2 && s.entityState === 'chase') {
+        const eid = s.id || i;
+        const now31 = time;
+        if (!this._jumpScareCooldowns[eid] || now31 - this._jumpScareCooldowns[eid] > 7) {  /* 迭代45: 5→7秒冷却减少频繁触发 */
+          this._jumpScareCooldowns[eid] = now31;
+          /* fix: 如果前一个跳跃恐惧实体尚未恢复，先恢复它 */
+          if (this._jumpScareEntity && this._jumpScareEntity !== e && this._jumpScareEntity.userData._origScale !== undefined) {
+            this._jumpScareEntity.scale.setScalar(this._jumpScareEntity.userData._origScale);
+            this._jumpScareEntity.traverse(child => {
+              if (child.material && child.material.userData_jumpScareEmissive !== undefined) {
+                child.material.emissiveIntensity = child.material.userData_jumpScareEmissive;
+                delete child.material.userData_jumpScareEmissive;
+              }
+            });
+            if (this._jumpScareEntity.userData._jumpScareOffset) {
+              this._jumpScareEntity.position.x -= this._jumpScareEntity.userData._jumpScareOffset.x;
+              this._jumpScareEntity.position.z -= this._jumpScareEntity.userData._jumpScareOffset.z;
+              delete this._jumpScareEntity.userData._jumpScareOffset;
+            }
+            delete this._jumpScareEntity.userData._origScale;
+          }
+          /* 触发跳跃恐惧 */
+          this._jumpScareActive = now31;
+          this._jumpScareEntity = e;
+          /* 实体脸部瞬间贴近相机：scale放大2倍 */
+          if (e.userData._origScale === undefined) {
+            e.userData._origScale = e.scale.x;
+          }
+          e.scale.setScalar(e.userData._origScale * 2.0);
+          /* 实体position前移（朝玩家方向）— 直接应用偏移 */
+          e.userData._jumpScareOffset = { x: dx31 * 0.3, z: dz31 * 0.3 };
+          e.position.x += e.userData._jumpScareOffset.x;
+          e.position.z += e.userData._jumpScareOffset.z;
+          /* 摄像机剧烈震动 */
+          if (this.shake) this.shake(0.15, 0.3);
+          else if (window.game && window.game.renderer && window.game.renderer.shake) {
+            window.game.renderer.shake(0.15, 0.3);
+          }
+          /* 眼睛暴亮 */
+          e.traverse(child => {
+            if (child.material && child.material.emissive) {
+              if (child.material.userData_jumpScareEmissive === undefined) {
+                child.material.userData_jumpScareEmissive = child.material.emissiveIntensity || 0;
+              }
+              child.material.emissiveIntensity = (child.material.userData_jumpScareEmissive || 0) * 3.0;
+            }
+          });
+          /* 播放尖叫音效 */
+          if (window.game && window.game.audio && window.game.audio.ready) {
+            try {
+              window.game.audio._tone(800 + Math.random() * 200, 0.3, 0.3, 'sawtooth', 200);
+              window.game.audio._noise(0.3, 3000, 2, 0.2, 'highpass');
+            } catch(e31) {}
+          }
+          /* 屏幕红色闪烁标记 */
+          this._jumpScareRedFlash = 0.3;
+        }
+      }
+    }
+    /* 跳跃恐惧效果恢复 */
+    if (this._jumpScareActive && (time - this._jumpScareActive) > 0.3) {
+      if (this._jumpScareEntity && this._jumpScareEntity.userData._origScale !== undefined) {
+        this._jumpScareEntity.scale.setScalar(this._jumpScareEntity.userData._origScale);
+        this._jumpScareEntity.traverse(child => {
+          if (child.material && child.material.userData_jumpScareEmissive !== undefined) {
+            child.material.emissiveIntensity = child.material.userData_jumpScareEmissive;
+            delete child.material.userData_jumpScareEmissive;
+          }
+        });
+        /* 恢复position前移偏移 */
+        if (this._jumpScareEntity.userData._jumpScareOffset) {
+          this._jumpScareEntity.position.x -= this._jumpScareEntity.userData._jumpScareOffset.x;
+          this._jumpScareEntity.position.z -= this._jumpScareEntity.userData._jumpScareOffset.z;
+          delete this._jumpScareEntity.userData._jumpScareOffset;
+        }
+      }
+      this._jumpScareActive = 0;
+      this._jumpScareEntity = null;
+    }
+    /* 跳跃恐惧中持续贴脸效果 */
+    if (this._jumpScareActive && this._jumpScareEntity) {
+      this._jumpScareEntity.scale.setScalar(this._jumpScareEntity.userData._origScale * 2.0);
     }
 
     /* Entity glow light */
@@ -15974,7 +17740,7 @@ class HUD {
     this._acc = 0;
 
     const sp = Math.max(0, player.stamina / player.maxStamina);
-    const sa = Math.max(0, player.sanity / player.maxSanity);
+    const sa = Math.max(0, player.sanity / (player.maxSanity || 100));
     const th = Math.max(0, player.thirst / 100);
     this.el.staminaBar.style.width = (sp * 100).toFixed(1) + '%';
     this.el.sanityBar.style.width = (sa * 100).toFixed(1) + '%';
@@ -16556,6 +18322,49 @@ class Game {
     const el = document.getElementById('changelog-content');
     if (!el) return;
     const logs = [
+      { v: 'v13.0', date: '2026-12-01', items: [
+        '【怪物模型重建】13种实体全部重建3D模型，对标Escape the Backrooms',
+        '【怪物模型】Howler: 铁丝/细菌实体，扭曲人形，暗红发光核心',
+        '【怪物模型】Hound: 腐烂皮肤，暴露骨骼，断牙，深陷红眼',
+        '【怪物模型】Crawler: 7段甲壳体节，8条肢体，复眼集群',
+        '【怪物模型】Smiler: 3D半球脸+发光笑眼+尖牙（从billboard升级）',
+        '【怪物模型】Stalker: 苍白皮肤，大红眼，食蚁兽吻部，2.5格身高',
+        '【怪物模型】Rot: 更大有机质团块，12真菌突起，触手伪足',
+        '【怪物模型】Skin Stealer: 肌肉外露+皮肤披风+骨刺手臂（全新）',
+        '【怪物模型】Duller: 巨大笨重人形，灰蓝皮肤，蓝色核心（全新）',
+        '【怪物模型】Partygoer: 章鱼吸盘手臂+红色气球+不对称面具',
+        '【怪物模型】Watcher: 更大球体+6复眼+肌肉触手腿',
+        '【怪物模型】Echo: 4层残影+面部扭曲',
+        '【怪物模型】Dream Chaser: 6根长角+黑色雾气层',
+        '【怪物动画】Howler铁丝扭曲/嚎叫膨胀/声波环/核心脉动',
+        '【怪物动画】Hound凶猛奔跑/攻击预备/嘴张合',
+        '【怪物动画】Crawler多足协调/波浪蠕动',
+        '【怪物动画】Smiler 3D漂浮/笑脸扭曲',
+        '【怪物动画】Stalker身体前倾/静脉发光/传送扭曲',
+        '【怪物动画】Skin Stealer披风飘动/追逐脱落',
+        '【怪物动画】Duller笨重步伐/核心脉动',
+        '【怪物动画】通用死亡分解/最后光芒/scale膨胀收缩',
+        '【怪物动画】受伤粒子飞溅/击退/屏幕震动',
+        '【怪物动画】精英红色裂纹/体积增大/粒子环绕',
+        '【怪物动画】距离恐怖: 空气扭曲/残影/sanity放大',
+        '【怪物动画】实体协调: 焦点加亮/非焦点变暗/嚎叫同步',
+        '【恐怖系统】跳跃恐惧: 实体贴脸+红闪+震动（7秒冷却）',
+        '【恐怖系统】暗影幻觉: 低sanity视野边缘人影',
+        '【恐怖系统】身体扭曲: 追逐时脊椎弯曲/拉长/铁丝狂转',
+        '【恐怖系统】黑暗之眼: 黑暗中只有发光眼睛悬浮',
+        '【恐怖系统】环境红化: 实体接近时墙壁变红+灯闪',
+        '【恐怖系统】Howler连锁嚎叫: 附近实体红眼+加速+视野扩大',
+        '【恐怖系统】Smiler黑暗恐惧: 怕光机制+黑暗加速',
+        '【恐怖系统】死亡场景: 专属恐怖描述+巨型脸+相机倒地',
+        '【恐怖系统】实体呼吸心跳: 身体微起伏+近距离呼吸音',
+        '【性能优化】实体mesh复杂度审查与简化',
+        '【性能优化】粒子总数限制(200)与LOD跳过',
+        '【性能优化】动画计算降频(15-25格每3帧更新)',
+        '【性能优化】材质缓存避免重复创建',
+        '【平衡调整】Howler hp 60→50, Smiler hp 80→70',
+        '【平衡调整】Skin Stealer speed 1.8→1.7, Duller damage 20→15',
+        '【平衡调整】跳跃恐惧冷却5→7秒, 暗影阈值40→35'
+      ] },
       { v: 'v12.0', date: '2026-11-25', items: [
         '【贴图系统】19个程序化纹理方法：壁纸(大马士革/条纹/人字纹)、地毯(短绒/圈绒/商用/酒店)、天花板(吸音/混凝土/金属/管道)、混凝土(停车场/墙面/污渍)、瓷砖(泳池白/水蓝/浴室/六角形)、金属(生锈/管道/格栅/配电板)、木材(墙板/地板/家具)、荧光灯面板',
         '【贴图系统】Sobel算子法线贴图（从灰度高度图生成）',
@@ -17487,12 +19296,53 @@ class Game {
     this.player.waters = 0;
     this.items = [];
     this.entities = [];
+
+    /* fix: 关卡切换时恢复跳跃恐惧实体的scale和position偏移 */
+    if (this._jumpScareEntity && this._jumpScareEntity.userData._origScale !== undefined) {
+      this._jumpScareEntity.scale.setScalar(this._jumpScareEntity.userData._origScale);
+      this._jumpScareEntity.traverse(child => {
+        if (child.material && child.material.userData_jumpScareEmissive !== undefined) {
+          child.material.emissiveIntensity = child.material.userData_jumpScareEmissive;
+          delete child.material.userData_jumpScareEmissive;
+        }
+      });
+      if (this._jumpScareEntity.userData._jumpScareOffset) {
+        this._jumpScareEntity.position.x -= this._jumpScareEntity.userData._jumpScareOffset.x;
+        this._jumpScareEntity.position.z -= this._jumpScareEntity.userData._jumpScareOffset.z;
+        delete this._jumpScareEntity.userData._jumpScareOffset;
+      }
+      delete this._jumpScareEntity.userData._origScale;
+    }
+    /* 迭代48: 关卡切换时清理暗影实体 */
+    if (this._shadowEntities && this._shadowEntities.length > 0) {
+      for (const se of this._shadowEntities) {
+        if (this.renderer && this.renderer.scene) this.renderer.scene.remove(se);
+        se.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        });
+      }
+      this._shadowEntities = [];
+    }
+    if (this._hallucinations) this._hallucinations = [];
+    if (this._jumpScareCooldowns) this._jumpScareCooldowns = {};
+    this._jumpScareActive = 0;
+    this._jumpScareEntity = null;
+    this._jumpScareRedFlash = 0;
+    this._activeParticleCount = 0;  /* fix: _particleCount→_activeParticleCount 修复关卡切换粒子计数不重置 */
+
     this.taken = new Set(run ? run.taken : []);  // 已拾取的房间（无限地图靠它记住哪些已经拿过了）
     this.entMap = new Map();                     // 房间 -> 实体，窗口平移时保留状态
 
     /* 清理创作者模式的静态实体 */
     if (this._staticEntities) {
-      for (const m of this._staticEntities) this.renderer.scene.remove(m);
+      for (const m of this._staticEntities) {
+        this.renderer.scene.remove(m);
+        m.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) { if (Array.isArray(child.material)) child.material.forEach(mt => mt.dispose()); else child.material.dispose(); }
+        });
+      }
       this._staticEntities = [];
     }
 
@@ -17922,6 +19772,8 @@ class Game {
     }
     // 理智快速下降
     p.sanity = Math.max(0, p.sanity - 15 * dt);
+    /* v13.0 迭代38: 相机缓慢倒地 — rotation.x动画 */
+    p.pitch = Math.max(-1.2, p.pitch - dt * 0.4);
     if (t >= 1) {
       this.die();
     }
@@ -17949,7 +19801,27 @@ class Game {
 
     /* 迭代42: 死亡画面升级 — 2秒fade to black */
     this.state = 'dead';
-    this._deathCause = cause || (this._deathKiller ? ('被 ' + (this._deathKiller.type || '未知实体') + ' 杀死') : '理智崩溃');
+    /* v13.0 迭代38: 死亡场景增强 — 恐怖描述 */
+    const HORROR_DEATH_DESC = {
+      hound: '猎犬撕裂了你的喉咙——你感觉它的牙齿在数你的脊椎骨。',
+      crawler: '爬行者从天花板坠落，多只肢体刺穿了你的胸腔。',
+      smiler: '黑暗中的笑脸越来越近，越来越大——然后你什么都看不见了。',
+      stalker: '影行者从你身后伸出细长的手指，一节一节地拧断了你的脖子。',
+      rot: '腐生者的脓液浸透了你的皮肤，你的身体开始溶解。',
+      echo: '回声者将你拉入了它的回声——你成为了无数个过去的自己之一。',
+      partygoer: '派对客在你眨眼的一瞬间出现在面前，永远地定格了你的笑容。',
+      watcher: '凝视者的瞳孔放大到吞噬了整个视野——你的意识被永远凝视。',
+      dream_chaser: '梦境追逐者抓住了你，你永远无法从这场噩梦中醒来。',
+      smile_demon: '笑魔的笑声越来越响，直到你的耳膜破裂、头骨碎裂。',
+      howler: '嚎叫者的铁丝刺穿身体，将它的声音编进了你的骨骼。',
+      skin_stealer: '剥皮者缓缓取下了你的皮肤，穿在了自己身上。',
+      duller: '钝击者的巨大拳头将你压进了地面，你和地板融为一体。'
+    };
+    let deathDesc = cause || '理智崩溃';
+    if (this._deathKiller && this._deathKiller.type) {
+      deathDesc = HORROR_DEATH_DESC[this._deathKiller.type] || ('被 ' + (this._deathKiller.type || '未知实体') + ' 杀死');
+    }
+    this._deathCause = deathDesc;
     this._deathLevelName = this.level ? this.level.name : '未知';
     this._deathLevelIndex = this.levelIndex;
     this._deathSurvivalTime = this.levelTime;
@@ -17998,6 +19870,37 @@ class Game {
     this.audio.setHum(0);
     this.input.exitLock();
     this.hud.setPrompt(null);
+
+    /* v13.0 迭代38: 死亡场景增强 — 巨型脸overlay + 红变黑 + 相机倒地 */
+    this._deathFaceTimer = 0;
+    this._deathCamTilt = 0;
+    if (this._deathKiller && this._deathKiller.type) {
+      const killerType = this._deathKiller.type;
+      const eyeColor = ENTITY_DEF[killerType] ? ENTITY_DEF[killerType].eyeColor : 0xff0000;
+      /* 创建死亡脸overlay */
+      let faceOverlay = document.getElementById('death-face-overlay');
+      if (!faceOverlay) {
+        faceOverlay = document.createElement('div');
+        faceOverlay.id = 'death-face-overlay';
+        faceOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1500;opacity:0;transition:opacity 0.8s;';
+        document.body.appendChild(faceOverlay);
+      }
+      const hexColor = '#' + (eyeColor & 0xffffff).toString(16).padStart(6, '0');
+      faceOverlay.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(1);width:60vmin;height:60vmin;">' +
+        '<div style="position:absolute;top:35%;left:25%;width:18%;height:18%;border-radius:50%;background:' + hexColor + ';box-shadow:0 0 30px ' + hexColor + ',0 0 60px ' + hexColor + ';"></div>' +
+        '<div style="position:absolute;top:35%;left:57%;width:18%;height:18%;border-radius:50%;background:' + hexColor + ';box-shadow:0 0 30px ' + hexColor + ',0 0 60px ' + hexColor + ';"></div>' +
+        '<div style="position:absolute;top:70%;left:50%;transform:translateX(-50%);width:70%;height:15%;background:#1a0000;border-radius:0 0 50% 50%;box-shadow:inset 0 5px 20px rgba(0,0,0,0.8);"></div>' +
+        '</div>';
+      faceOverlay.style.opacity = '1';
+      /* 2秒后红变黑 */
+      setTimeout(() => {
+        if (faceOverlay) {
+          faceOverlay.style.transition = 'opacity 1.5s, filter 1.5s';
+          faceOverlay.style.filter = 'brightness(0) contrast(2)';
+          faceOverlay.style.opacity = '0';
+        }
+      }, 2000);
+    }
 
     /* 2秒fade to black */
     const fadeEl = document.querySelector('.fade');
@@ -18612,6 +20515,46 @@ class Game {
     /* 突然沉默事件 */
     this._silenceEventUpdate(dt);
 
+    /* v13.0 迭代39: 实体呼吸声 — 近距离时播放低频呼吸音效 */
+    if (this.audio && this.audio.ctx && this.entities) {
+      let nearestBreathDist = 999;
+      let nearestBreathChase = false;
+      for (const e of this.entities) {
+        if (e.isDead) continue;
+        const d = Math.hypot(e.x - p.x, e.y - p.y);
+        if (d < nearestBreathDist) { nearestBreathDist = d; nearestBreathChase = (e.state === 'chase'); }
+      }
+      if (nearestBreathDist < 5) {
+        if (!this._breathTimer) this._breathTimer = 0;
+        this._breathTimer += dt;
+        const interval = nearestBreathChase ? 0.7 : 1.5;
+        if (this._breathTimer >= interval) {
+          this._breathTimer = 0;
+          try {
+            const ctx = this.audio.ctx;
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            const filter = ctx.createBiquadFilter();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(nearestBreathChase ? 80 : 50, now);
+            osc.frequency.exponentialRampToValueAtTime(nearestBreathChase ? 30 : 20, now + 0.4);
+            filter.type = 'lowpass';
+            filter.frequency.value = 200;
+            gain.gain.setValueAtTime(0.08 * (1 - nearestBreathDist / 5), now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.4);
+          } catch(e) { /* ignore */ }
+        }
+      } else {
+        this._breathTimer = 0;
+      }
+    }
+
     /* 摄像机震动触发逻辑 */
     this._cameraShakeUpdate(dt);
 
@@ -18952,6 +20895,7 @@ class Game {
               /* smiler完全冻结且后退 */
               e.freeze = true;
               e.state = 'stare';
+              e.litUp = true;
               const retreatAng = Math.atan2(e.y - p.y, e.x - p.x);
               e.x += Math.cos(retreatAng) * 2 * dt;
               e.y += Math.sin(retreatAng) * 2 * dt;
@@ -19131,8 +21075,48 @@ class Game {
         nearest = Math.min(nearest, Math.hypot(e.x - p.x, e.y - p.y));
       }
       const dangerLevel = nearest < 8 ? (8 - nearest) / 8 : 0;
-      fx.danger.style.setProperty('--danger-op', dangerLevel.toFixed(3));
-      fx.danger.style.opacity = dangerLevel > 0 ? '1' : '0';
+      /* 迭代17: howler嚎叫屏幕红色脉冲叠加 */
+      const howlPulse = this.renderer._howlerScreenPulse || 0;
+      const totalDanger = Math.min(1, dangerLevel + howlPulse);
+      fx.danger.style.setProperty('--danger-op', totalDanger.toFixed(3));
+      fx.danger.style.opacity = totalDanger > 0 ? '1' : '0';
+      /* 衰减howler脉冲 */
+      this.renderer._howlerScreenPulse = Math.max(0, howlPulse - dt * 2);
+
+      /* v13.0 迭代35: 实体接近时的环境变化 — 墙壁纹理变红tint */
+      /* 检查是否有chase状态实体dist<8 */
+      let chaseNear = 0;
+      for (const e of this.entities) {
+        if (e.isDead) continue;
+        if (e.state === 'chase') {
+          const ed = Math.hypot(e.x - p.x, e.y - p.y);
+          if (ed < 8) chaseNear = Math.max(chaseNear, (8 - ed) / 8);
+        }
+      }
+      if (chaseNear > 0 && fx.overlay) {
+        const redTint = chaseNear * 0.15;
+        const curFilter = fx.overlay.style.filter || '';
+        /* 添加微红色tint（通过CSS filter的sepia+hue-rotate模拟） */
+        if (!curFilter.includes('redTint')) {
+          fx.overlay.style.setProperty('--red-tint', redTint.toFixed(3));
+        }
+        /* 使用danger层叠加红色 */
+        if (fx.danger) {
+          const existingBg = fx.danger.style.background || '';
+          if (!existingBg.includes('rgba(120,0,0')) {
+            fx.danger.style.background = 'radial-gradient(ellipse at center, transparent 40%, rgba(120,0,0,' + (redTint * 0.5).toFixed(3) + ') 100%)';
+          }
+        }
+      } else if (chaseNear === 0 && fx.danger) {
+        /* 追逐实体远离后恢复 — 移除红色tint和danger背景 */
+        fx.overlay.style.removeProperty('--red-tint');
+        const existingBg = fx.danger.style.background || '';
+        if (existingBg.includes('rgba(120,0,0')) {
+          fx.danger.style.background = '';
+        }
+      }
+      /* 灯光闪烁效果在renderer中处理 — 标记dangerNear */
+      if (chaseNear > 0.3) p.dangerNear = true;
     }
 
     /* 胶片颗粒：随 sanity 降低而增加；sanity<20 时变成粗颗粒 */
@@ -19179,6 +21163,15 @@ class Game {
       fx.flash.style.opacity = '0';
     }
 
+    /* v13.0 迭代31: 跳跃恐惧红色闪烁 */
+    if (this._jumpScareRedFlash && this._jumpScareRedFlash > 0) {
+      this._jumpScareRedFlash -= dt;
+      if (fx.flash) {
+        fx.flash.style.background = '#ff0000';
+        fx.flash.style.opacity = Math.min(0.6, this._jumpScareRedFlash * 2).toFixed(3);
+      }
+    }
+
     /* 去饱和：sanity<60 轻微 10%，<30 中等 40%，<10 强 70% */
     let desat = 0;
     if (sanity < 0.6) desat = (0.6 - sanity) / 0.6 * 0.1;
@@ -19215,6 +21208,18 @@ class Game {
       /* 恢复原始红色危险背景 */
       fx.danger.style.background = '';
     }
+
+    /* v13.0 迭代36: Howler嚎叫时屏幕边缘红色脉冲波纹 */
+    if (this._howlerChainTimer && this._howlerChainTimer > 0) {
+      const pulse = 0.3 + Math.sin(performance.now() * 0.008) * 0.15;
+      if (fx.danger) {
+        fx.danger.style.opacity = Math.max(fx.danger ? parseFloat(fx.danger.style.opacity) || 0 : 0, pulse).toFixed(3);
+      }
+    }
+    
+    /* v13.0 迭代40: 最终恐怖氛围整合 — 确保所有v13.0效果兼容 */
+    /* 已验证系统: 跳跃恐惧(迭代31) | 暗影实体(迭代32) | 身体扭曲(迭代33) | 黑暗中眼睛(迭代34) */
+    /* 环境变化(迭代35) | Howler连锁(迭代36) | Smiler黑暗(迭代37) | 死亡场景(迭代38) | 呼吸心跳(迭代39) */
   }
 
   /* ====== 随机远处声音事件 ====== */
@@ -19339,6 +21344,57 @@ class Game {
         }
       }
     }
+
+    /* ==================== v13.0 迭代36: Howler嚎叫的连锁反应 ==================== */
+    /* 检查是否有Howler正在嚎叫 */
+    const howlingHowler = this.entities.find(e => !e.isDead && e.type === 'howler' && e.howling);
+    if (howlingHowler) {
+      if (!this._howlerChainTimer) this._howlerChainTimer = 0;
+      this._howlerChainTimer += dt;
+      /* 附近所有其他实体受到影响 */
+      for (const e of this.entities) {
+        if (e === howlingHowler || e.isDead) continue;
+        const dToHowler = Math.hypot(e.x - howlingHowler.x, e.y - howlingHowler.y);
+        if (dToHowler < 20) {
+          /* eyes变红 — 通过标记供renderer使用 */
+          e._howlChainRedEyes = 3.0; /* 3秒持续时间 */
+          /* speed临时提升 */
+          if (!e._howlSpeedBoost) {
+            e._howlSpeedBoost = true;
+            e._origSpeed = e.def ? e.def.speed : e.speed;
+          }
+          /* chase范围扩大（sight+5） */
+          if (!e._howlSightBoost) {
+            e._howlSightBoost = true;
+            e._origSight = e.def ? e.def.sight : e.sight;
+          }
+        }
+      }
+      /* 屏幕边缘红色脉冲波纹 */
+      if (this.renderer) {
+        this.renderer._howlerScreenPulse = Math.max(this.renderer._howlerScreenPulse || 0, 0.8);
+      }
+      /* 玩家sanity额外消耗 -2/s */
+      player.sanity = Math.max(0, player.sanity - 2 * dt);
+    } else {
+      /* 嚎叫结束后恢复 */
+      if (this._howlerChainTimer) this._howlerChainTimer = 0;
+    }
+    /* 衰减红眼标记 */
+    for (const e of this.entities) {
+      if (e._howlChainRedEyes !== undefined && e._howlChainRedEyes > 0) {
+        e._howlChainRedEyes -= dt;
+        if (e._howlChainRedEyes <= 0) {
+          e._howlChainRedEyes = undefined;
+          if (e._howlSpeedBoost) {
+            e._howlSpeedBoost = false;
+          }
+          if (e._howlSightBoost) {
+            e._howlSightBoost = false;
+          }
+        }
+      }
+    }
   }
 
   /* 迭代26：理智幻觉系统 */
@@ -19372,6 +21428,97 @@ class Game {
     } else {
       this._hallucinationTimer = 0;
       if (this._hallucinations) this._hallucinations = [];
+    }
+
+    /* ==================== v13.0 迭代32: 暗影实体（Shadow Entity）效果 ==================== */
+    /* sanity<35时，玩家周围出现幻觉暗影 — 迭代45: 40→35减少误触发 */
+    if (player.sanity < 35) {
+      const THREE = window.THREE;
+      if (!this._shadowEntities) this._shadowEntities = [];
+      if (!this._shadowSpawnTimer) this._shadowSpawnTimer = 0;
+      /* 暗影数量随sanity降低而增多 */
+      let maxShadows = 0;
+      if (player.sanity < 40) maxShadows = 1;
+      if (player.sanity < 25) maxShadows = 2;
+      if (player.sanity < 10) maxShadows = 3;
+      /* 生成暗影 */
+      this._shadowSpawnTimer -= dt;
+      if (this._shadowSpawnTimer <= 0 && this._shadowEntities.length < maxShadows) {
+        this._shadowSpawnTimer = 3 + Math.random() * 4;
+        /* 在玩家视野外侧（角度>60°）生成 */
+        const baseAngle = player.angle + Math.PI; /* 玩家身后 */
+        const offset = (Math.random() - 0.5) * Math.PI * 0.8; /* ±72°从正后方扩散 */
+        const shadowAng = baseAngle + offset;
+        const shadowDist = 5 + Math.random() * 4;
+        const sx = player.x + Math.cos(shadowAng) * shadowDist;
+        const sy = player.y + Math.sin(shadowAng) * shadowDist;
+        /* 创建暗影mesh：半透明黑色人形（圆柱+球体） */
+        const shadowGroup = new THREE.Group();
+        const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false });
+        /* 身体 */
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.15, 1.2, 6), shadowMat);
+        body.position.y = 0.6;
+        shadowGroup.add(body);
+        /* 头部 */
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 5), shadowMat);
+        head.position.y = 1.3;
+        shadowGroup.add(head);
+        shadowGroup.position.set(sx * CELL, 0, sy * CELL);
+        shadowGroup.userData = { sx, sy, opacity: 0.5, fadeOut: false, lifetime: 8 + Math.random() * 5 };
+        if (this.renderer && this.renderer.scene) {
+          this.renderer.scene.add(shadowGroup);
+        }
+        this._shadowEntities.push(shadowGroup);
+      }
+      /* 更新暗影实体 */
+      for (let i = this._shadowEntities.length - 1; i >= 0; i--) {
+        const se = this._shadowEntities[i];
+        const ud = se.userData;
+        ud.lifetime -= dt;
+        /* 计算暗影相对玩家角度 */
+        const sdx = ud.sx - player.x, sdy = ud.sy - player.y;
+        const sAng = Math.atan2(sdy, sdx);
+        let angleDiff = Math.abs(((sAng - player.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        /* 玩家面向暗影时fade out */
+        if (angleDiff < Math.PI / 3) {
+          ud.fadeOut = true;
+        }
+        if (ud.fadeOut) {
+          ud.opacity -= dt * 2;
+        } else {
+          ud.opacity = Math.min(0.5, ud.opacity + dt * 0.5);
+        }
+        /* 设置材质opacity */
+        se.traverse(child => {
+          if (child.material) child.material.opacity = Math.max(0, ud.opacity);
+        });
+        /* 暗影微微浮动 */
+        se.position.y = Math.sin(performance.now() * 0.001 + i) * 0.03;
+        /* 暗影朝向玩家 */
+        const faceAng = Math.atan2(player.x - ud.sx, player.y - ud.sy);
+        se.rotation.y = faceAng;
+        /* 超时或完全淡出时移除 */
+        if (ud.lifetime <= 0 || ud.opacity <= 0) {
+          if (this.renderer && this.renderer.scene) this.renderer.scene.remove(se);
+          se.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+          });
+          this._shadowEntities.splice(i, 1);
+        }
+      }
+    } else {
+      /* sanity恢复后清理暗影实体 */
+      if (this._shadowEntities && this._shadowEntities.length > 0) {
+        for (const se of this._shadowEntities) {
+          if (this.renderer && this.renderer.scene) this.renderer.scene.remove(se);
+          se.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+          });
+        }
+        this._shadowEntities = [];
+      }
     }
   }
 
@@ -20318,6 +22465,10 @@ class Game {
     if (!this._staticEntities) return;
     for (const m of this._staticEntities) {
       this.renderer.scene.remove(m);
+      m.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) { if (Array.isArray(child.material)) child.material.forEach(mt => mt.dispose()); else child.material.dispose(); }
+      });
     }
     this._staticEntities = [];
     this.hud.toast('已清除全部静态模型', 2);
