@@ -20124,8 +20124,8 @@ class Game {
       } catch (err) {
         _errCount++;
         console.error('[backrooms] 渲染循环错误 #' + _errCount, err);
-        /* 连续报错超过 10 次才暂停，避免偶发错误直接卡死游戏 */
-        if (_errCount > 10) {
+        /* 连续报错超过 3 次就显示，方便诊断 */
+        if (_errCount > 3) {
           if (!_errBox) {
             _errBox = document.createElement('pre');
             _errBox.style.cssText =
