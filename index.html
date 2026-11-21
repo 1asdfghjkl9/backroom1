@@ -11710,9 +11710,9 @@ class ThreeJSRendererBridge {
         const _wtEnabled = _wtGen === 'corridor' || _wtGen === 'hotel' || _wtGen === 'parking';
         /* 迭代33：地面痕迹 — 同样的关卡类型 */
         const _fsEnabled = _wtEnabled;
-        const _wtRng = mulberry32((lx * 31 + ly * 17 + (world.level ? (world.level.id || 0) * 991 : 0)) | 0);
         for (let ly = cy; ly < Math.min(cy + CHUNK, H); ly++) {
           for (let lx = cx; lx < Math.min(cx + CHUNK, W); lx++) {
+            const _wtRng = mulberry32((lx * 31 + ly * 17 + (world.level ? (world.level.id || 0) * 991 : 0)) | 0);
             const wx = (lx + ox) * CELL, wz = (ly + oy) * CELL;
             const wx1 = wx + CELL, wz1 = wz + CELL;
             const isWall = solidAt(lx, ly);
