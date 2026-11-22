@@ -1409,6 +1409,50 @@ input[type="range"]::-moz-range-thumb {
 #codex-box .codex-item.found .codex-name{color:var(--amber-l);}
 #codex-box .codex-close{display:block;margin:12px auto 0;background:rgba(180,140,60,.2);border:1px solid rgba(180,140,60,.3);color:var(--amber);padding:6px 20px;border-radius:3px;cursor:pointer;font-family:var(--font);font-size:11px;}
 
+/* 迭代61：排行榜表格 */
+.lb-rank-table{width:100%;border-collapse:collapse;font-size:11px;}
+.lb-rank-table th{color:var(--amber);font-size:9px;letter-spacing:.08em;text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);}
+.lb-rank-table td{padding:6px 8px;border-bottom:1px solid rgba(180,140,60,.06);color:var(--tc);}
+.lb-rank-table tr:hover td{background:rgba(180,140,60,.04);}
+.lb-rank-medal{font-size:14px;min-width:24px;display:inline-block;text-align:center;}
+
+/* 迭代62：评分显示 */
+.score-grade{font-size:48px;font-weight:900;text-align:center;margin:12px 0;text-shadow:0 0 20px currentColor;}
+.score-grade.grade-s{color:#ffd700;}
+.score-grade.grade-a{color:#8ee6b0;}
+.score-grade.grade-b{color:#7a9db8;}
+.score-grade.grade-c{color:var(--tc-mid);}
+.score-grade.grade-d{color:var(--danger);}
+.score-bar-row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:11px;}
+.score-bar-label{min-width:70px;color:var(--tc-sm);}
+.score-bar-track{flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;}
+.score-bar-fill{height:100%;border-radius:3px;transition:width .5s;}
+.score-bar-val{min-width:36px;text-align:right;color:var(--amber-l);font-weight:600;}
+
+/* 迭代63：教程弹窗 */
+#tutorial-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;}
+#tutorial-overlay.active{display:flex;}
+.tutorial-box{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:28px 32px;max-width:420px;width:90%;text-align:center;}
+.tutorial-box h3{color:var(--amber);font-size:16px;margin:0 0 12px;letter-spacing:2px;}
+.tutorial-box .tut-icon{font-size:48px;margin:12px 0;display:block;}
+.tutorial-box .tut-text{font-size:12px;color:var(--tc-mid);line-height:1.8;margin-bottom:16px;}
+.tutorial-box .tut-keys{display:flex;gap:6px;justify-content:center;margin:12px 0;flex-wrap:wrap;}
+.tut-key{background:rgba(180,140,60,.15);border:1px solid rgba(180,140,60,.3);border-radius:4px;padding:4px 10px;font-size:11px;color:var(--amber-l);font-weight:600;}
+.tut-key.highlight{background:rgba(180,140,60,.35);box-shadow:0 0 8px rgba(180,140,60,.3);animation:tutPulse 1.2s infinite;}
+@keyframes tutPulse{0%,100%{box-shadow:0 0 8px rgba(180,140,60,.3)}50%{box-shadow:0 0 16px rgba(180,140,60,.5)}}
+.tutorial-step{font-size:10px;color:var(--tc-sm);margin-bottom:8px;}
+
+/* 迭代64：每日挑战 */
+.daily-badge{display:inline-block;background:linear-gradient(135deg,rgba(255,215,0,.15),rgba(255,140,0,.1));border:1px solid rgba(255,215,0,.3);border-radius:4px;padding:2px 8px;font-size:9px;color:#ffd700;margin-left:6px;}
+.daily-rule-tag{display:inline-block;background:rgba(200,60,60,.1);border:1px solid rgba(200,60,60,.2);border-radius:3px;padding:1px 6px;font-size:9px;color:#e88;margin:2px;}
+
+/* 迭代65：成就toast */
+.ach-toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-100px);z-index:400;background:var(--panel);border:1px solid rgba(180,140,60,.4);border-radius:6px;padding:10px 20px;display:flex;align-items:center;gap:10px;transition:transform .4s cubic-bezier(.34,1.56,.64,1);pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.5);}
+.ach-toast.show{transform:translateX(-50%) translateY(0);}
+.ach-toast .ach-toast-icon{font-size:24px;}
+.ach-toast .ach-toast-text{font-size:11px;color:var(--amber-l);}
+.ach-toast .ach-toast-name{font-weight:700;font-size:12px;color:var(--amber);}
+
 </style>
 </head>
 <body>
@@ -1604,6 +1648,11 @@ input[type="range"]::-moz-range-thumb {
             <span class="btn-label">重新开始</span>
             <span class="btn-sub">从头开始</span>
           </button>
+          <button class="btn" style="background:linear-gradient(135deg,#fc0,#f80);color:#000;font-weight:bold;margin-top:6px" onclick="startDailyChallenge()">
+            <span class="btn-label">🎯 每日挑战</span>
+            <span class="btn-sub" id="daily-status">今日未挑战</span>
+          </button>
+          <button class="btn btn-ghost" onclick="showLeaderboard()" style="margin-top:4px">🏆 排行榜</button>
           <button class="btn" data-action="resume-run" id="btn-resume-run" hidden></button>
         </div>
 
@@ -1640,6 +1689,11 @@ input[type="range"]::-moz-range-thumb {
           <button class="pubg-side-btn" data-action="leaderboard">
             <span class="pubg-side-icon">📊</span>
             <span class="pubg-side-text">排行榜</span>
+          </button>
+          <button class="pubg-side-btn" data-action="daily-challenge" id="btn-daily-challenge">
+            <span class="pubg-side-icon">⚔️</span>
+            <span class="pubg-side-text">每日挑战</span>
+            <span class="daily-badge" id="daily-badge">NEW</span>
           </button>
           <button class="pubg-side-btn" data-action="feedback">
             <span class="pubg-side-icon">💬</span>
@@ -1731,12 +1785,27 @@ input[type="range"]::-moz-range-thumb {
     <section class="screen" id="screen-leaderboard">
       <div class="panel panel-wide">
         <h2>📊 排行榜</h2>
-        <div id="lb-tabs" style="display:flex;gap:8px;margin-bottom:14px;">
+        <div id="lb-tabs" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
           <button class="btn btn-primary" id="lb-tab-times" onclick="game.refreshLeaderboard('times')" style="font-size:12px;">⚡ 关卡速通</button>
           <button class="btn btn-ghost" id="lb-tab-allclear" onclick="game.refreshLeaderboard('allclear')" style="font-size:12px;">🏆 全通关</button>
+          <button class="btn btn-ghost" id="lb-tab-local" onclick="game.refreshLeaderboard('local')" style="font-size:12px;">📜 本地记录</button>
         </div>
         <div id="lb-content" style="max-height:400px;overflow-y:auto;"></div>
         <div class="panel-foot">
+          <button class="btn btn-ghost" data-action="menu">返回</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 迭代64：每日挑战 -->
+    <section class="screen" id="screen-daily-challenge">
+      <div class="panel" style="max-width:520px;">
+        <h2>⚔️ 每日挑战</h2>
+        <p style="font-size:11px;color:var(--tc-sm);margin-bottom:8px;" id="daily-date">今日挑战</p>
+        <div id="daily-rules" style="margin:12px 0;"></div>
+        <div id="daily-stats" style="font-size:11px;color:var(--tc-mid);margin:12px 0;"></div>
+        <div class="panel-foot" style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="btn-daily-start" style="padding:10px 28px;">开始挑战</button>
           <button class="btn btn-ghost" data-action="menu">返回</button>
         </div>
       </div>
@@ -1921,6 +1990,10 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
           </div>
         </div>
         <p class="setting-note">画质越高，内部渲染分辨率越高。帧率不稳时会自动降采样，不会卡死。</p>
+        <div class="setting-row" style="justify-content:space-between;">
+          <span>新手教程</span>
+          <button class="btn btn-ghost" onclick="localStorage.removeItem('backrooms_tutorial_done');if(typeof toast==='function')toast('教程已重置，下次进入游戏时显示');" style="padding:4px 12px;font-size:10px;">重置教程</button>
+        </div>
         <div class="panel-foot">
           <button class="btn btn-ghost" data-action="menu">返回</button>
         </div>
@@ -2040,8 +2113,12 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
         </div>
         <div class="menu-buttons">
           <button class="btn btn-primary" data-action="restart" id="dead-restart-btn">返回中枢</button>
+          <button class="btn btn-ghost" onclick="showLeaderboard()">🏆 排行榜</button>
           <button class="btn btn-ghost" data-action="quit">返回主菜单</button>
         </div>
+        <div id="dead-score" style="margin-top:10px;text-align:center;font-size:14px;color:#fc0;display:none"></div>
+        <!-- 迭代62：评分详情 -->
+        <div id="dead-score-detail" style="display:none;margin-top:10px;padding:10px;background:rgba(20,18,12,.5);border:1px solid rgba(180,140,60,.12);border-radius:4px;"></div>
       </div>
     </section>
 
@@ -19051,6 +19128,17 @@ const ACHIEVEMENTS = [
   { id: 'collector',      name: '收藏家',     desc: '收集10种不同道具',         icon: '◈' },
   { id: 'survivor',       name: '幸存者',     desc: '存活超过10分钟',           icon: '♺' },
   { id: 'crafter',        name: '工匠',       desc: '完成第一次合成',           icon: '⚒' },
+  /* 迭代65：新增成就 */
+  { id: 'boss_slayer',    name: 'Boss猎人',   desc: '击败第一个Boss',          icon: '👑' },
+  { id: 'puzzle_master',  name: '谜题大师',   desc: '完成10个谜题',            icon: '🧩' },
+  { id: 'enchanter',      name: '附魔师',     desc: '附魔5次',                icon: '✨' },
+  { id: 'explorer_100',   name: '探险家',     desc: '探索100个房间',           icon: '🗺' },
+  { id: 'collector_all',  name: '全能收藏',   desc: '收集所有道具类型',         icon: '📦' },
+  { id: 'survivor_30',    name: '铁人',       desc: '存活超过30分钟',           icon: '🛡' },
+  { id: 'speedrun_5',     name: '极速者',     desc: '5分钟内通关',             icon: '⚡' },
+  { id: 'pacifist_run',   name: '圣者',       desc: '不击杀任何怪物通关',       icon: '🕊' },
+  { id: 'minimalist',     name: '极简主义',   desc: '只使用基础道具通关',       icon: '◇' },
+  { id: 'completionist',  name: '完美主义',   desc: '完成所有成就',             icon: '🏅' },
 ];
 
 const DEATH_LINES = [
@@ -20298,6 +20386,7 @@ class Game {
         if (run) { this.startLevel(run.levelIndex, run); }
         else if (this.progress.maxUnlocked >= 2) { this.clearRun(); this.startLevel(2); }
         else { this.clearRun(); this.startLevel(Math.min(this.progress.maxUnlocked, LEVELS.length - 1)); }
+        if (shouldShowTutorial()) setTimeout(showTutorial, 500);
         break;
       case 'start-over':
         this.clearRun();
@@ -21404,6 +21493,29 @@ class Game {
         const statLevel = document.getElementById('stat-level');
         if (statLevel) statLevel.textContent = this._deathLevelName || '未知';
       }
+
+      /* 迭代62: 评分系统 */
+      var scoreData = {
+        roomsExplored: this._roomsVisited || 0,
+        kills: this.levelKills || 0,
+        itemsCollected: this.levelItemsCollected || 0,
+        survivalTime: this._deathSurvivalTime || 0,
+        levelIndex: this.levelIndex || 0
+      };
+      var scoreResult = calculateScore(scoreData);
+      var scoreEl = document.getElementById('dead-score');
+      if (scoreEl) {
+        scoreEl.style.display = 'block';
+        scoreEl.innerHTML = '评分: <span style="font-size:20px;font-weight:bold">' + scoreResult.score + '</span> 等级: <span style="font-size:18px;font-weight:bold">' + scoreResult.grade + '</span>';
+      }
+
+      /* 迭代61: 保存到排行榜 */
+      saveToLeaderboard({
+        level: this.levelIndex || 0,
+        survival: Math.floor(this._deathSurvivalTime || 0),
+        kills: this.levelKills || 0,
+        score: scoreResult.score
+      });
 
       /* 迭代19：死亡回放提示 — 最近事件 */
       const recentEvents = this._recentEvents ? this._recentEvents.slice(-5) : [];
@@ -26842,6 +26954,136 @@ function showEventNotification(evt){
   el._ht=setTimeout(function(){el.classList.remove('show');},4000);
 }
 
+// ========== 迭代61-65: 排行榜、评分、教程、每日挑战、成就扩展 ==========
+
+// --- 排行榜系统 ---
+const LEADERBOARD_KEY = 'backrooms_leaderboard_v1';
+function getLeaderboard() {
+  try { return JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]'); } catch(e) { return []; }
+}
+function saveToLeaderboard(data) {
+  var lb = getLeaderboard();
+  data.date = new Date().toLocaleDateString();
+  lb.push(data);
+  lb.sort(function(a,b){ return b.score - a.score; });
+  lb = lb.slice(0, 10);
+  try { localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(lb)); } catch(e) {}
+}
+function showLeaderboard() {
+  var lb = getLeaderboard();
+  var html = '<div class="puzzle-overlay" id="lb-overlay" style="display:flex"><div class="puzzle-box" style="max-width:500px">';
+  html += '<h3>🏆 排行榜</h3>';
+  if (lb.length === 0) {
+    html += '<p style="color:#aaa;text-align:center">暂无记录</p>';
+  } else {
+    html += '<table style="width:100%;color:#ddd;font-size:13px;border-collapse:collapse">';
+    html += '<tr style="border-bottom:1px solid #555"><th>#</th><th>日期</th><th>层级</th><th>存活</th><th>击杀</th><th>评分</th></tr>';
+    lb.forEach(function(r, i) {
+      html += '<tr style="border-bottom:1px solid #333"><td>' + (i+1) + '</td><td>' + r.date + '</td><td>' + r.level + '</td><td>' + r.survival + 's</td><td>' + r.kills + '</td><td style="color:#fc0">' + r.score + '</td></tr>';
+    });
+    html += '</table>';
+  }
+  html += '<button onclick="document.getElementById(\'lb-overlay\').remove()" style="margin-top:12px;padding:8px 20px;background:#555;color:#fff;border:none;border-radius:4px;cursor:pointer">关闭</button>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// --- 评分系统 ---
+function calculateScore(gameData) {
+  var exploration = Math.min(gameData.roomsExplored || 0, 100);
+  var kills = gameData.kills || 0;
+  var items = gameData.itemsCollected || 0;
+  var survival = gameData.survivalTime || 0;
+  var score = Math.floor(exploration * 0.3 + kills * 10 + items * 5 + survival * 0.5);
+  var grade = 'D';
+  if (score > 1000) grade = 'S';
+  else if (score > 500) grade = 'A';
+  else if (score > 200) grade = 'B';
+  else if (score > 100) grade = 'C';
+  return { score: score, grade: grade };
+}
+
+// --- 教程系统 ---
+const TUTORIAL_KEY = 'backrooms_tutorial_done';
+function shouldShowTutorial() {
+  return !localStorage.getItem(TUTORIAL_KEY);
+}
+function showTutorial() {
+  var steps = [
+    { title: '🎮 移动', desc: '使用 WASD 键或屏幕摇杆移动角色' },
+    { title: '⚔️ 攻击', desc: '点击屏幕或攻击按钮来击打怪物' },
+    { title: '🎒 背包', desc: '按 Tab 键或点击背包按钮打开背包管理道具' }
+  ];
+  var currentStep = 0;
+  function renderStep() {
+    var s = steps[currentStep];
+    var overlay = document.getElementById('tutorial-overlay');
+    if (!overlay) return;
+    overlay.innerHTML = '<div class="puzzle-box" style="max-width:400px;text-align:center">' +
+      '<h3>' + s.title + '</h3>' +
+      '<p style="color:#ccc;margin:16px 0">' + s.desc + '</p>' +
+      '<p style="color:#888;font-size:12px">步骤 ' + (currentStep+1) + ' / ' + steps.length + '</p>' +
+      '<button onclick="window._tutorialNext()" style="padding:8px 24px;background:#fc0;color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:bold">' +
+      (currentStep < steps.length - 1 ? '下一步' : '开始游戏') + '</button></div>';
+  }
+  window._tutorialNext = function() {
+    currentStep++;
+    if (currentStep >= steps.length) {
+      localStorage.setItem(TUTORIAL_KEY, '1');
+      var el = document.getElementById('tutorial-overlay');
+      if (el) el.remove();
+      return;
+    }
+    renderStep();
+  };
+  var html = '<div id="tutorial-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:99999"></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  renderStep();
+}
+
+// --- 每日挑战 ---
+const DAILY_KEY = 'backrooms_daily_v1';
+function getDailyChallenge() {
+  var today = new Date();
+  var seed = today.getFullYear() * 10000 + (today.getMonth()+1) * 100 + today.getDate();
+  try {
+    var saved = JSON.parse(localStorage.getItem(DAILY_KEY) || '{}');
+    if (saved.date === seed) return { seed: seed, completed: !!saved.completed };
+  } catch(e) {}
+  return { seed: seed, completed: false };
+}
+function completeDailyChallenge() {
+  var today = new Date();
+  var seed = today.getFullYear() * 10000 + (today.getMonth()+1) * 100 + today.getDate();
+  try { localStorage.setItem(DAILY_KEY, JSON.stringify({ date: seed, completed: true })); } catch(e) {}
+}
+function startDailyChallenge() {
+  var daily = getDailyChallenge();
+  if (daily.completed) {
+    alert('今日挑战已完成！明天再来');
+    return;
+  }
+  // 设置每日挑战参数
+  window._dailyChallengeActive = true;
+  window._dailySeed = daily.seed;
+  // 开始游戏后会应用特殊规则
+  if (typeof startGame === 'function') startGame();
+}
+
+// --- 成就系统扩展 ---
+var EXTRA_ACHIEVEMENTS = [
+  { id: 'boss_slayer', name: '👑 Boss猎人', desc: '击败第一个Boss', check: function(s){ return s.bossKills >= 1; } },
+  { id: 'puzzle_master', name: '🧩 谜题大师', desc: '完成5个谜题', check: function(s){ return s.puzzlesCompleted >= 5; } },
+  { id: 'enchanter', name: '✨ 附魔师', desc: '附魔3次', check: function(s){ return s.enchantCount >= 3; } },
+  { id: 'explorer', name: '🗺️ 探险家', desc: '访问50个房间', check: function(s){ return s.roomsExplored >= 50; } },
+  { id: 'speedrunner', name: '⚡ 速通者', desc: '10分钟内通关', check: function(s){ return s.survivalTime > 0 && s.survivalTime < 600 && s.levelIndex >= 10; } },
+  { id: 'pacifist', name: '🕊️ 和平主义者', desc: '不杀怪通关', check: function(s){ return s.kills === 0 && s.levelIndex >= 5; } },
+  { id: 'survivor_30', name: '🛡️ 幸存者', desc: '存活超过30分钟', check: function(s){ return s.survivalTime >= 1800; } },
+  { id: 'collector_all', name: '📦 收藏家', desc: '收集所有道具类型', check: function(s){ return (s.itemTypes || 0) >= 15; } },
+  { id: 'deep_diver_10', name: '🔦 深渊潜者', desc: '到达第10层', check: function(s){ return s.levelIndex >= 10; } },
+  { id: 'completionist', name: '🏅 完美主义者', desc: '完成所有其他成就', check: function(s){ return s.totalAchievements >= 9; } }
+];
+
 </script>
 
     <!-- Supabase 聊天面板 -->
@@ -26938,6 +27180,22 @@ function showEventNotification(evt){
         </div>
       </div>
     </div>
+
+    <!-- 迭代63：教程弹窗 -->
+    <div id="tutorial-overlay">
+      <div class="tutorial-box">
+        <div class="tutorial-step" id="tut-step-indicator">步骤 1/5</div>
+        <h3 id="tut-title">新手教程</h3>
+        <span class="tut-icon" id="tut-icon">🎮</span>
+        <div class="tut-text" id="tut-text"></div>
+        <div class="tut-keys" id="tut-keys"></div>
+        <button class="btn btn-primary" id="tut-next-btn" style="margin-top:12px;">下一步</button>
+        <button class="btn btn-ghost" id="tut-skip-btn" style="margin-top:6px;font-size:10px;">跳过教程</button>
+      </div>
+    </div>
+
+    <!-- 迭代65：成就toast -->
+    <div id="achievement-toast-container" style="position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:400;pointer-events:none;"></div>
 
 </body>
 </html>
