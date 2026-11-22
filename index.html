@@ -17485,6 +17485,26 @@ class ThreeJSRendererBridge {
       } else {
         m.material.opacity = 1;
       }
+      /* 迭代40：稀有道具发光效果 */
+      const _tk = s.texKey || '';
+      let _glowI = 0, _glowC = 0xffffff;
+      if (_tk === 'key' || _tk === 'keycard') { _glowI = 0.5; _glowC = 0xffd700; }
+      else if (_tk === 'bandage' || _tk === 'pill') { _glowI = 0.3; _glowC = 0x4af44a; }
+      else if (_tk === 'flare' || _tk === 'radio') { _glowI = 0.4; _glowC = 0xff4400; }
+      if (_glowI > 0) {
+        if (!m._itemGlow) {
+          const gl = new THREE.PointLight(_glowC, _glowI, 2);
+          m.add(gl);
+          m._itemGlow = gl;
+          m._itemGlowColor = _glowC;
+          m._itemGlowBase = _glowI;
+        }
+        m._itemGlow.intensity = _glowI * (0.7 + Math.sin(time * 2) * 0.3);
+      } else if (m._itemGlow) {
+        m.remove(m._itemGlow);
+        m._itemGlow.dispose();
+        m._itemGlow = null;
+      }
     }
   }
 
@@ -19937,6 +19957,17 @@ class Game {
     this._jumpScareRedFlash = 0;
     this._activeParticleCount = 0;  /* fix: _particleCount→_activeParticleCount 修复关卡切换粒子计数不重置 */
 
+    /* 迭代38：初始化环境粒子 */
+    if (this._envParticles) {
+      for (const ep of this._envParticles) {
+        this.renderer.scene.remove(ep);
+        if (ep.geometry) ep.geometry.dispose();
+        if (ep.material) ep.material.dispose();
+      }
+    }
+    this._envParticles = null;
+    this.initEnvironmentParticles();
+
     this.taken = new Set(run ? run.taken : []);  // 已拾取的房间（无限地图靠它记住哪些已经拿过了）
     this.entMap = new Map();                     // 房间 -> 实体，窗口平移时保留状态
 
@@ -20368,6 +20399,8 @@ class Game {
     this._deathDuration = 2.5;
     this._deathStartAngle = this.player.angle;
     this._deathStartPitch = this.player.pitch;
+    /* 迭代39：记录受伤时间用于视觉效果 */
+    this.player._lastHit = Date.now();
     this.input.exitLock();
     this.hud.setPrompt(null);
     /* 成就：初次遭遇 */
@@ -20933,6 +20966,191 @@ class Game {
     requestAnimationFrame(loop);
   }
 
+  /* ============ 迭代36：道具使用动画效果 ============ */
+  showItemEffect(type) {
+    if (!this.renderer) return;
+    const player = this.player;
+    const scene = this.renderer.scene;
+    if (type === 'bandage' || type === 'water' || type === 'biscuit') {
+      const particles = [];
+      for (let i = 0; i < 8; i++) {
+        const geo = new THREE.SphereGeometry(0.05, 8, 8);
+        const mat = new THREE.MeshBasicMaterial({ color: 0x4af44a, transparent: true, opacity: 0.8 });
+        const p = new THREE.Mesh(geo, mat);
+        p.position.set(player.x, player.y, 1.5);
+        p.userData.vel = new THREE.Vector3((Math.random()-0.5)*0.5, Math.random()*2+1, (Math.random()-0.5)*0.5);
+        p.userData.life = 1.5;
+        scene.add(p);
+        particles.push(p);
+      }
+      const animate = () => {
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.position.add(p.userData.vel.clone().multiplyScalar(0.016));
+          p.userData.vel.y -= 0.5 * 0.016;
+          p.userData.life -= 0.016;
+          p.material.opacity = p.userData.life / 1.5 * 0.8;
+          if (p.userData.life <= 0) {
+            scene.remove(p);
+            particles.splice(i, 1);
+          }
+        }
+        if (particles.length > 0) requestAnimationFrame(animate);
+      };
+      animate();
+    } else if (type === 'flare') {
+      const light = new THREE.PointLight(0xff4400, 3, 10);
+      light.position.set(player.x, player.y, 1.5);
+      scene.add(light);
+      let life = 2;
+      const animate = () => {
+        life -= 0.016;
+        light.intensity = life / 2 * 3;
+        if (life <= 0) {
+          scene.remove(light);
+        } else {
+          requestAnimationFrame(animate);
+        }
+      };
+      animate();
+    }
+  }
+
+  /* ============ 迭代37：怪物死亡特效 ============ */
+  showEntityDeathEffect(entity) {
+    if (!this.renderer) return;
+    const scene = this.renderer.scene;
+    const particles = [];
+    for (let i = 0; i < 12; i++) {
+      const geo = new THREE.SphereGeometry(0.08, 8, 8);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.9 });
+      const p = new THREE.Mesh(geo, mat);
+      p.position.set(entity.x, entity.y, 1);
+      p.userData.vel = new THREE.Vector3((Math.random()-0.5)*3, Math.random()*3, (Math.random()-0.5)*3);
+      p.userData.life = 1;
+      scene.add(p);
+      particles.push(p);
+    }
+    const animate = () => {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.position.add(p.userData.vel.clone().multiplyScalar(0.016));
+        p.userData.vel.y -= 9.8 * 0.016;
+        p.userData.life -= 0.016;
+        p.material.opacity = p.userData.life * 0.9;
+        if (p.userData.life <= 0) {
+          scene.remove(p);
+          particles.splice(i, 1);
+        }
+      }
+      if (particles.length > 0) requestAnimationFrame(animate);
+    };
+    animate();
+  }
+
+  /* ============ 迭代38：环境粒子效果 ============ */
+  initEnvironmentParticles() {
+    if (!this.renderer) return;
+    const scene = this.renderer.scene;
+    const particleCount = 100;
+    const particles = [];
+    for (let i = 0; i < particleCount; i++) {
+      const geo = new THREE.SphereGeometry(0.02, 4, 4);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.3 });
+      const p = new THREE.Mesh(geo, mat);
+      p.position.set(
+        (Math.random() - 0.5) * 30,
+        (Math.random() - 0.5) * 30,
+        Math.random() * 3
+      );
+      p.userData.vel = new THREE.Vector3(0, 0, 0);
+      scene.add(p);
+      particles.push(p);
+    }
+    this._envParticles = particles;
+  }
+
+  updateEnvironmentParticles(dt) {
+    if (!this._envParticles || !this.player) return;
+    const player = this.player;
+    for (const p of this._envParticles) {
+      p.userData.vel.x += (Math.random() - 0.5) * 0.01;
+      p.userData.vel.y += (Math.random() - 0.5) * 0.01;
+      p.userData.vel.x *= 0.95;
+      p.userData.vel.y *= 0.95;
+      p.position.add(p.userData.vel.clone().multiplyScalar(dt));
+      const dx = p.position.x - player.x;
+      const dy = p.position.y - player.y;
+      if (dx*dx + dy*dy > 400) {
+        p.position.set(
+          player.x + (Math.random() - 0.5) * 20,
+          player.y + (Math.random() - 0.5) * 20,
+          Math.random() * 3
+        );
+      }
+    }
+  }
+
+  /* ============ 迭代39：玩家状态视觉效果 ============ */
+  applyPlayerStatusEffects() {
+    if (!this.renderer || !this.player) return;
+    const player = this.player;
+    if (player.sanity < 30) {
+      const intensity = (30 - player.sanity) / 30;
+      if (!this._sanityOverlay) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle, transparent 50%, rgba(255,0,0,0.3) 100%);pointer-events:none;z-index:999;';
+        document.body.appendChild(overlay);
+        this._sanityOverlay = overlay;
+      }
+      this._sanityOverlay.style.opacity = intensity;
+    } else if (this._sanityOverlay) {
+      this._sanityOverlay.style.opacity = 0;
+    }
+    if (player._lastHit && Date.now() - player._lastHit < 500) {
+      if (!this._hitOverlay) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,0,0,0.5);pointer-events:none;z-index:1000;';
+        document.body.appendChild(overlay);
+        this._hitOverlay = overlay;
+      }
+      this._hitOverlay.style.display = 'block';
+      setTimeout(() => {
+        if (this._hitOverlay) this._hitOverlay.style.display = 'none';
+      }, 200);
+    }
+  }
+
+  /* ============ 迭代40：道具发光效果 ============ */
+  applyItemGlow(item) {
+    if (!this.renderer || !item.mesh) return;
+    let glowIntensity = 0;
+    let glowColor = 0xffffff;
+    if (item.type === 'key' || item.type === 'keycard') {
+      glowIntensity = 0.5;
+      glowColor = 0xffd700;
+    } else if (item.type === 'bandage' || item.type === 'pill') {
+      glowIntensity = 0.3;
+      glowColor = 0x4af44a;
+    } else if (item.type === 'flare' || item.type === 'radio') {
+      glowIntensity = 0.4;
+      glowColor = 0xff4400;
+    }
+    if (glowIntensity > 0) {
+      const light = new THREE.PointLight(glowColor, glowIntensity, 2);
+      light.position.set(0, 0, 0.5);
+      item.mesh.add(light);
+      item._glowLight = light;
+      const animate = () => {
+        if (!item._glowLight) return;
+        const t = Date.now() * 0.002;
+        item._glowLight.intensity = glowIntensity * (0.7 + Math.sin(t) * 0.3);
+        requestAnimationFrame(animate);
+      };
+      animate();
+    }
+  }
+
   update(dt) {
     const p = this.player, w = this.world, inp = this.input;
     if (!p || !w) return;
@@ -21370,6 +21588,12 @@ class Game {
     /* 摄像机震动触发逻辑 */
     this._cameraShakeUpdate(dt);
 
+    /* 迭代38：更新环境粒子 */
+    this.updateEnvironmentParticles(dt);
+
+    /* 迭代39：玩家状态视觉效果 */
+    this.applyPlayerStatusEffects();
+
     /* 随机停电事件 */
     this._powerOutageUpdate(dt);
 
@@ -21520,6 +21744,8 @@ class Game {
           this.unlockAchievement('first_kill');
           /* 迭代26：看到entity死亡时sanity -15 */
           this.player.sanity = Math.max(0, this.player.sanity - 15);
+          /* 迭代37：怪物死亡特效 */
+          this.showEntityDeathEffect(ent);
         };
         e._gameRef = this; /* 迭代29：howler需要访问其他entity */
         map.set(spec.key, e);
@@ -23224,7 +23450,7 @@ class Game {
 
     // 绑定移动端操作按钮
     const useMain = document.getElementById('inv-use-main');
-    if (useMain) useMain.onclick = () => { if (this.player.mainHand) { this.player.useMainHandItem(this.audio); this.renderInventory(); } };
+    if (useMain) useMain.onclick = () => { if (this.player.mainHand) { const _itemType = this.player.mainHand.type; this.player.useMainHandItem(this.audio); this.showItemEffect(_itemType); this.renderInventory(); } };
     const swapBtn = document.getElementById('inv-swap');
     if (swapBtn) swapBtn.onclick = () => {
       const p = this.player;
@@ -23328,13 +23554,17 @@ class Game {
       mainEl.style.borderColor = mh ? '#c0a050' : '#6a5a3a';
       mainEl.onclick = () => {
         if (p.mainHand) {
+          const _itemType = p.mainHand.type;
           p.useMainHandItem(this.audio);
+          this.showItemEffect(_itemType);
           this.renderInventory();
         }
       };
       mainEl.ondblclick = () => {
         if (p.mainHand) {
+          const _itemType = p.mainHand.type;
           p.useMainHandItem(this.audio);
+          this.showItemEffect(_itemType);
           this.hud.toast('使用了主手道具', 2);
           this.renderInventory();
         }
