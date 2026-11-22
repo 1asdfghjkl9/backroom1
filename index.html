@@ -28888,6 +28888,125 @@ function getBossPhase(currentHp, maxHp) {
   return BOSS_PHASES[0];
 }
 
+// ========== 迭代131-140: 终极内容包 ==========
+
+// 迭代131: 怪物警觉度系统
+var ALERTNESS = { current: 0, max: 100, decay: 2 };
+function addAlertness(amount) { ALERTNESS.current = Math.min(ALERTNESS.max, ALERTNESS.current + amount); }
+function getAlertnessLevel() { if (ALERTNESS.current > 80) return 'hunting'; if (ALERTNESS.current > 50) return 'searching'; if (ALERTNESS.current > 20) return 'aware'; return 'calm'; }
+
+// 迭代132: 道具回收系统
+function recycleItem(itemType) {
+  var values = { pipe: 2, wrench: 2, knife: 1, bat: 3, crowbar: 3, machete: 2, battery: 1, bandage: 1 };
+  return values[itemType] || 0;
+}
+
+// 迭代133: 怪物领地系统
+var TERRITORIES = {};
+function claimTerritory(monsterType, x, y, radius) {
+  TERRITORIES[monsterType] = { x: x, y: y, radius: radius };
+}
+function isInTerritory(monsterType, px, py) {
+  var t = TERRITORIES[monsterType];
+  if (!t) return false;
+  var dx = px - t.x, dy = py - t.y;
+  return dx*dx + dy*dy < t.radius * t.radius;
+}
+
+// 迭代134: 环境谜题扩展
+var PUZZLES_COMPLETED = 0;
+var PUZZLE_TYPES = ['sequence', 'pattern', 'riddle', 'math'];
+function generatePuzzle(type) {
+  switch(type) {
+    case 'sequence': return { type: 'sequence', answer: [1,3,5,7,9], hint: '奇数序列' };
+    case 'pattern': return { type: 'pattern', answer: 'ABBA', hint: '对称模式' };
+    case 'riddle': return { type: 'riddle', answer: 'echo', hint: '你喊什么它就回什么' };
+    case 'math': return { type: 'math', answer: 42, hint: '生命、宇宙、一切的答案' };
+    default: return { type: 'sequence', answer: [1,2,3], hint: '简单序列' };
+  }
+}
+
+// 迭代135: 怪物掉落稀有度
+var LOOT_RARITY = { common: 0.6, uncommon: 0.3, rare: 0.08, epic: 0.02 };
+function rollLootRarity() {
+  var roll = Math.random();
+  var cumulative = 0;
+  for (var rarity in LOOT_RARITY) {
+    cumulative += LOOT_RARITY[rarity];
+    if (roll < cumulative) return rarity;
+  }
+  return 'common';
+}
+
+// 迭代136: 玩家称号系统
+var TITLES = [
+  { name: '新手', requirement: { level: 1 } },
+  { name: '探险者', requirement: { level: 5 } },
+  { name: '幸存者', requirement: { kills: 50 } },
+  { name: '收藏家', requirement: { items: 20 } },
+  { name: '猎人', requirement: { kills: 100 } },
+  { name: '传奇', requirement: { level: 10, kills: 200 } }
+];
+function getCurrentTitle(stats) {
+  var title = '新手';
+  for (var i = 0; i < TITLES.length; i++) {
+    var req = TITLES[i].requirement;
+    var met = true;
+    if (req.level && (stats.maxLevel || 0) < req.level) met = false;
+    if (req.kills && (stats.totalKills || 0) < req.kills) met = false;
+    if (req.items && (stats.totalItems || 0) < req.items) met = false;
+    if (met) title = TITLES[i].name;
+  }
+  return title;
+}
+
+// 迭代137: 怪物恐惧阈值
+var FEAR_THRESHOLDS = { hound: 30, crawler: 20, stalker: 40, smiler: 50, echo: 10 };
+function checkFear(monsterType, playerPower) {
+  var threshold = FEAR_THRESHOLDS[monsterType] || 25;
+  return playerPower > threshold;
+}
+
+// 迭代138: 道具组合发现
+var DISCOVERED_COMBOS = [];
+function discoverCombo(comboId) {
+  if (DISCOVERED_COMBOS.indexOf(comboId) < 0) {
+    DISCOVERED_COMBOS.push(comboId);
+    return true;
+  }
+  return false;
+}
+
+// 迭代139: 环境互动提示
+var INTERACTION_HINTS = [
+  { condition: 'near_exit', text: '按 E 进入出口' },
+  { condition: 'near_item', text: '按 E 拾取道具' },
+  { condition: 'near_npc', text: '按 E 与NPC对话' },
+  { condition: 'near_door', text: '按 E 开门' },
+  { condition: 'low_hp', text: '使用绷带或药丸恢复生命' },
+  { condition: 'low_sanity', text: '理智过低，寻找杏仁水或饼干' },
+  { condition: 'monster_near', text: '小心！附近有怪物' }
+];
+function getRelevantHint(gameState) {
+  if (gameState.hp < 30) return INTERACTION_HINTS.find(function(h){ return h.condition === 'low_hp'; });
+  if (gameState.sanity < 30) return INTERACTION_HINTS.find(function(h){ return h.condition === 'low_sanity'; });
+  return INTERACTION_HINTS[0];
+}
+
+// 迭代140: 怪物进化阶段
+var EVOLUTION_STAGES = [
+  { name: '幼体', hpMul: 0.5, damageMul: 0.5, speedMul: 0.8, xp: 10 },
+  { name: '成体', hpMul: 1.0, damageMul: 1.0, speedMul: 1.0, xp: 25 },
+  { name: '精英', hpMul: 1.5, damageMul: 1.3, speedMul: 1.2, xp: 50 },
+  { name: '首领', hpMul: 2.5, damageMul: 2.0, speedMul: 1.0, xp: 100 }
+];
+function getEvolutionStage(killCount) {
+  if (killCount >= 20) return EVOLUTION_STAGES[3];
+  if (killCount >= 10) return EVOLUTION_STAGES[2];
+  if (killCount >= 5) return EVOLUTION_STAGES[1];
+  return EVOLUTION_STAGES[0];
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
