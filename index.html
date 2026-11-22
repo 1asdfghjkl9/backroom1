@@ -1391,7 +1391,7 @@ input[type="range"]::-moz-range-thumb {
 
     <!-- 右上角：理智条 + 体力条 -->
     <div class="hud-topright">
-      <div class="stat" id="stat-sanity" style="display:none">
+      <div class="stat" id="stat-sanity">
         <div class="stat-label">
           <span class="stat-name">理智 <em>SANITY</em></span>
           <span class="stat-val" id="sanity-val">100</span>
@@ -1841,11 +1841,20 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
 
     <!-- 背包 -->
     <div id="inv-overlay" class="puzzle-overlay" style="display:none">
-      <div class="puzzle-box" style="max-width:340px">
+      <div class="puzzle-box" style="max-width:420px">
         <h3>背包</h3>
-        <div id="inv-grid" class="inv-grid"></div>
+        <div style="display:flex;gap:12px;margin-bottom:14px;justify-content:center">
+          <div id="hand-main" class="hand-slot" data-hand="main" style="width:64px;height:64px;border:2px solid #6a5a3a;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:2em;background:rgba(0,0,0,0.3);position:relative">
+            <span style="position:absolute;top:-18px;left:0;font-size:0.65em;color:#8a7a5a;white-space:nowrap">主手</span>
+          </div>
+          <div id="hand-off" class="hand-slot" data-hand="off" style="width:64px;height:64px;border:2px solid #4a4a3a;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:2em;background:rgba(0,0,0,0.3);position:relative">
+            <span style="position:absolute;top:-18px;left:0;font-size:0.65em;color:#6a6a4a;white-space:nowrap">副手</span>
+          </div>
+        </div>
+        <div id="inv-grid" class="inv-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px"></div>
         <div class="panel-foot" style="margin-top:14px">
-          <button class="btn btn-ghost" id="inv-close">关闭 (Tab)</button>
+          <span style="font-size:0.75em;color:#8a7a5a">左键=装备到主手 | 右键=装备到副手 | 双击主手/副手=使用</span>
+          <button class="btn btn-ghost" id="inv-close" style="float:right">关闭 (Tab)</button>
         </div>
       </div>
     </div>
@@ -7423,8 +7432,8 @@ function generateWorld(level, seed) {
     lamps,
     ceilLight,
     ceilingH: level.ceilingH ?? 1.35,
-    ambient: level.ambient ?? 0.5,
-    fog: (level.fog ?? 0.075) * 0.5,
+    ambient: level.ambient ?? 0.3,
+    fog: (level.fog ?? 0.075),
     lampColor: level.lampColor ?? 0xffe9b8,
     fogColor: level.fogColor ?? 0x14110b,
     hemiSky: level.hemiSky ?? 0xa89a6a,
@@ -7875,7 +7884,7 @@ const LEVELS = [
     floorTex: 'carpet',
     ceilTex: 'panel',
     ambient: 0.44,
-    fog: 0.025,
+    fog: 0.05,
     lampColor: 0xffe9b8,   /* 暖白荧光灯 */
     fogColor: 0x2a2418,
     hemiSky: 0xa89a6a, hemiGround: 0x191510,
@@ -7911,7 +7920,7 @@ const LEVELS = [
     floorTex: 'concrete',
     ceilTex: 'panel',
     ambient: 0.26,
-    fog: 0.042,
+    fog: 0.085,
     lampColor: 0xc8d0e0,   /* 冷白日光灯管 */
     fogColor: 0x1a1c22,
     hemiSky: 0x5a6478, hemiGround: 0x0e1014,
@@ -7948,7 +7957,7 @@ const LEVELS = [
     floorTex: 'carpet',
     ceilTex: 'panel',
     ambient: 0.35,
-    fog: 0.01,
+    fog: 0.02,
     lampColor: 0xfff4d6,
     fogColor: 0x1a1810,
     hemiSky: 0xb09878, hemiGround: 0x18140a,
@@ -8005,7 +8014,7 @@ const LEVELS = [
     floorTex: 'rust',
     ceilTex: 'pipe',
     ambient: 0.16,
-    fog: 0.045,
+    fog: 0.09,
     lampColor: 0xff8c3a,   /* 钠灯暖橙+电气青混色 */
     fogColor: 0x140a04,
     hemiSky: 0x5a4828, hemiGround: 0x100a04,
@@ -8042,7 +8051,7 @@ const LEVELS = [
     floorTex: 'pool',
     ceilTex: 'panel',
     ambient: 0.17,
-    fog: 0.035,
+    fog: 0.07,
     lampColor: 0x6fd4c8,   /* 泳池青绿 */
     fogColor: 0x0a1a1e,
     hemiSky: 0x4a8898, hemiGround: 0x081418,
@@ -8081,7 +8090,7 @@ const LEVELS = [
     floorTex: 'carpet',
     ceilTex: 'panel',
     ambient: 0.24,
-    fog: 0.038,
+    fog: 0.075,
     lampColor: 0xf0e6cc,   /* 办公暖白荧光 */
     fogColor: 0x1e1a14,
     hemiSky: 0x908a72, hemiGround: 0x14100a,
@@ -8122,7 +8131,7 @@ const LEVELS = [
     floorTex: 'epoxy',
     ceilTex: 'truss',
     ambient: 0.2,
-    fog: 0.045,
+    fog: 0.09,
     lampColor: 0xffd08a,   /* 仓库钠灯黄 */
     fogColor: 0x1c160e,
     hemiSky: 0x7a6438, hemiGround: 0x100c06,
@@ -8542,7 +8551,7 @@ const LEVELS = [
     floorTex: 'concrete',
     ceilTex: 'panel',
     ambient: 0.2,
-    fog: 0.035,
+    fog: 0.07,
     lampColor: 0xe8d8b0,
     fogColor: 0x181410,
     hemiSky: 0x807060, hemiGround: 0x100c08,
@@ -8989,6 +8998,11 @@ class Player {
     this.heldItem = null;          /* 当前手持物品：'biscuit'|'water'|'flashlight'|'navigator'|null */
     this.weapon = null;            /* 当前装备武器：'pipe'|'wrench'|'knife'|'extinguisher'|null */
     this.weaponDurability = 0;     /* 武器耐久 */
+    /* 新背包系统 */
+    this.inventory = [];           /* 背包物品数组，每个元素 {type, uid} */
+    this.mainHand = null;          /* 主手物品引用 */
+    this.offHand = null;           /* 副手物品引用 */
+    this.invMaxSlots = 16;         /* 背包最大格数 (4x4) */
     this.attackCooldown = 0;       /* 攻击冷却 */
     this.attackAnim = 0;           /* 攻击动画进度 0→1 */
     this.attackDir = 0;            /* 攻击方向 */
@@ -9098,6 +9112,110 @@ class Player {
     return c;
   }
 
+  /* ---------------- 新背包系统 ---------------- */
+  addItem(type) {
+    if (this.inventory.length >= this.invMaxSlots) return false;
+    const uid = type + '_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+    this.inventory.push({ type, uid });
+    return true;
+  }
+  removeFromInventory(uid) {
+    const idx = this.inventory.findIndex(i => i.uid === uid);
+    if (idx >= 0) {
+      const item = this.inventory.splice(idx, 1)[0];
+      if (this.mainHand && this.mainHand.uid === uid) this.mainHand = null;
+      if (this.offHand && this.offHand.uid === uid) this.offHand = null;
+      return item;
+    }
+    return null;
+  }
+  equipToMainHand(uid) {
+    const idx = this.inventory.findIndex(i => i.uid === uid);
+    if (idx < 0) return false;
+    const item = this.inventory[idx];
+    if (this.mainHand) {
+      this.inventory.push(this.mainHand);
+    }
+    if (this.offHand && this.offHand.uid === uid) this.offHand = null;
+    this.inventory.splice(idx, 1);
+    this.mainHand = item;
+    this.heldItem = item ? item.type : null;
+    if (item && ['pipe','wrench','knife','extinguisher'].includes(item.type)) {
+      this.weapon = item.type;
+      const w = WEAPONS[item.type];
+      if (w) this.weaponDurability = w.durability;
+    } else {
+      this.weapon = null;
+    }
+    return true;
+  }
+  equipToOffHand(uid) {
+    const idx = this.inventory.findIndex(i => i.uid === uid);
+    if (idx < 0) return false;
+    const item = this.inventory[idx];
+    if (this.offHand) {
+      this.inventory.push(this.offHand);
+    }
+    if (this.mainHand && this.mainHand.uid === uid) this.mainHand = null;
+    this.inventory.splice(idx, 1);
+    this.offHand = item;
+    return true;
+  }
+  unequipMainHand() {
+    if (!this.mainHand) return false;
+    if (this.inventory.length >= this.invMaxSlots) return false;
+    this.inventory.push(this.mainHand);
+    this.mainHand = null;
+    this.heldItem = null;
+    this.weapon = null;
+    return true;
+  }
+  unequipOffHand() {
+    if (!this.offHand) return false;
+    if (this.inventory.length >= this.invMaxSlots) return false;
+    this.inventory.push(this.offHand);
+    this.offHand = null;
+    return true;
+  }
+  useMainHandItem(audio) {
+    if (!this.mainHand) return false;
+    const t = this.mainHand.type;
+    if (t === 'biscuit') {
+      this.eatBiscuit(audio);
+      this.removeFromInventory(this.mainHand.uid);
+      this.mainHand = null;
+      this.heldItem = null;
+      return true;
+    }
+    if (t === 'water') {
+      this.drinkWater(audio);
+      this.removeFromInventory(this.mainHand.uid);
+      this.mainHand = null;
+      this.heldItem = null;
+      return true;
+    }
+    if (t === 'flashlight') {
+      this.toggleFlashlight(audio);
+      return true;
+    }
+    if (t === 'navigator') {
+      this.heldItem = this.heldItem === 'navigator' ? null : 'navigator';
+      return true;
+    }
+    if (t === 'battery') {
+      this.battery = Math.min(100, this.battery + 35);
+      this.removeFromInventory(this.mainHand.uid);
+      this.mainHand = null;
+      this.heldItem = null;
+      return true;
+    }
+    if (t === 'canteen') {
+      this.drinkFromCanteen(audio);
+      return true;
+    }
+    return false;
+  }
+
   /* ---------------- 手持 / 使用物品 ---------------- */
 
   equipItem(type) {
@@ -9123,9 +9241,8 @@ class Player {
   }
 
   eatBiscuit(audio) {
-    if (this.heldItem !== 'biscuit' || this.biscuits <= 0) return false;
+    if (this.biscuits <= 0) return false;
     this.biscuits--;
-    if (this.biscuits <= 0) this.heldItem = null;
     this.stamina = Math.min(this.maxStamina, this.stamina + 38);
     this.sanity = Math.min(this.maxSanity, this.sanity + 5);
     this.exhausted = 0;
@@ -9135,9 +9252,8 @@ class Player {
   }
 
   drinkWater(audio) {
-    if (this.heldItem !== 'water' || this.waters <= 0) return false;
+    if (this.waters <= 0) return false;
     this.waters--;
-    if (this.waters <= 0) this.heldItem = null;
     this.sanity = Math.min(this.maxSanity, this.sanity + 42);
     this.purifyAura = 3; /* 杏仁水净化：3秒内附近实体被驱退 */
     if (audio) audio.drink();
@@ -9356,7 +9472,7 @@ class Player {
 
     /* --- 体力（迭代24深度整合） --- */
     if (this.sprinting) {
-      this.stamina -= 25 * dt;       /* 冲刺消耗25/秒 */
+      this.stamina -= 80 * dt;       /* 冲刺消耗80/秒（用户要求加快消耗） */
       this.staminaDelay = 0.75;
     } else if (this.crouch && moving) {
       this.stamina -= 5 * dt;        /* 蹲走消耗5/秒 */
@@ -10570,14 +10686,16 @@ class ThreeJSRendererBridge {
   _initThree() {
     const THREE = window.THREE;
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x14110b, 0.028);
+    this.scene.fog = new THREE.FogExp2(0x14110b, 0.055);
 
     this.worldGroup = new THREE.Group();
     this.scene.add(this.worldGroup);
     this.chunkList = [];
 
     /* Lights */
-    this.hemi = new THREE.HemisphereLight(0xa89a6a, 0x191510, 0.72);
+    this.ambient = new THREE.AmbientLight(0x5a5040, 0.55);
+    this.scene.add(this.ambient);
+    this.hemi = new THREE.HemisphereLight(0xa89a6a, 0x191510, 0.46);
     this.scene.add(this.hemi);
 
     this.lightPool = [];
@@ -10589,7 +10707,7 @@ class ThreeJSRendererBridge {
     }
 
     /* Flashlight spotlight — tighter cone, brighter center */
-    this.flash = new THREE.SpotLight(0xfff4d6, 4.5, 26, 0.42, 0.5, 1.2);
+    this.flash = new THREE.SpotLight(0xfff4d6, 3.0, 22, 0.42, 0.5, 1.2);
     this.flash.position.set(0, 0, 0);
     this.flashTarget = new THREE.Object3D();
     this.flashTarget.position.set(0, 0, -1);
@@ -15751,7 +15869,7 @@ class ThreeJSRendererBridge {
         L.position.set(l.x, WALL_H - 0.18, l.z);
         const f = flickerMul(i, time);
         const drop = Math.max(0, 1 - d / 400);
-        L.intensity = 3.8 * f * drop * lightMul;
+        L.intensity = 2.6 * f * drop * lightMul;
       }
       return;
     }
@@ -17795,8 +17913,11 @@ class HUD {
       }
     }
 
-    this.el.chipBiscuit.innerHTML = `饼干 <b>${player.biscuits}</b>`;
-    this.el.chipWater.innerHTML = `杏仁水 <b>${player.waters}</b>`;
+    /* 背包系统：显示主手物品和背包数量 */
+    const invCount = player.inventory ? player.inventory.length : 0;
+    const mainHandName = player.mainHand ? (player.mainHand.type) : '空';
+    this.el.chipBiscuit.innerHTML = `背包 <b>${invCount}/${player.invMaxSlots || 16}</b>`;
+    this.el.chipWater.innerHTML = `主手 <b>${mainHandName}</b>`;
     this.el.chipBattery.innerHTML = `电量 <b>${Math.round(player.battery)}%</b>`;
     /* 武器栏 */
     if (this.el.chipWeapon) {
@@ -19298,6 +19419,16 @@ class Game {
     this.player = new Player(world);
     this.player.biscuits = 2;
     this.player.waters = 0;
+    /* 用新背包系统初始化物品 */
+    this.player.inventory = [];
+    this.player.mainHand = null;
+    this.player.offHand = null;
+    for (let i = 0; i < 2; i++) this.player.addItem('biscuit');
+    if (this.player.hasFlashlight) this.player.addItem('flashlight');
+    if (this.player.hasNavigator) this.player.addItem('navigator');
+    /* 默认把手电筒装备到主手 */
+    const fl = this.player.inventory.find(it => it.type === 'flashlight');
+    if (fl) this.player.equipToMainHand(fl.uid);
     this.items = [];
     this.entities = [];
 
@@ -19369,6 +19500,19 @@ class Game {
       p.heldItem = null;
       p.z = run.z || 0;
       this.levelTime = run.levelTime || 0;
+      /* 恢复背包系统 */
+      p.inventory = [];
+      p.mainHand = null;
+      p.offHand = null;
+      for (let i = 0; i < (run.biscuits | 0); i++) p.addItem('biscuit');
+      for (let i = 0; i < (run.waters | 0); i++) p.addItem('water');
+      if (p.hasFlashlight) p.addItem('flashlight');
+      if (p.hasNavigator) p.addItem('navigator');
+      if (p.hasWater) p.addItem('canteen');
+      if (p.weapon) p.addItem(p.weapon);
+      /* 默认装备手电筒到主手 */
+      const fl2 = p.inventory.find(it => it.type === 'flashlight');
+      if (fl2) p.equipToMainHand(fl2.uid);
     }
 
     this.refreshContent();
@@ -19652,8 +19796,8 @@ class Game {
     this._tutorialSteps = [
       { icon: '🎮', title: '欢迎来到后室', text: '你被困在了后室——一个无尽的黄色房间迷宫。你的目标是找到出口逃离。', hint: '别慌，先看看怎么操作。' },
       { icon: '🕹️', title: '移动与视角', text: 'PC：WASD 移动，鼠标控制视角方向。手机：左屏拖动移动，右屏拖动转视角。', hint: 'Shift 可以冲刺，Space 可以跳跃。' },
-      { icon: '🔦', title: '手电筒与理智', text: '按 Q 开关手电筒。手电筒消耗电池电量。在黑暗中待太久理智会下降。', hint: '理智低于 0 就会死亡。保持照明。' },
-      { icon: '📦', title: '拾取物品', text: '靠近物品时按 E（或点「拿」键）拾取。收集饼干和杏仁水补充体力和水分。', hint: '按 1 吃饼干，按 2 喝杏仁水。' },
+      { icon: '🔦', title: '手电筒与理智', text: '手电筒默认在主手，点击主手图标开关。手电筒消耗电池电量。在黑暗中待太久理智会下降。', hint: '理智低于 0 就会死亡。保持照明。' },
+      { icon: '📦', title: '拾取物品', text: '靠近物品时按 E（或点「拿」键）拾取。物品自动放入背包。', hint: '按 Tab 打开背包，左键装备到主手，右键装备到副手。' },
       { icon: '🎯', title: '完成目标', text: '每层都有目标物品（钥匙卡、保险丝等）。收集足够数量后，走到发光的出口逃离。', hint: '出口未解锁时会显示还差几个目标。' },
       { icon: '👹', title: '小心实体', text: '后室中有各种危险实体（猎犬、微笑者等）。听到声音要躲起来。可以用武器反击。', hint: '蹲下（C）可以进入通风口躲避。' },
       { icon: '🚪', title: '中枢与门', text: '通过 Level 0 和 1 后，你会到达中枢。中枢是安全区，有门通往各个层级。', hint: '发光的门=已解锁，锁住的需要先通关前一层。' },
@@ -20258,31 +20402,7 @@ class Game {
       grabHeld: inp.down('KeyF') || inp.down('KeyE')
     };
 
-    /* 快捷物品：数字键切换手持物品，再按一次使用 */
-    if (inp.hit('Digit1') || inp.hit('Numpad1')) {
-      if (p.heldItem === 'biscuit') { p.eatBiscuit(this.audio); this.stats.biscuits++; }
-      else if (p.equipItem('biscuit')) this.hud.toast('手持 · 压缩饼干（再按 1 食用）', 1.5);
-      else this.hud.toast('没有压缩饼干了');
-    }
-    if (inp.hit('Digit2') || inp.hit('Numpad2')) {
-      if (p.heldItem === 'water') { p.drinkWater(this.audio); this.stats.waters++; }
-      else if (p.equipItem('water')) this.hud.toast('手持 · 杏仁水（再按 2 饮用）', 1.5);
-      else this.hud.toast('没有杏仁水了');
-    }
-    if (inp.hit('KeyQ')) {
-      if (p.heldItem === 'flashlight') {
-        const on = p.toggleFlashlight(this.audio);
-        if (p.battery <= 0) this.hud.toast('手电没电了，找电池');
-        else this.hud.toast(on ? '手电 开' : '手电 关');
-      } else if (p.equipItem('flashlight')) {
-        this.hud.toast('手持 · 手电（按 Q 开关）', 1.5);
-      }
-    }
-    if (inp.hit('KeyR')) {
-      if (p.heldItem === 'navigator') { p.equipItem('navigator'); this.hud.toast('收起导航仪', 1.2); }
-      else if (p.equipItem('navigator')) this.hud.toast('手持 · 导航仪（显示罗盘与地图）', 1.5);
-      else this.hud.toast('没有导航仪');
-    }
+    /* 快捷键已移除 - 使用背包系统（Tab键打开背包，左键装备到主手，右键装备到副手，点击主手使用） */
     /* 鼠标左键或V键攻击（有武器用武器，没武器出拳） */
     if (inp.mouseClick() || inp.hit('KeyV')) {
       const hit = p.attack(this.entities, this.audio);
@@ -20295,15 +20415,10 @@ class Game {
         }
       }
     }
-    /* G键：创作者模式打开刷怪器，普通模式喝水 */
+    /* G键：创作者模式打开刷怪器 */
     if (inp.hit('KeyG')) {
       if (this.creativeMode) {
         this.openSpawner();
-      } else if (p.hasWater) {
-        if (p.drinkFromCanteen(this.audio)) this.hud.toast('饮水 · 口渴 +55', 1.5);
-        else this.hud.toast('口渴度已满', 1.2);
-      } else {
-        this.hud.toast('没有水壶', 1.2);
       }
     }
     /* H键：创作者模式切换除雾 */
@@ -20420,6 +20535,12 @@ class Game {
       p.biscuits = 99;
       p.waters = 99;
       if (!p.hasNavigator) p.hasNavigator = true;
+      /* 创意模式：补充背包物品 */
+      if (!p.inventory) { p.inventory = []; p.mainHand = null; p.offHand = null; p.invMaxSlots = 16; }
+      while (p.inventory.length < 8) {
+        const types = ['biscuit','water','battery','biscuit','water'];
+        if (!p.addItem(types[p.inventory.length % 5])) break;
+      }
     }
 
     /* 关卡事件：断电、震动、耳语、猎杀、水位 */
@@ -21828,9 +21949,9 @@ class Game {
       if (best.it.type === 'vending') {
         if (best.it.stock > 0) {
           best.it.stock--;
-          p.biscuits++;
+          if (p.addItem('biscuit')) { this.hud.toast(`售货机 · 压缩饼干（剩余 ${best.it.stock}）`, 3); }
+          else { this.hud.toast('背包已满！', 2); best.it.stock++; }
           this.audio.pickup();
-          this.hud.toast(`售货机 · 压缩饼干 ×1（剩余 ${best.it.stock}）`, 3);
         } else {
           this.audio.clank();
           this.hud.toast('售货机空了', 2);
@@ -21930,44 +22051,42 @@ class Game {
     if (this.levelItemsCollected >= 10) this.unlockAchievement('collect_all');
 
     if (it.type === 'biscuit') {
-      p.biscuits++;
-      this.hud.toast('拾取 压缩饼干 ×1 · 按 1 食用可快速恢复体力', 3);
+      if (p.addItem('biscuit')) { this.hud.toast('拾取 压缩饼干 · 已放入背包', 3); }
+      else { this.hud.toast('背包已满！', 2); it.taken = false; if(it.key) this.taken.delete(it.key); return; }
       return;
     }
     if (it.type === 'water') {
-      p.waters++;
-      this.hud.toast('拾取 杏仁水 ×1 · 按 2 饮用恢复理智', 3);
+      if (p.addItem('water')) { this.hud.toast('拾取 杏仁水 · 已放入背包', 3); }
+      else { this.hud.toast('背包已满！', 2); it.taken = false; if(it.key) this.taken.delete(it.key); return; }
       return;
     }
     if (it.type === 'battery') {
-      p.battery = Math.min(100, p.battery + 60);
-      this.hud.toast('更换电池 · 电量 +60%', 2.4);
+      if (p.addItem('battery')) { this.hud.toast('拾取 电池 · 已放入背包', 2.4); }
+      else { p.battery = Math.min(100, p.battery + 60); this.hud.toast('背包已满 · 直接使用电池 +60%', 2.4); }
       return;
     }
     if (it.type === 'navigator') {
       p.hasNavigator = true;
-      this.hud.toast('拾取 导航仪 · 按 R 手持后可查看罗盘与地图', 3.5);
+      if (p.addItem('navigator')) { this.hud.toast('拾取 导航仪 · 已放入背包', 3.5); }
       return;
     }
     /* 武器拾取 */
     if (it.type === 'pipe' || it.type === 'wrench' || it.type === 'knife' || it.type === 'extinguisher') {
       const w = WEAPONS[it.type];
-      if (p.pickUpWeapon(it.type)) {
-        this.hud.toast(`装备 ${w.name} · 按 F 攻击 · 耐久 ${w.durability}`, 3.5);
-      }
+      if (p.addItem(it.type)) { this.hud.toast(`拾取 ${w.name} · 已放入背包`, 3.5); }
+      else { this.hud.toast('背包已满！', 2); it.taken = false; if(it.key) this.taken.delete(it.key); return; }
       return;
     }
     /* 水壶拾取 */
     if (it.type === 'canteen') {
       p.hasWater = true;
-      p.thirst = Math.min(100, p.thirst + 50);
-      this.hud.toast('拾取 水壶 · 按 G 饮水补充口渴值', 3.5);
+      if (p.addItem('canteen')) { this.hud.toast('拾取 水壶 · 已放入背包', 3.5); }
       return;
     }
     /* 钥匙卡拾取 */
     if (it.type === 'keycard') {
       p.hasKeycard = true;
-      this.hud.toast('拾取 钥匙卡 · 可以刷开门禁', 3);
+      if (p.addItem('keycard')) { this.hud.toast('拾取 钥匙卡 · 已放入背包', 3); }
       return;
     }
     /* 文档/笔记拾取 */
@@ -22430,24 +22549,80 @@ class Game {
     const grid = document.getElementById('inv-grid');
     if (!grid) return;
     const p = this.player;
-    const slots = [
-      { id: 'biscuit', icon: '🍪', name: '压缩饼干', count: p.biscuits, key: '1' },
-      { id: 'water', icon: '💧', name: '杏仁水', count: p.waters, key: '2' },
-      { id: 'flashlight', icon: '🔦', name: '手电筒', count: p.hasFlashlight ? 1 : 0, key: 'Q' },
-      { id: 'navigator', icon: '🧭', name: '导航仪', count: p.hasNavigator ? 1 : 0, key: 'R' },
-      { id: 'canteen', icon: '🥤', name: '水壶', count: p.hasWater ? 1 : 0, key: 'G' },
-      { id: 'keycard', icon: '💳', name: '钥匙卡', count: p.hasKeycard ? 1 : 0, key: '' },
-      { id: 'weapon', icon: p.weapon ? '⚔️' : '', name: p.weapon ? WEAPONS[p.weapon].name : '无武器', count: p.weapon ? 1 : 0, key: 'F' },
-      { id: 'battery', icon: '🔋', name: '电量', count: Math.round(p.battery), key: '' },
-    ];
-    grid.innerHTML = slots.map(s => `
-      <div class="inv-slot ${s.count > 0 ? 'has' : ''} ${p.heldItem === s.id ? 'active' : ''}">
-        <div class="inv-icon">${s.icon || '·'}</div>
-        <div class="inv-name">${s.name}</div>
-        ${s.count > 0 && s.id !== 'battery' ? `<div class="inv-count">${s.count}</div>` : ''}
-        ${s.id === 'battery' && s.count > 0 ? `<div class="inv-count">${s.count}%</div>` : ''}
-      </div>
-    `).join('');
+    const ICONS = { biscuit:'🍪', water:'💧', flashlight:'🔦', navigator:'🧭', canteen:'🥤', keycard:'💳', battery:'🔋', pipe:'🔧', wrench:'🔨', knife:'🔪', extinguisher:'🧯', key:'🗝️' };
+    const NAMES = { biscuit:'压缩饼干', water:'杏仁水', flashlight:'手电筒', navigator:'导航仪', canteen:'水壶', keycard:'钥匙卡', battery:'电池', pipe:'铁管', wrench:'扳手', knife:'刀', extinguisher:'灭火器', key:'钥匙' };
+
+    // 渲染主手
+    const mainEl = document.getElementById('hand-main');
+    if (mainEl) {
+      const mh = p.mainHand;
+      let iconHtml = '<span style="opacity:0.3">·</span>';
+      if (mh) iconHtml = `<span style="cursor:pointer">${ICONS[mh.type]||'?'}</span>`;
+      mainEl.innerHTML = '<span style="position:absolute;top:-18px;left:0;font-size:0.65em;color:#8a7a5a;white-space:nowrap">主手</span>' + iconHtml;
+      mainEl.style.borderColor = mh ? '#c0a050' : '#6a5a3a';
+      mainEl.onclick = () => {
+        if (p.mainHand) {
+          p.useMainHandItem(this.audio);
+          this.renderInventory();
+        }
+      };
+      mainEl.oncontextmenu = (e) => {
+        e.preventDefault();
+        if (p.mainHand) { p.unequipMainHand(); this.renderInventory(); }
+      };
+    }
+
+    // 渲染副手
+    const offEl = document.getElementById('hand-off');
+    if (offEl) {
+      const oh = p.offHand;
+      let iconHtml = '<span style="opacity:0.3">·</span>';
+      if (oh) iconHtml = `<span style="cursor:pointer">${ICONS[oh.type]||'?'}</span>`;
+      offEl.innerHTML = '<span style="position:absolute;top:-18px;left:0;font-size:0.65em;color:#6a6a4a;white-space:nowrap">副手</span>' + iconHtml;
+      offEl.style.borderColor = oh ? '#a0a050' : '#4a4a3a';
+      offEl.onclick = () => {
+        if (p.offHand) {
+          const tmp = p.offHand;
+          p.unequipOffHand();
+          p.equipToMainHand(tmp.uid);
+          this.renderInventory();
+        }
+      };
+      offEl.oncontextmenu = (e) => {
+        e.preventDefault();
+        if (p.offHand) { p.unequipOffHand(); this.renderInventory(); }
+      };
+    }
+
+    // 渲染背包格子
+    let html = '';
+    for (let i = 0; i < p.invMaxSlots; i++) {
+      const item = p.inventory[i];
+      if (item) {
+        html += `<div class="inv-slot has" data-uid="${item.uid}" style="cursor:pointer;position:relative">
+          <div class="inv-icon">${ICONS[item.type]||'?'}</div>
+          <div class="inv-name" style="font-size:0.6em">${NAMES[item.type]||item.type}</div>
+        </div>`;
+      } else {
+        html += `<div class="inv-slot" style="opacity:0.4"><div class="inv-icon">·</div></div>`;
+      }
+    }
+    grid.innerHTML = html;
+
+    // 绑定点击事件
+    grid.querySelectorAll('[data-uid]').forEach(el => {
+      el.onclick = () => {
+        const uid = el.dataset.uid;
+        p.equipToMainHand(uid);
+        this.renderInventory();
+      };
+      el.oncontextmenu = (e) => {
+        e.preventDefault();
+        const uid = el.dataset.uid;
+        p.equipToOffHand(uid);
+        this.renderInventory();
+      };
+    });
   }
 
   /* ==================== 创作者模式刷怪器 ==================== */
