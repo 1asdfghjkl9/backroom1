@@ -28519,6 +28519,122 @@ function getRoomType(rng, levelIndex) {
   return 'normal';
 }
 
+// ========== 迭代101-110: 终极系统包 ==========
+
+// 迭代101: 怪物仇恨系统
+var AGGRO_TABLE = {};
+function addAggro(monsterType, amount) {
+  if (!AGGRO_TABLE[monsterType]) AGGRO_TABLE[monsterType] = {};
+  AGGRO_TABLE[monsterType]._total = (AGGRO_TABLE[monsterType]._total || 0) + amount;
+}
+function getHighestAggro(monsterType) {
+  var table = AGGRO_TABLE[monsterType];
+  if (!table) return null;
+  var max = 0, target = null;
+  for (var k in table) {
+    if (k !== '_total' && table[k] > max) { max = table[k]; target = k; }
+  }
+  return target;
+}
+
+// 迭代102: 环境音效分区
+var SOUND_ZONES = [];
+function generateSoundZones(rooms) {
+  SOUND_ZONES = [];
+  var zoneTypes = ['silent', 'dripping', 'humming', 'whispers', 'static'];
+  rooms.forEach(function(r) {
+    SOUND_ZONES.push({ x: r.x + r.w*0.5, y: r.y + r.h*0.5, r: Math.max(r.w,r.h)*0.5, type: zoneTypes[Math.floor(Math.random()*zoneTypes.length)] });
+  });
+}
+
+// 迭代103: 怪物恐惧系统
+var MONSTER_FEAR = { smiler: 'light', stalker: 'light', echo: 'sound', default: null };
+function getFearResponse(monsterType, stimulus) {
+  var fear = MONSTER_FEAR[monsterType] || MONSTER_FEAR.default;
+  if (fear === stimulus) return 'flee';
+  return 'normal';
+}
+
+// 迭代104: 道具稀有度颜色
+var RARITY_COLORS = { common: '#aaa', uncommon: '#4f4', rare: '#48f', epic: '#a4f', legendary: '#fa0' };
+function getItemRarity(itemType) {
+  if (['machete','crowbar','radio','key_card','map'].indexOf(itemType) >= 0) return 'rare';
+  if (['knife','bat','pill','flare'].indexOf(itemType) >= 0) return 'uncommon';
+  return 'common';
+}
+function getRarityColor(itemType) { return RARITY_COLORS[getItemRarity(itemType)] || '#aaa'; }
+
+// 迭代105: 连击系统
+var COMBO = { count: 0, timer: 0, maxCombo: 0 };
+function registerHit() {
+  COMBO.count++;
+  COMBO.timer = 2;
+  if (COMBO.count > COMBO.maxCombo) COMBO.maxCombo = COMBO.count;
+  return COMBO.count;
+}
+function getComboMultiplier() {
+  if (COMBO.count >= 10) return 3.0;
+  if (COMBO.count >= 5) return 2.0;
+  if (COMBO.count >= 3) return 1.5;
+  return 1.0;
+}
+
+// 迭代106: 隐身系统
+var STEALTH = { active: false, level: 0, maxLevel: 3 };
+function getStealthLevel() { return STEALTH.active ? STEALTH.level : 0; }
+function getDetectionReduction() { return 1 - (getStealthLevel() * 0.25); }
+
+// 迭代107: 陷阱制作
+var TRAP_RECIPES = [
+  { inputs: ['pipe', 'battery'], name: '电击陷阱', damage: 15, stun: 2 },
+  { inputs: ['flare', 'bandage'], name: '火焰陷阱', damage: 20, burn: 3 },
+  { inputs: ['water', 'pill'], name: '毒雾陷阱', damage: 5, poison: 5 }
+];
+function canCraftTrap(index, inventory) {
+  var recipe = TRAP_RECIPES[index];
+  if (!recipe) return false;
+  var needed = recipe.inputs.slice();
+  for (var i = 0; i < inventory.length; i++) { var idx = needed.indexOf(inventory[i].type); if (idx >= 0) needed.splice(idx, 1); }
+  return needed.length === 0;
+}
+
+// 迭代108: 怪物Boss特殊攻击
+var BOSS_ATTACKS = {
+  charge: { name: '冲锋', damage: 30, cooldown: 8, range: 10 },
+  slam: { name: '重击', damage: 40, cooldown: 12, radius: 3 },
+  summon: { name: '召唤', cooldown: 15, count: 3 },
+  roar: { name: '咆哮', cooldown: 10, sanityDrain: 20, radius: 5 }
+};
+function selectBossAttack(boss, playerDist) {
+  var attacks = Object.keys(BOSS_ATTACKS);
+  var available = attacks.filter(function(a) { return !boss._cooldowns || !boss._cooldowns[a] || boss._cooldowns[a] <= 0; });
+  if (available.length === 0) return null;
+  return available[Math.floor(Math.random() * available.length)];
+}
+
+// 迭代109: 资源管理 - 负重系统
+var INVENTORY_WEIGHT = { pipe: 3, wrench: 2, knife: 1, bat: 4, crowbar: 3, machete: 2, flashlight: 1, bandage: 0.5, pill: 0.3, biscuit: 0.5, water: 1, battery: 0.5, flare: 1, radio: 2, key: 0.2, key_card: 0.2, map: 0.5 };
+var MAX_WEIGHT = 20;
+function getCurrentWeight(inventory) {
+  var total = 0;
+  for (var i = 0; i < inventory.length; i++) total += (INVENTORY_WEIGHT[inventory[i].type] || 1);
+  return total;
+}
+function isOverweight(inventory) { return getCurrentWeight(inventory) > MAX_WEIGHT; }
+function getWeightPenalty(inventory) {
+  var w = getCurrentWeight(inventory);
+  if (w <= MAX_WEIGHT) return 1;
+  return Math.max(0.5, 1 - (w - MAX_WEIGHT) * 0.02);
+}
+
+// 迭代110: 快捷栏系统
+var HOTBAR = { slots: [null, null, null, null, null], selected: 0 };
+var HOTBAR_KEY = 'backrooms_hotbar_v1';
+function saveHotbar() { try { localStorage.setItem(HOTBAR_KEY, JSON.stringify(HOTBAR)); } catch(e) {} }
+function loadHotbar() { try { var s = JSON.parse(localStorage.getItem(HOTBAR_KEY)); if (s) HOTBAR = s; } catch(e) {} }
+function setHotbarSlot(slot, itemType) { if (slot >= 0 && slot < 5) { HOTBAR.slots[slot] = itemType; saveHotbar(); } }
+function selectHotbarSlot(slot) { if (slot >= 0 && slot < 5) HOTBAR.selected = slot; }
+
 </script>
 
     <!-- Supabase 聊天面板 -->
