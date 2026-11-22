@@ -29705,6 +29705,96 @@ function claimAchievementReward(achievementId) {
   return reward;
 }
 
+// ========== 迭代201-210: 最终功能完善 ==========
+
+// 迭代201: 怪物逃跑行为
+function monsterFleeBehavior(entity, playerX, playerY) {
+  var dx = entity.x - playerX, dy = entity.y - playerY;
+  var dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist === 0) return { x: entity.x + 1, y: entity.y };
+  return { x: entity.x + (dx/dist) * 2, y: entity.y + (dy/dist) * 2 };
+}
+
+// 迭代202: 道具耐久度恢复
+function repairItem(item, amount) {
+  if (!item.durability) return false;
+  item.durability = Math.min(item.maxDurability, item.durability + amount);
+  return true;
+}
+
+// 迭代203: 可破坏物体护甲
+var DESTRUCTIBLE_ARMOR = { barrel: 5, crate: 2, chest: 10 };
+function getDestructibleArmor(type) {
+  return DESTRUCTIBLE_ARMOR[type] || 0;
+}
+
+// 迭代204: 温度视觉提示
+function getTemperatureVisual(temp) {
+  if (temp < 0) return 'rgba(100,150,255,0.3)'; // blue tint
+  if (temp > 35) return 'rgba(255,100,50,0.3)'; // red tint
+  return null;
+}
+
+// 迭代205: 声音类型分类
+var SOUND_TYPES = {
+  footstep: { volume: 0.3, range: 5 },
+  attack: { volume: 0.8, range: 10 },
+  pickup: { volume: 0.5, range: 7 },
+  door: { volume: 0.6, range: 8 }
+};
+
+// 迭代206: 营地效果范围
+function getCampEffectRadius(camp) {
+  var base = 5;
+  if (camp.upgrades && camp.upgrades.indexOf('healing_aura') >= 0) base += 3;
+  return base;
+}
+
+// 迭代207: 怪物进化属性加成
+function getEvolutionBonuses(stage) {
+  var bonuses = {
+    0: { hp: 1.0, damage: 1.0, speed: 1.0 },
+    1: { hp: 1.3, damage: 1.2, speed: 1.1 },
+    2: { hp: 1.6, damage: 1.5, speed: 1.2 },
+    3: { hp: 2.0, damage: 2.0, speed: 1.3 }
+  };
+  return bonuses[stage] || bonuses[0];
+}
+
+// 迭代208: NPC好感度系统
+var NPC_REPUTATION = {};
+function addReputation(npcId, amount) {
+  NPC_REPUTATION[npcId] = (NPC_REPUTATION[npcId] || 0) + amount;
+}
+function getReputation(npcId) {
+  return NPC_REPUTATION[npcId] || 0;
+}
+function getReputationLevel(npcId) {
+  var rep = getReputation(npcId);
+  if (rep >= 100) return 'legendary';
+  if (rep >= 50) return 'friendly';
+  if (rep >= 20) return 'neutral';
+  return 'stranger';
+}
+
+// 迭代209: 迷雾永久标记
+var FOG_PERMANENT = {};
+function markFogPermanent(x, y) {
+  FOG_PERMANENT[Math.floor(x/2) + ',' + Math.floor(y/2)] = true;
+}
+function isFogPermanent(x, y) {
+  return FOG_PERMANENT[Math.floor(x/2) + ',' + Math.floor(y/2)] || false;
+}
+
+// 迭代210: 成就展示系统
+function displayAchievement(achievementId) {
+  var names = {
+    first_blood: '初战告捷', killer: '杀戮机器',
+    collector: '收藏大师', explorer: '探险先锋'
+  };
+  return names[achievementId] || achievementId;
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
