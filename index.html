@@ -29980,6 +29980,93 @@ function isAchievementComplete(achievementId) {
   return progress && progress.completed;
 }
 
+// ========== 迭代231-240: 最后20次 ==========
+
+// 迭代231: 怪物行为模式切换
+var BEHAVIOR_PATTERNS = { aggressive: 'chase', defensive: 'flee', neutral: 'patrol' };
+function setBehaviorPattern(entity, pattern) {
+  entity.behavior = BEHAVIOR_PATTERNS[pattern] || 'patrol';
+}
+
+// 迭代232: 道具升级路径扩展
+function getAdvancedUpgradePath(itemType, currentLevel) {
+  var paths = {
+    pipe: { 1: 'reinforced', 2: 'spiked', 3: 'electric' },
+    knife: { 1: 'serrated', 2: 'poisoned', 3: 'enchanted' }
+  };
+  return paths[itemType] && paths[itemType][currentLevel];
+}
+
+// 迭代233: 可破坏物体互动
+function interactWithDestructible(index, tool) {
+  var obj = DESTRUCTIBLES[index];
+  if (!obj) return null;
+  var damage = tool === 'hammer' ? 20 : 10;
+  return damageDestructible(index, damage);
+}
+
+// 迭代234: 温度影响玩家
+function applyTemperatureToPlayer(temp, exposure) {
+  var reduction = getTempDamageReduction(temp);
+  var dmg = applyTemperatureDamage(temp);
+  if (!dmg) return 0;
+  return dmg.damage * exposure * (1 - reduction);
+}
+
+// 迭代235: 声音触发事件
+function triggerSoundEvent(soundType, volume) {
+  if (soundType === 'loud_noise' && volume > 0.8) return 'monster_alert';
+  if (soundType === 'quiet_step' && volume < 0.3) return 'stealth_success';
+  return null;
+}
+
+// 迭代236: 营地升级效果
+function getCampUpgradeEffects(camp) {
+  var effects = { healing: 0, defense: 0, storage: 0 };
+  if (camp.upgrades) {
+    camp.upgrades.forEach(function(u){
+      if (u === 'healing_aura') effects.healing += 5;
+      if (u === 'fortification') effects.defense += 10;
+      if (u === 'storage') effects.storage += 5;
+    });
+  }
+  return effects;
+}
+
+// 迭代237: 怪物进化触发
+function triggerEvolution(entity) {
+  if (!EVOLUTION_DATA[entity.id]) return false;
+  var current = EVOLUTION_DATA[entity.id].stage;
+  if (current < 3 && Math.random() < 0.1) {
+    EVOLUTION_DATA[entity.id].stage++;
+    return true;
+  }
+  return false;
+}
+
+// 迭代238: NPC交易系统扩展
+function expandNPCTrade(npcId, newItem) {
+  if (!NPC_TRADES[npcId]) NPC_TRADES[npcId] = [];
+  NPC_TRADES[npcId].push(newItem);
+}
+
+// 迭代239: 迷雾探索统计
+function getFogExplorationStats() {
+  var total = Object.keys(FOG_OF_WAR).length;
+  var revealed = Object.values(FOG_OF_WAR).filter(function(v){ return v; }).length;
+  var permanent = Object.keys(FOG_PERMANENT).length;
+  return { total: total, revealed: revealed, permanent: permanent, percentage: total > 0 ? (revealed/total*100).toFixed(1) : 0 };
+}
+
+// 迭代240: 成就系统集成
+function integrateAchievements() {
+  var completed = [];
+  for (var id in ACHIEVEMENT_PROGRESS) {
+    if (ACHIEVEMENT_PROGRESS[id].completed) completed.push(id);
+  }
+  return completed;
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
