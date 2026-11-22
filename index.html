@@ -6092,7 +6092,8 @@ const F = {
   CLIMB: 4,    // 可以抓握攀爬（F）
   LOWCEIL: 8,  // 低矮空间，必须蹲下才能通过
   WATER: 16,   // 涉水，移动变慢
-  EXIT: 32     // 出口
+  EXIT: 32,    // 出口
+  RADIATION: 64 // 迭代16：辐射区，持续掉理智和体力
 };
 
 const TILE_DEF = {
@@ -9388,6 +9389,14 @@ class Player {
     const cellFlags = cellI >= 0 ? world.flags[cellI] : 0;
     this.inWater = !!(cellFlags & F.WATER);
 
+    /* 迭代16：辐射区检测 */
+    this.inRadiation = false;
+    if (cellI >= 0 && (cellFlags & F.RADIATION)) {
+      this.inRadiation = true;
+      this.sanity -= 3 * dt;
+      this.stamina -= 5 * dt;
+    }
+
     /* --- 抓握攀爬 --- */
     this.grabTarget = this.findClimbTarget(world);
 
@@ -10394,6 +10403,25 @@ class Entity {
         this.state = 'patrol';
       }
     }
+    /* 迭代17：怪物追击时播放音效 */
+    if (!this._wasChasing && this.state === 'chase') {
+      try {
+        const _audioCtx = (typeof audio !== 'undefined' && audio && audio.ctx) ? audio.ctx : null;
+        if (_audioCtx) {
+          const ctx = _audioCtx;
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.type = 'sawtooth';
+          o.frequency.setValueAtTime(200, ctx.currentTime);
+          o.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.3);
+          g.gain.setValueAtTime(0.15, ctx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+          o.start(); o.stop(ctx.currentTime + 0.5);
+        }
+      } catch(_e) {}
+    }
+    this._wasChasing = (this.state === 'chase');
 
     /* 迭代18：门敲门 — chase中遇到关闭的门 */
     if (this._doorKnockTimer > 0) {
@@ -18272,6 +18300,8 @@ class Game {
     this.whisperTimer = 10;
     this.flickerT = 0;
     this.helpReturn = 'menu';
+    /* 迭代19：死亡回放事件记录 */
+    this._recentEvents = [];
     this.creativeMode = false;
 
     /* PostFX state */
@@ -18412,6 +18442,56 @@ class Game {
 
   clearRun() {
     try { localStorage.removeItem(RUN_KEY); } catch (e) { /* ignore */ }
+  }
+
+  /* 迭代18：环境白噪声循环 */
+  _startWhiteNoise() {
+    if (!this.audio || !this.audio.ctx || this._whiteNoiseSource) return;
+    try {
+      const ctx = this.audio.ctx;
+      const bufferSize = 2 * ctx.sampleRate;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * 0.02;
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.3;
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.start();
+      this._whiteNoiseSource = source;
+      this._whiteNoiseGain = gain;
+    } catch(_e) { /* ignore */ }
+  }
+
+  _stopWhiteNoise() {
+    try {
+      if (this._whiteNoiseSource) {
+        this._whiteNoiseSource.stop();
+        this._whiteNoiseSource.disconnect();
+        this._whiteNoiseSource = null;
+      }
+      if (this._whiteNoiseGain) {
+        this._whiteNoiseGain.disconnect();
+        this._whiteNoiseGain = null;
+      }
+    } catch(_e) { /* ignore */ }
+  }
+
+  /* 迭代18：设置白噪声音量 */
+  _setWhiteNoiseVolume(v) {
+    if (this._whiteNoiseGain) this._whiteNoiseGain.gain.value = v;
+  }
+
+  /* 迭代19：记录关键事件用于死亡回放 */
+  recordEvent(text) {
+    if (!this._recentEvents) this._recentEvents = [];
+    this._recentEvents.push({ text: text, age: 0 });
+    if (this._recentEvents.length > 20) this._recentEvents.shift();
   }
 
   /* 成就系统 */
@@ -19662,6 +19742,10 @@ class Game {
     this.audio.stopChaseMusic();
     this.audio.startAmbient(level);
 
+    /* 迭代18：环境白噪声循环 */
+    this._stopWhiteNoise();
+    this._startWhiteNoise();
+
     this.hud.setLevel(level);
     this.hud.show();
     this.hud.setPrompt(null);
@@ -20186,6 +20270,7 @@ class Game {
 
     this.audio.gameOver();
     this.audio.setHum(0);
+    this._stopWhiteNoise(); /* 迭代18：死亡时停止白噪声 */
     this.input.exitLock();
     this.hud.setPrompt(null);
 
@@ -20242,6 +20327,25 @@ class Game {
         const secs = Math.floor(this._deathSurvivalTime % 60);
         statsEl.innerHTML = '到达层级: <b>' + (this._deathLevelName || '未知') + '</b><br>' +
           '存活时间: <b>' + mins + '分' + secs + '秒</b>';
+      }
+
+      /* 迭代19：死亡回放提示 — 最近事件 */
+      const recentEvents = this._recentEvents ? this._recentEvents.slice(-5) : [];
+      if (recentEvents.length > 0) {
+        let replayEl = document.getElementById('dead-replay');
+        if (!replayEl) {
+          replayEl = document.createElement('div');
+          replayEl.id = 'dead-replay';
+          replayEl.style.cssText = 'margin-top:12px;padding:8px 12px;background:rgba(20,18,12,.6);border:1px solid rgba(180,140,60,.15);border-radius:4px;text-align:left;font-size:10px;color:rgba(207,199,168,.6);line-height:1.6;';
+          const menuWrap = document.querySelector('.screen.active .menu-wrap') || document.querySelector('#dead .menu-wrap');
+          if (menuWrap) menuWrap.appendChild(replayEl);
+        }
+        if (replayEl) {
+          const eventLines = recentEvents.map(function(ev) {
+            return '• ' + ev.text + ' (' + Math.round(ev.age) + 's前)';
+          }).join('<br>');
+          replayEl.innerHTML = '<div style="color:rgba(196,163,90,.5);font-size:9px;letter-spacing:.1em;margin-bottom:4px;">最近事件</div>' + eventLines;
+        }
       }
 
       /* 死亡画面背景粒子 */
@@ -20452,6 +20556,20 @@ class Game {
 
     this.levelTime += dt;
 
+    /* 迭代19：更新最近事件记录（老化+裁剪） */
+    if (this._recentEvents) {
+      for (let _ei = this._recentEvents.length - 1; _ei >= 0; _ei--) {
+        this._recentEvents[_ei].age += dt;
+      }
+      /* 只保留最近30秒内的事件，最多保留20条 */
+      while (this._recentEvents.length > 0 && this._recentEvents[0].age > 30) {
+        this._recentEvents.shift();
+      }
+      if (this._recentEvents.length > 20) {
+        this._recentEvents.splice(0, this._recentEvents.length - 20);
+      }
+    }
+
     /* Level 12356: 房间60秒刷怪倒计时 */
     if (this.level && this.level.supplyLevel && this._roomTimers) {
       const px = Math.floor(this.player.x);
@@ -20481,6 +20599,7 @@ class Game {
             }
           }
           this.hud.toast('什么东西进来了……', 3);
+          this.recordEvent('有什么东西出现了'); /* 迭代19 */
         } else if (Math.floor(this._roomTimers[roomKey]) % 10 === 0 && this._roomTimers[roomKey] < 60) {
           this.hud.toast('倒计时: ' + Math.ceil(this._roomTimers[roomKey]) + '秒', 1);
         }
@@ -20878,8 +20997,10 @@ class Game {
       chaseIntensity = Math.min(1, chaseIntensity);
       if (anyChasing) {
         this.audio.startChaseMusic(chaseIntensity);
+        if (!this._chaseEventRecorded) { this.recordEvent('被怪物追上了！'); this._chaseEventRecorded = true; } /* 迭代19 */
       } else {
         this.audio.stopChaseMusic();
+        this._chaseEventRecorded = false; /* 迭代19：重置追击事件记录 */
       }
     }
 
@@ -20975,6 +21096,10 @@ class Game {
     this._eliteRoll = eliteRoll;
     /* 迭代39：群体生成 - 困难段以上30%概率 */
     const groupChance = (this.levelIndex >= 8) ? 0.30 : 0;
+    /* 迭代20：难度递增 — 每关+15%速度，+10%HP，+5%感知范围 */
+    const diffMul = 1 + this.levelIndex * 0.15;
+    const diffHpMul = 1 + this.levelIndex * 0.10;
+    const diffDetectMul = 1 + this.levelIndex * 0.05;
     for (const spec of res.ents) {
       let e = map.get(spec.key);
       if (!e) {
@@ -20984,11 +21109,14 @@ class Game {
         e.isElite = isElite;
         /* 迭代39：精英属性增强 */
         if (isElite) {
-          e.hp = e.maxHp = Math.round(e.hp * 1.5);
-          e.speedMul = (this.level.speedMul || 1.0) * 1.2;
+          e.hp = e.maxHp = Math.round(e.hp * 1.5 * diffHpMul); /* 迭代20 */
+          e.speedMul = (this.level.speedMul || 1.0) * 1.2 * diffMul; /* 迭代20 */
         } else {
-          e.speedMul = (this.level.speedMul || 1.0);
+          e.hp = e.maxHp = Math.round(e.hp * diffHpMul); /* 迭代20 */
+          e.speedMul = (this.level.speedMul || 1.0) * diffMul; /* 迭代20 */
         }
+        /* 迭代20：感知范围随难度增加 */
+        if (e.detectionRange) e.detectionRange = (e.detectionRange || 8) * diffDetectMul;
         e.onDeath = (ent) => {
           this.levelKills++;
           this.unlockAchievement('first_kill');
@@ -21010,7 +21138,8 @@ class Game {
           /* 确保伙伴位置可通行 */
           if (cellHeightAt(w, spec2.x, spec2.y) !== 1) {
             let e2 = new Entity(spec2, w, 1234 + Math.floor(spec2.x * 97 + spec2.y * 13));
-            e2.speedMul = (this.level.speedMul || 1.0);
+            e2.speedMul = (this.level.speedMul || 1.0) * diffMul; /* 迭代20 */
+            e2.hp = e2.maxHp = Math.round(e2.hp * diffHpMul); /* 迭代20 */
             e2.onDeath = e.onDeath;
             e2._gameRef = this;
             map.set(spec2.key, e2);
