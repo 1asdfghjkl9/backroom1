@@ -28218,6 +28218,155 @@ function quickUseItem(itemType, player) {
   return msg;
 }
 
+// ========== 迭代91-95: 怪物变异、环境危害、道具图鉴扩展、随机事件、存档回放 ==========
+
+// --- 迭代91: 怪物变异系统 ---
+var MUTATION_TYPES = {
+  armored: { name: '装甲', desc: '减伤50%', defenseMul: 0.5, color: '#888888' },
+  berserk: { name: '狂暴', desc: '攻击+100%，速度+50%', damageMul: 2.0, speedMul: 1.5, color: '#ff2200' },
+  phantom: { name: '幽灵', desc: '闪避率30%', dodgeChance: 0.3, color: '#aaaaff' },
+  toxic: { name: '剧毒', desc: '攻击附带毒伤', poisonDamage: 5, color: '#00ff44' },
+  giant: { name: '巨型', desc: '体型2倍，HP3倍', scale: 2.0, hpMul: 3.0, color: '#ffaa00' }
+};
+function applyMutation(entity) {
+  if (Math.random() > 0.05) return entity; // 5%变异率
+  var mutations = Object.keys(MUTATION_TYPES);
+  var mut = mutations[Math.floor(Math.random() * mutations.length)];
+  var info = MUTATION_TYPES[mut];
+  entity.mutation = mut;
+  entity.mutationInfo = info;
+  if (info.hpMul) entity.hp = (entity.hp || 50) * info.hpMul;
+  if (info.speedMul) entity.speed = (entity.speed || 2) * info.speedMul;
+  if (info.damageMul) entity.damage = (entity.damage || 10) * info.damageMul;
+  return entity;
+}
+
+// --- 迭代92: 环境危害系统 ---
+var HAZARD_TYPES = {
+  radiation: { name: '辐射区', color: '#44ff00', damage: 2, sanityDrain: 3 },
+  toxic_gas: { name: '毒气', color: '#00aa44', damage: 5, sanityDrain: 1 },
+  extreme_cold: { name: '极寒', color: '#4488ff', staminaDrain: 5, sanityDrain: 2 },
+  gravity_well: { name: '重力井', color: '#8800ff', speedMul: 0.3 },
+  electrical: { name: '电弧', color: '#ffff00', damage: 8, stunDuration: 1 }
+};
+function generateHazards(rooms, levelIndex) {
+  var hazards = [];
+  var count = Math.floor(levelIndex * 0.5) + 1;
+  var types = Object.keys(HAZARD_TYPES);
+  for (var i = 0; i < count && i < rooms.length; i++) {
+    var room = rooms[Math.floor(Math.random() * rooms.length)];
+    var type = types[Math.floor(Math.random() * types.length)];
+    hazards.push({
+      x: room.x + room.w * 0.5,
+      y: room.y + room.h * 0.5,
+      radius: Math.max(room.w, room.h) * 0.4,
+      type: type,
+      info: HAZARD_TYPES[type]
+    });
+  }
+  return hazards;
+}
+function checkHazard(px, py, hazards) {
+  for (var i = 0; i < hazards.length; i++) {
+    var h = hazards[i];
+    var dx = px - h.x, dy = py - h.y;
+    if (dx*dx + dy*dy < h.radius * h.radius) return h;
+  }
+  return null;
+}
+
+// --- 迭代93: 道具图鉴扩展 ---
+var CODEX_ENTRIES = {
+  pipe: { name: '铁管', desc: '基础近战武器，耐用但伤害一般', rarity: 'common' },
+  wrench: { name: '扳手', desc: '工具改造的武器，平衡性好', rarity: 'common' },
+  knife: { name: '厨刀', desc: '锋利但脆弱，伤害高耐久低', rarity: 'uncommon' },
+  bat: { name: '棒球棍', desc: '运动器材，打击感好', rarity: 'uncommon' },
+  crowbar: { name: '撬棍', desc: '物理学圣剑，多功能工具', rarity: 'rare' },
+  machete: { name: '砍刀', desc: '丛林利器，威力强大', rarity: 'rare' },
+  bandage: { name: '绷带', desc: '简易医疗用品，恢复少量HP', rarity: 'common' },
+  pill: { name: '药丸', desc: '镇静类药物，恢复理智', rarity: 'uncommon' },
+  biscuit: { name: '饼干', desc: '干粮，补充体力', rarity: 'common' },
+  water: { name: '杏仁水', desc: '后室特有饮品，恢复理智', rarity: 'common' },
+  flashlight: { name: '手电筒', desc: '照明工具，驱散黑暗', rarity: 'common' },
+  battery: { name: '电池', desc: '为电子设备供能', rarity: 'common' },
+  flare: { name: '信号弹', desc: '产生强光，暂时致盲怪物', rarity: 'uncommon' },
+  radio: { name: '收音机', desc: '可接收神秘信号', rarity: 'rare' },
+  key: { name: '钥匙', desc: '开启上锁的门', rarity: 'uncommon' },
+  key_card: { name: '钥匙卡', desc: '电子门禁凭证', rarity: 'rare' },
+  map: { name: '地图', desc: '显示当前楼层布局', rarity: 'rare' }
+};
+var CODEX_KEY = 'backrooms_codex_v1';
+function discoverItem(itemType) {
+  try {
+    var codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
+    if (codex.indexOf(itemType) < 0) {
+      codex.push(itemType);
+      localStorage.setItem(CODEX_KEY, JSON.stringify(codex));
+      return true; // 新发现
+    }
+  } catch(e) {}
+  return false;
+}
+function getCodexProgress() {
+  try {
+    var codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
+    var total = Object.keys(CODEX_ENTRIES).length;
+    return { found: codex.length, total: total, percent: Math.floor(codex.length / total * 100) };
+  } catch(e) { return { found: 0, total: 0, percent: 0 }; }
+}
+
+// --- 迭代94: 随机事件扩展 ---
+var RANDOM_EVENTS = [
+  { id: 'supply_drop', name: '空投补给', desc: '附近出现补给箱', chance: 0.15, effect: 'spawn_items' },
+  { id: 'earthquake', name: '地震', desc: '地面颤抖，部分墙壁坍塌', chance: 0.1, effect: 'open_walls' },
+  { id: 'fog surge', name: '浓雾涌来', desc: '能见度急剧下降', chance: 0.12, effect: 'reduce_visibility' },
+  { id: 'monster_rush', name: '怪物潮', desc: '大量怪物从远处涌来', chance: 0.08, effect: 'spawn_monsters' },
+  { id: 'calm', name: '宁静时刻', desc: '暂时安全，恢复少量理智', chance: 0.15, effect: 'restore_sanity' },
+  { id: 'whispers', name: '低语声', desc: '耳边传来不明的低语', chance: 0.2, effect: 'reduce_sanity' },
+  { id: 'treasure', name: '宝藏', desc: '发现隐藏的宝藏', chance: 0.05, effect: 'spawn_rare_items' },
+  { id: 'trap_trigger', name: '陷阱连锁', desc: '附近陷阱全部触发', chance: 0.07, effect: 'trigger_traps' },
+  { id: 'time_warp', name: '时间扭曲', desc: '时间流速改变', chance: 0.06, effect: 'alter_time' },
+  { id: 'npc_visit', name: '旅行者', desc: '一个NPC路过', chance: 0.1, effect: 'spawn_npc' }
+];
+function rollRandomEvent() {
+  var roll = Math.random();
+  var cumulative = 0;
+  for (var i = 0; i < RANDOM_EVENTS.length; i++) {
+    cumulative += RANDOM_EVENTS[i].chance;
+    if (roll < cumulative) return RANDOM_EVENTS[i];
+  }
+  return null;
+}
+
+// --- 迭代95: 存档回放系统 ---
+var REPLAY_KEY = 'backrooms_replay_v1';
+var replayData = [];
+var maxReplayFrames = 300; // 最多记录300帧
+function recordReplayFrame(frame) {
+  replayData.push({
+    t: Date.now(),
+    px: frame.px,
+    py: frame.py,
+    hp: frame.hp,
+    sanity: frame.sanity,
+    entities: frame.entities || []
+  });
+  if (replayData.length > maxReplayFrames) replayData.shift();
+}
+function getReplayData() {
+  return replayData.slice(-60); // 最后60帧用于回放
+}
+function saveReplay() {
+  try { localStorage.setItem(REPLAY_KEY, JSON.stringify(replayData.slice(-120))); } catch(e) {}
+}
+function loadReplay() {
+  try { return JSON.parse(localStorage.getItem(REPLAY_KEY) || '[]'); } catch(e) { return []; }
+}
+function clearReplay() {
+  replayData = [];
+  try { localStorage.removeItem(REPLAY_KEY); } catch(e) {}
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
