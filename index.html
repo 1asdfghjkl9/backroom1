@@ -29371,6 +29371,131 @@ function trackAchievement(type, amount) {
     (ACHIEVEMENT_TRACKER['total' + type.charAt(0).toUpperCase() + type.slice(1)] || 0) + amount;
 }
 
+// ========== 迭代171-180: 终极系统包 ==========
+
+// 迭代171: 怪物群体AI协调
+function coordinatePackAI(entities, targetX, targetY) {
+  var pack = entities.filter(function(e){ return !e.isDead && e.packId; });
+  if (pack.length < 2) return null;
+  var angles = [];
+  var angleStep = (Math.PI * 2) / pack.length;
+  for (var i = 0; i < pack.length; i++) angles.push(i * angleStep);
+  return pack.map(function(e, i){ return { id: e.id, angle: angles[i] }; });
+}
+
+// 迭代172: 道具组合发现系统
+var COMBO_RECIPES = [
+  { ingredients: ['battery','pipe'], result: 'flashlight', name: '手电筒' },
+  { ingredients: ['bandage','herb'], result: 'medicine', name: '药物' },
+  { ingredients: ['scrap','metal'], result: 'armor', name: '护甲' }
+];
+function discoverCombination(items) {
+  for (var i = 0; i < COMBO_RECIPES.length; i++) {
+    var recipe = COMBO_RECIPES[i];
+    var match = recipe.ingredients.every(function(ing){ return items.indexOf(ing) >= 0; });
+    if (match) return recipe;
+  }
+  return null;
+}
+
+// 迭代173: 怪物能力系统
+var MONSTER_ABILITIES = {
+  stalker: { invisibility: { duration: 5000, cooldown: 20000 } },
+  smiler: { teleport: { range: 10, cooldown: 15000 } },
+  hound: { dash: { speed: 2, duration: 2000, cooldown: 10000 } }
+};
+function useMonsterAbility(monsterType, abilityName) {
+  var ability = MONSTER_ABILITIES[monsterType] && MONSTER_ABILITIES[monsterType][abilityName];
+  if (!ability) return null;
+  return ability;
+}
+
+// 迭代174: 叙事片段系统
+var NARRATIVE_FRAGMENTS = [
+  '你发现了一张纸条：他们还在实验...',
+  '墙上刻着：不要相信第7层的东西',
+  '日记残页：日期已模糊...只记得尖叫声...',
+  '墙上的血迹拼成了一个箭头',
+  '录音机播放：如果你听到这个，说明已经太晚了...'
+];
+function getRandomNarrative() {
+  return NARRATIVE_FRAGMENTS[Math.floor(Math.random() * NARRATIVE_FRAGMENTS.length)];
+}
+
+// 迭代175: 怪物仇恨追踪
+var MONSTER_HATE = {};
+function addHateTarget(monsterId, targetId, amount) {
+  if (!MONSTER_HATE[monsterId]) MONSTER_HATE[monsterId] = {};
+  MONSTER_HATE[monsterId][targetId] = (MONSTER_HATE[monsterId][targetId] || 0) + amount;
+}
+function getTopHateTarget(monsterId) {
+  var hate = MONSTER_HATE[monsterId] || {};
+  var top = null, max = -1;
+  for (var tid in hate) {
+    if (hate[tid] > max) { max = hate[tid]; top = tid; }
+  }
+  return top;
+}
+
+// 迭代176: 武器升级路径
+var WEAPON_PATHS = {
+  pipe: ['reinforced_pipe', 'spiked_pipe', 'electric_pipe'],
+  knife: ['serrated_knife', 'poison_blade', 'flame_dagger']
+};
+function getUpgradePath(weaponType, level) {
+  var path = WEAPON_PATHS[weaponType];
+  if (!path || level >= path.length) return null;
+  return path[level];
+}
+
+// 迭代177: 怪物弱点利用
+var WEAKNESS_MULTIPLIERS = {
+  fire: { hound: 1.5, crawler: 1.3 },
+  cold: { smiler: 1.4, echo: 1.2 },
+  light: { stalker: 1.6, smiler: 1.3 },
+  physical: { echo: 1.5 }
+};
+function getWeaknessMultiplier(damageType, monsterType) {
+  var mults = WEAKNESS_MULTIPLIERS[damageType];
+  if (!mults) return 1.0;
+  return mults[monsterType] || 1.0;
+}
+
+// 迭代178: 怪物免疫状态
+var IMMUNITIES = {
+  hound: ['cold'], crawler: ['fire'], stalker: ['darkness'],
+  smiler: ['physical'], echo: ['silence']
+};
+function isImmune(monsterType, damageType) {
+  var imm = IMMUNITIES[monsterType];
+  return imm && imm.indexOf(damageType) >= 0;
+}
+
+// 迭代179: 合成配方树
+var CRAFT_TREE = {
+  tier1: [{ recipe: 'bandage', cost: { cloth: 2 } }, { recipe: 'torch', cost: { stick: 1, cloth: 1 } }],
+  tier2: [{ recipe: 'medicine', cost: { herb: 2, bandage: 1 } }, { recipe: 'lantern', cost: { battery: 2, scrap: 3 } }],
+  tier3: [{ recipe: 'elixir', cost: { medicine: 2, rare_herb: 1 } }]
+};
+function getCraftRecipes(tier) {
+  return CRAFT_TREE['tier' + tier] || [];
+}
+
+// 迭代180: Boss多阶段战斗
+var BOSS_PHASES_ADVANCED = [
+  { hpThreshold: 1.0, phase: 'initial', abilities: ['attack', 'defend'] },
+  { hpThreshold: 0.7, phase: 'enraged', abilities: ['attack', 'defend', 'charge'] },
+  { hpThreshold: 0.4, phase: 'desperate', abilities: ['attack', 'defend', 'charge', 'summon'] },
+  { hpThreshold: 0.1, phase: 'final_stand', abilities: ['attack', 'defend', 'charge', 'summon', 'enrage'] }
+];
+function getBossPhaseAdvanced(currentHp, maxHp) {
+  var ratio = currentHp / maxHp;
+  for (var i = BOSS_PHASES_ADVANCED.length - 1; i >= 0; i--) {
+    if (ratio <= BOSS_PHASES_ADVANCED[i].hpThreshold) return BOSS_PHASES_ADVANCED[i];
+  }
+  return BOSS_PHASES_ADVANCED[0];
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
