@@ -1352,6 +1352,40 @@ input[type="range"]::-moz-range-thumb {
   50%{transform:scale(1.02) translateX(5px);}
 }
 
+
+/* ========== 迭代46: 楼层指示器 ========== */
+#floor-indicator{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:80;font-family:'Courier New',monospace;font-size:14px;color:rgba(207,199,168,.8);background:rgba(20,18,12,.7);border:1px solid rgba(180,140,60,.25);padding:4px 16px;border-radius:3px;pointer-events:none;text-shadow:0 0 6px rgba(180,140,60,.3);display:none;transition:opacity .3s;}
+#floor-indicator.show{display:block;}
+#floor-indicator .floor-num{color:#e6c87c;font-weight:700;font-size:16px;}
+/* ========== 迭代47: 存档点 ========== */
+@keyframes savePointPulse{0%,100%{box-shadow:0 0 8px rgba(255,215,0,.3);}50%{box-shadow:0 0 16px rgba(255,215,0,.6);}}
+#save-prompt{position:fixed;bottom:25%;left:50%;transform:translateX(-50%);z-index:85;font-family:'Courier New',monospace;font-size:13px;color:#ffd700;background:rgba(20,18,12,.8);border:1px solid rgba(255,215,0,.3);padding:8px 20px;border-radius:4px;pointer-events:none;display:none;animation:savePointPulse 2s ease-in-out infinite;}
+#save-prompt.show{display:block;}
+#save-confirm{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;font-family:'Courier New',monospace;font-size:16px;color:#ffd700;background:rgba(20,18,12,.92);border:2px solid rgba(255,215,0,.4);padding:16px 32px;border-radius:6px;pointer-events:none;display:none;text-align:center;}
+#save-confirm.show{display:block;}
+/* ========== 迭代48: NPC对话 ========== */
+#npc-dialog{position:fixed;bottom:10%;left:50%;transform:translateX(-50%);z-index:150;width:min(560px,80vw);background:rgba(20,18,12,.95);border:1px solid rgba(180,140,60,.35);border-radius:6px;padding:16px 20px;display:none;font-family:'Courier New',monospace;box-shadow:0 4px 24px rgba(0,0,0,.6);}
+#npc-dialog.show{display:block;}
+#npc-dialog .npc-name{color:#e6c87c;font-size:14px;font-weight:700;margin-bottom:8px;border-bottom:1px solid rgba(180,140,60,.2);padding-bottom:6px;}
+#npc-dialog .npc-text{color:rgba(207,199,168,.85);font-size:12px;line-height:1.7;margin-bottom:12px;}
+#npc-dialog .npc-options{display:flex;flex-direction:column;gap:6px;}
+#npc-dialog .npc-opt{background:rgba(40,36,24,.6);border:1px solid rgba(180,140,60,.2);color:rgba(207,199,168,.8);font-size:11px;padding:8px 12px;border-radius:3px;cursor:pointer;text-align:left;transition:all .2s;font-family:inherit;}
+#npc-dialog .npc-opt:hover{background:rgba(60,54,36,.8);border-color:rgba(180,140,60,.5);color:#e6c87c;}
+#npc-prompt{position:fixed;bottom:25%;left:50%;transform:translateX(-50%);z-index:85;font-family:'Courier New',monospace;font-size:13px;color:#e6c87c;background:rgba(20,18,12,.8);border:1px solid rgba(180,140,60,.3);padding:8px 20px;border-radius:4px;pointer-events:none;display:none;}
+#npc-prompt.show{display:block;}
+/* ========== 迭代49: 陷阱提示 ========== */
+#trap-warning{position:fixed;bottom:18%;left:50%;transform:translateX(-50%);z-index:85;font-family:'Courier New',monospace;font-size:12px;color:#c44;background:rgba(20,10,10,.8);border:1px solid rgba(200,60,60,.3);padding:6px 16px;border-radius:3px;pointer-events:none;display:none;transition:opacity .3s;}
+#trap-warning.show{display:block;}
+/* ========== 迭代50: 任务面板 ========== */
+#quest-panel{position:fixed;top:120px;right:12px;z-index:75;width:200px;background:rgba(20,18,12,.8);border:1px solid rgba(180,140,60,.2);border-radius:4px;padding:10px 12px;font-family:'Courier New',monospace;display:none;max-height:300px;overflow-y:auto;}
+#quest-panel.show{display:block;}
+#quest-panel .quest-title{color:#e6c87c;font-size:11px;font-weight:700;border-bottom:1px solid rgba(180,140,60,.15);padding-bottom:4px;margin-bottom:6px;letter-spacing:.1em;}
+#quest-panel .quest-item{font-size:10px;color:rgba(207,199,168,.7);line-height:1.6;margin-bottom:4px;padding-left:8px;border-left:2px solid rgba(180,140,60,.2);}
+#quest-panel .quest-item.done{color:rgba(100,180,100,.7);border-left-color:rgba(100,180,100,.3);text-decoration:line-through;}
+#quest-panel .quest-item .q-reward{color:rgba(180,140,60,.5);font-size:9px;}
+#quest-toast{position:fixed;top:40%;left:50%;transform:translate(-50%,-50%);z-index:200;font-family:'Courier New',monospace;font-size:14px;color:#6b6;background:rgba(20,30,20,.9);border:1px solid rgba(100,180,100,.3);padding:12px 24px;border-radius:4px;pointer-events:none;display:none;text-align:center;}
+#quest-toast.show{display:block;}
+
 </style>
 </head>
 <body>
@@ -1376,6 +1410,17 @@ input[type="range"]::-moz-range-thumb {
     <div id="water-tint"></div>
     <div id="water-ripple"></div>
   </div>
+
+
+  <!-- 迭代46-50: 新系统UI -->
+  <div id="floor-indicator">楼层 <span class="floor-num" id="floor-num">B1</span></div>
+  <div id="save-prompt">按 <b>E</b> 保存进度</div>
+  <div id="save-confirm">✓ 进度已保存</div>
+  <div id="npc-prompt">按 <b>E</b> 与幸存者交谈</div>
+  <div id="npc-dialog"><div class="npc-name" id="npc-name">幸存者</div><div class="npc-text" id="npc-text">...</div><div class="npc-options" id="npc-options"></div></div>
+  <div id="trap-warning">⚠ 你感到地板在震动...</div>
+  <div id="quest-panel"><div class="quest-title">📋 任务列表</div><div id="quest-list"></div></div>
+  <div id="quest-toast"></div>
 
   <!-- ======================= HUD ======================= -->
   <div id="hud" class="hud">
@@ -25575,6 +25620,51 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 })();
+
+
+/* ============================ 迭代46-50 ============================ */
+var currentFloor=1,MAX_FLOOR=5,floorSeeds={},stairUpPos=null,stairDownPos=null,STAIR_DETECT_DIST=1.2;
+var savePointPos=null,SAVE_DETECT_DIST=1.5,lastSaveTime=0,SAVE_COOLDOWN=10000;
+var npcPos=null,NPC_DETECT_DIST=2.0,npcDialogOpen=false;
+var activeTraps=[],trapEffects=[],TRAP_DETECT_DIST=0.8,TRAP_TRIGGER_DIST=0.5;
+var questManager={quests:[],activeQuests:[],completedIds:new Set()};
+var TRAP_TYPES={SPIKE:{name:'地刺',damage:15,sanityLoss:0,visual:'地面有微弱的裂缝'},GAS:{name:'毒气',damage:0,sanityLoss:8,duration:3000,visual:'空气中弥漫着异味'},TELEPORT:{name:'传送',damage:0,sanityLoss:5,visual:'空间似乎在扭曲'}};
+var NPC_DIALOGUES={greeting:["你也是掉进这里的人？我已经在这里不知道多久了...","嘘...小声点。它们对声音很敏感。","你看起来很疲惫。在这里，理智比体力更重要。","我曾经找到过出口，但每次都会回到更深的层级。"],hints:["安全室是唯一的避风港，记住它们的位置。","杏仁水能恢复理智，在地面上仔细找找。","有些房间有陷阱，注意脚下的裂缝。","不要盯着那些实体看太久，你的理智会崩溃。","手电筒的电量有限，节省使用。"],trade:[{text:"用10点理智换一块压缩饼干",cost:{sanity:10},reward:{biscuit:1}},{text:"用20点理智换一瓶杏仁水",cost:{sanity:20},reward:{almond:1}}],farewell:"小心点...下一个转角可能什么都有。"};
+var QUEST_TEMPLATES=[{id:'q_collect_biscuit',title:'搜集补给',desc:'收集 2 块压缩饼干',type:'collect',target:'biscuit',count:2,reward:{sanity:15}},{id:'q_collect_almond',title:'理智药剂',desc:'收集 1 瓶杏仁水',type:'collect',target:'almond',count:1,reward:{stamina:20}},{id:'q_explore_floors',title:'深层探索',desc:'到达 B3 层',type:'floor',target:3,reward:{sanity:25}},{id:'q_survive_time',title:'持久生存',desc:'存活超过 5 分钟',type:'time',target:300,reward:{biscuit:2}},{id:'q_find_safe',title:'寻找避风港',desc:'找到一个安全室',type:'safefoom',target:1,reward:{sanity:10}},{id:'q_deep_floor',title:'越深入越危险',desc:'到达 B5 层',type:'floor',target:5,reward:{sanity:50}}];
+function getFloorIndicator(){var el=document.getElementById('floor-indicator');var n=document.getElementById('floor-num');if(el&&n){n.textContent='B'+currentFloor;el.classList.add('show');}}
+function hideFloorIndicator(){var el=document.getElementById('floor-indicator');if(el)el.classList.remove('show');}
+function checkStairProximity(px,py){var ns=null;if(stairUpPos){var dx=px-stairUpPos.x,dy=py-stairUpPos.y;if(dx*dx+dy*dy<STAIR_DETECT_DIST*STAIR_DETECT_DIST)ns='up';}if(stairDownPos){var dx2=px-stairDownPos.x,dy2=py-stairDownPos.y;if(dx2*dx2+dy2*dy2<STAIR_DETECT_DIST*STAIR_DETECT_DIST)ns='down';}return ns;}
+function changeFloor(dir){if(dir==='up'&&currentFloor>1){currentFloor--;getFloorIndicator();if(typeof G!=='undefined'&&G.hud)G.hud.toast('上楼 -> B'+currentFloor,2);regenerateFloor();}else if(dir==='down'&&currentFloor<MAX_FLOOR){currentFloor++;getFloorIndicator();if(typeof G!=='undefined'&&G.hud)G.hud.toast('下楼 -> B'+currentFloor,2);regenerateFloor();}}
+function regenerateFloor(){if(typeof world!=='undefined'&&world.level){var fs=(world.level.seed||42)*1000+currentFloor*7919;if(!floorSeeds[currentFloor])floorSeeds[currentFloor]=fs;if(typeof fillWindow==='function')fillWindow(world.ox,world.oy);placeFloorStairs();if(typeof G!=='undefined'){if(G.enemies)G.enemies.length=0;if(G.items)G.items.length=0;if(typeof spawnEnemiesForLevel==='function')spawnEnemiesForLevel();if(typeof spawnItems==='function')spawnItems();}}}
+function placeFloorStairs(){stairUpPos=null;stairDownPos=null;if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];if(currentFloor>1)stairDownPos={x:sr.x+2,y:sr.y+2};if(currentFloor<MAX_FLOOR)stairUpPos={x:sr.x+10+(currentFloor*3),y:sr.y+10+(currentFloor*3)};}
+function initSavePoint(){if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];savePointPos={x:sr.x+1,y:sr.y+1};}
+function checkSavePointProximity(px,py){if(!savePointPos)return false;var dx=px-savePointPos.x,dy=py-savePointPos.y;return(dx*dx+dy*dy<SAVE_DETECT_DIST*SAVE_DETECT_DIST);}
+function saveGame(){var now=Date.now();if(now-lastSaveTime<SAVE_COOLDOWN)return false;lastSaveTime=now;var sd={floor:currentFloor,px:typeof G!=='undefined'&&G.player?G.player.x:0,py:typeof G!=='undefined'&&G.player?G.player.y:0,sanity:typeof G!=='undefined'&&G.player?G.player.sanity:100,stamina:typeof G!=='undefined'&&G.player?G.player.stamina:100,levelIndex:typeof G!=='undefined'?G.levelIndex:0,inventory:typeof G!=='undefined'&&G.inventory?G.inventory:{},timestamp:now};try{localStorage.setItem('backrooms_save',JSON.stringify(sd));var el=document.getElementById('save-confirm');if(el){el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2000);}if(typeof G!=='undefined'&&G.hud)G.hud.toast('进度已保存',2);return true;}catch(e){console.warn('Save failed:',e);return false;}}
+function loadGame(){try{var r=localStorage.getItem('backrooms_save');if(!r)return null;return JSON.parse(r);}catch(e){return null;}}
+function hasSaveData(){return !!localStorage.getItem('backrooms_save');}
+function respawnFromSave(){var sv=loadGame();if(!sv||typeof G==='undefined')return false;currentFloor=sv.floor||1;if(G.player){G.player.x=sv.px;G.player.y=sv.py;G.player.sanity=Math.max(sv.sanity,30);G.player.stamina=Math.max(sv.stamina,30);}getFloorIndicator();regenerateFloor();if(G.hud)G.hud.toast('从存档点复活...',3);return true;}
+function initNPC(){if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];npcPos={x:sr.x+3,y:sr.y+3};}
+function checkNPCProximity(px,py){if(!npcPos)return false;var dx=px-npcPos.x,dy=py-npcPos.y;return(dx*dx+dy*dy<NPC_DETECT_DIST*NPC_DETECT_DIST);}
+function openNPCDialog(){npcDialogOpen=true;var dlg=document.getElementById('npc-dialog');var ne=document.getElementById('npc-name');var te=document.getElementById('npc-text');var oe=document.getElementById('npc-options');if(!dlg)return;ne.textContent='\ud83e\uddd1 幸存者';te.textContent=NPC_DIALOGUES.greeting[Math.floor(Math.random()*NPC_DIALOGUES.greeting.length)];var oh='';oh+='<button class="npc-opt" onclick="npcAction(\'hint\')">\ud83d\udca1 有什么提示吗？</button>';for(var i=0;i<NPC_DIALOGUES.trade.length;i++){(function(idx){oh+='<button class="npc-opt" onclick="npcAction(\'trade\','+idx+')">'+NPC_DIALOGUES.trade[idx].text+'</button>';})(i);}oh+='<button class="npc-opt" onclick="npcAction(\'leave\')">\ud83d\udeaa 离开</button>';oe.innerHTML=oh;dlg.classList.add('show');var pr=document.getElementById('npc-prompt');if(pr)pr.classList.remove('show');}
+function closeNPCDialog(){npcDialogOpen=false;var dlg=document.getElementById('npc-dialog');if(dlg)dlg.classList.remove('show');}
+function npcAction(type,idx){var te=document.getElementById('npc-text');if(type==='hint'){te.textContent=NPC_DIALOGUES.hints[Math.floor(Math.random()*NPC_DIALOGUES.hints.length)];}else if(type==='trade'){var trade=NPC_DIALOGUES.trade[idx];if(!trade)return;var canTrade=true;if(trade.cost.sanity&&typeof G!=='undefined'&&G.player){if(G.player.sanity<trade.cost.sanity){te.textContent='你的理智不够...你需要更多。';canTrade=false;}}if(canTrade){if(trade.cost.sanity&&G.player)G.player.sanity-=trade.cost.sanity;if(trade.reward.biscuit&&typeof G!=='undefined'){if(!G.inventory)G.inventory={};G.inventory.biscuit=(G.inventory.biscuit||0)+trade.reward.biscuit;}if(trade.reward.almond&&typeof G!=='undefined'){if(!G.inventory)G.inventory={};G.inventory.almond=(G.inventory.almond||0)+trade.reward.almond;}te.textContent='拿去吧，希望你用得上。';if(typeof G!=='undefined'&&G.hud)G.hud.toast('获得道具！',2);}}else if(type==='leave'){te.textContent=NPC_DIALOGUES.farewell;setTimeout(closeNPCDialog,1500);}}
+window.npcAction=npcAction;
+function generateTraps(){activeTraps=[];if(!world||!world.safeRooms)return;var tc=3+currentFloor*2;for(var i=0;i<tc;i++){var tks=Object.keys(TRAP_TYPES);var tp=tks[Math.floor(Math.random()*tks.length)];var sr=world.safeRooms[0];var tx,ty,att=0;do{tx=(sr?sr.x:0)+Math.floor(Math.random()*40)-10;ty=(sr?sr.y:0)+Math.floor(Math.random()*40)-10;att++;}while(sr&&Math.abs(tx-sr.x)<5&&Math.abs(ty-sr.y)<5&&att<20);activeTraps.push({x:tx+0.5,y:ty+0.5,type:tp,triggered:false});}}
+function checkTraps(px,py){for(var i=0;i<activeTraps.length;i++){var trap=activeTraps[i];if(trap.triggered)continue;var dx=px-trap.x,dy=py-trap.y;var dist=Math.sqrt(dx*dx+dy*dy);if(dist<TRAP_TRIGGER_DIST){triggerTrap(trap);}else if(dist<TRAP_DETECT_DIST*2){showTrapWarning(TRAP_TYPES[trap.type].visual);}}}
+function triggerTrap(trap){trap.triggered=true;var t=TRAP_TYPES[trap.type];if(!t||typeof G==='undefined')return;if(t.damage>0&&G.player)G.player.sanity=Math.max(0,G.player.sanity-t.damage);if(t.sanityLoss>0&&G.player)G.player.sanity=Math.max(0,G.player.sanity-t.sanityLoss);if(trap.type==='TELEPORT'&&G.player){G.player.x+=(Math.random()-0.5)*20;G.player.y+=(Math.random()-0.5)*20;}if(trap.type==='GAS'&&t.duration)trapEffects.push({type:'gas',endTime:Date.now()+t.duration,tickRate:500,lastTick:0});if(G.hud)G.hud.toast(t.name+'陷阱！',2);if(G.audio&&G.audio.ctx){try{var ctx=G.audio.ctx;var osc=ctx.createOscillator();var gn=ctx.createGain();osc.type='sawtooth';osc.frequency.setValueAtTime(100,ctx.currentTime);osc.frequency.exponentialRampToValueAtTime(40,ctx.currentTime+0.3);gn.gain.setValueAtTime(0.15,ctx.currentTime);gn.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);osc.connect(gn);gn.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+0.3);}catch(e){}}}
+function showTrapWarning(text){var el=document.getElementById('trap-warning');if(!el)return;el.textContent=text;el.classList.add('show');clearTimeout(el._ht);el._ht=setTimeout(function(){el.classList.remove('show');},1500);}
+function updateTrapEffects(dt){if(typeof G==='undefined'||!G.player)return;var now=Date.now();for(var i=trapEffects.length-1;i>=0;i--){var eff=trapEffects[i];if(now>=eff.endTime){trapEffects.splice(i,1);continue;}if(eff.type==='gas'&&now-eff.lastTick>eff.tickRate){G.player.sanity=Math.max(0,G.player.sanity-2);eff.lastTick=now;}}}
+function initQuests(){questManager.quests=QUEST_TEMPLATES.map(function(q){var nq={};for(var k in q)nq[k]=q[k];nq.progress=0;nq.done=false;return nq;});questManager.activeQuests=questManager.quests.slice(0,2).map(function(q){return q.id;});updateQuestPanel();}
+function checkQuestCompletion(){if(typeof G==='undefined')return;for(var qi=0;qi<questManager.quests.length;qi++){var q=questManager.quests[qi];if(q.done||questManager.activeQuests.indexOf(q.id)===-1)continue;var completed=false;if(q.type==='collect'){var count=(G.inventory&&G.inventory[q.target])||0;q.progress=Math.min(count,q.count);if(count>=q.count)completed=true;}else if(q.type==='floor'){q.progress=currentFloor;if(currentFloor>=q.target)completed=true;}else if(q.type==='time'){var time=G.levelTime||0;q.progress=Math.min(Math.floor(time),q.target);if(time>=q.target)completed=true;}else if(q.type==='safefoom'){if(world&&world.safeRooms&&world.safeRooms.length>0){q.progress=1;completed=true;}}if(completed){q.done=true;completeQuest(q);}}updateQuestPanel();}
+function completeQuest(q){if(typeof G==='undefined')return;if(q.reward){if(q.reward.sanity&&G.player)G.player.sanity=Math.min(100,G.player.sanity+q.reward.sanity);if(q.reward.stamina&&G.player)G.player.stamina=Math.min(100,G.player.stamina+q.reward.stamina);if(q.reward.biscuit){if(!G.inventory)G.inventory={};G.inventory.biscuit=(G.inventory.biscuit||0)+q.reward.biscuit;}}questManager.completedIds.add(q.id);showQuestToast('任务完成: '+q.title);if(G.hud)G.hud.toast(q.title,3);var nextQ=null;for(var i=0;i<questManager.quests.length;i++){if(!questManager.quests[i].done&&questManager.activeQuests.indexOf(questManager.quests[i].id)===-1){nextQ=questManager.quests[i];break;}}if(nextQ)questManager.activeQuests.push(nextQ.id);}
+function updateQuestPanel(){var panel=document.getElementById('quest-panel');var list=document.getElementById('quest-list');if(!panel||!list)return;var aqs=[];for(var i=0;i<questManager.quests.length;i++){if(questManager.activeQuests.indexOf(questManager.quests[i].id)!==-1)aqs.push(questManager.quests[i]);}if(aqs.length===0){panel.classList.remove('show');return;}panel.classList.add('show');var html='';for(var j=0;j<aqs.length;j++){var q=aqs[j];var cls=q.done?'quest-item done':'quest-item';var prog='...';if(q.type==='collect')prog=q.progress+'/'+q.count;else if(q.type==='floor')prog='B'+q.progress+'/B'+q.target;else if(q.type==='time'){var m=Math.floor(q.progress/60);var s=q.progress%60;prog=m+':'+(s<10?'0':'')+s;}else if(q.done)prog='done';var rt='';if(q.reward){var ps=[];if(q.reward.sanity)ps.push('+'+q.reward.sanity+' sanity');if(q.reward.stamina)ps.push('+'+q.reward.stamina+' stamina');if(q.reward.biscuit)ps.push('+'+q.reward.biscuit+' biscuit');rt=ps.join(' ');}html+='<div class="'+cls+'">'+q.desc+' ['+prog+']';if(rt)html+=' <span class="q-reward">('+rt+')</span>';html+='</div>';}list.innerHTML=html;}
+function showQuestToast(text){var el=document.getElementById('quest-toast');if(!el)return;el.textContent=text;el.classList.add('show');clearTimeout(el._ht);el._ht=setTimeout(function(){el.classList.remove('show');},3000);}
+function handleInteraction46_50(px,py){var stair=checkStairProximity(px,py);if(stair){changeFloor(stair);return true;}if(checkSavePointProximity(px,py)){saveGame();return true;}if(checkNPCProximity(px,py)&&!npcDialogOpen){openNPCDialog();return true;}return false;}
+var _sys4650_questTimer=0;
+function updateSystems46_50(dt){if(typeof G==='undefined'||!G.player)return;var px=G.player.x,py=G.player.y;var stair=checkStairProximity(px,py);var nearSave=checkSavePointProximity(px,py);var nearNPC=checkNPCProximity(px,py);if(stair==='up'){if(G.hud)G.hud.setPrompt(currentFloor>1?'press E go up':null);}else if(stair==='down'){if(G.hud)G.hud.setPrompt(currentFloor<MAX_FLOOR?'press E go down':null);}var sp=document.getElementById('save-prompt');if(sp){if(nearSave&&!nearNPC&&!stair)sp.classList.add('show');else sp.classList.remove('show');}var np=document.getElementById('npc-prompt');if(np){if(nearNPC&&!npcDialogOpen)np.classList.add('show');else np.classList.remove('show');}checkTraps(px,py);updateTrapEffects(dt);_sys4650_questTimer+=dt;if(_sys4650_questTimer>2){_sys4650_questTimer=0;checkQuestCompletion();}}
+function patchDeathScreen(){var ds=document.getElementById('screen-dead');if(!ds)return;var bc=ds.querySelector('.menu-buttons');if(!bc)return;if(document.getElementById('dead-save-btn'))return;var sb=document.createElement('button');sb.id='dead-save-btn';sb.className='btn btn-ghost';sb.style.cssText='color:#ffd700;border-color:rgba(255,215,0,.3);';sb.textContent='Continue from save';sb.onclick=function(){if(hasSaveData()){respawnFromSave();if(typeof G!=='undefined'){G.state='playing';var scs=document.querySelectorAll('.screen');for(var i=0;i<scs.length;i++)scs[i].classList.remove('active');}}else{if(typeof G!=='undefined'&&G.hud)G.hud.toast('No save data',2);}};var fb=bc.querySelector('.btn');if(fb&&fb.nextSibling)bc.insertBefore(sb,fb.nextSibling);else bc.appendChild(sb);}
+function initSystems46_50(){console.log('[iter46-50] init');getFloorIndicator();placeFloorStairs();initSavePoint();initNPC();generateTraps();initQuests();setTimeout(patchDeathScreen,1000);}
+(function waitForGame(){if(typeof G!=='undefined'&&G.state){initSystems46_50();}else{setTimeout(waitForGame,500);}})();
 
 </script>
 
