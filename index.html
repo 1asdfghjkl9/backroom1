@@ -6163,6 +6163,11 @@ function onSpine(seed, rx, ry, lx, ly, RS) {
 /* ---------------- 生成器 ---------------- */
 function generateWorld(level, seed) {
   const seededRand = mulberry32(seed || 1);
+  /* 迭代29：关卡主题尺寸调整 */
+  if (level._sizeAdj && !level.isHub) {
+    level = Object.assign({}, level);
+    level.size = [Math.round(level.size[0] * level._sizeAdj), Math.round((level.size[1] || level.size[0]) * level._sizeAdj)];
+  }
   const RS = Math.max(8, level.roomSize ?? 11);
   const gen = level.gen || 'rooms';
   const gapP = level.gapP ?? 0.16;
@@ -6236,6 +6241,40 @@ function generateWorld(level, seed) {
     } else if (type === 'utility') {
       _lcSet(wx + 1, wy + 1, TILE.PIPE, F.CLIMB, 1.0);
       if (w > 3) _lcSet(wx + w - 2, wy + 1, TILE.PIPE, F.CLIMB, 1.0);
+    }
+    /* 迭代27：房间类型扩展 — 储藏室/陷阱房/迷宫房 */
+    if (type === 'trap') {
+      /* 陷阱房：辐射区域 */
+      for (let dy2 = 1; dy2 < h - 1; dy2++) {
+        for (let dx2 = 1; dx2 < w - 1; dx2++) {
+          const cx = wx + dx2, cy = wy + dy2;
+          const ci = cy * (world_w || WIN) + cx;
+          if (ci >= 0 && ci < (world_flags_len || WIN * WIN)) {
+            /* 标记辐射：通过设置 floor flag */
+            _lcSet(cx, cy, TILE.EMPTY, F.RADIATION, 0);
+          }
+        }
+      }
+      /* 陷阱房中心放一个补给作为诱饵 */
+      _lcSet(wx + (w >> 1), wy + (h >> 1), TILE.CRATE, F.STAND | F.VAULT | F.CLIMB, 0.4);
+    } else if (type === 'maze_room') {
+      /* 迷宫房：内部十字隔断 */
+      const midX = wx + (w >> 1), midY = wy + (h >> 1);
+      for (let dy2 = 1; dy2 < h - 1; dy2++) {
+        if (dy2 !== (h >> 1)) _lcSet(midX, wy + dy2, TILE.WALL, 0, 1.0);
+      }
+      for (let dx2 = 1; dx2 < w - 1; dx2++) {
+        if (dx2 !== (w >> 1)) _lcSet(wx + dx2, midY, TILE.WALL, 0, 1.0);
+      }
+    } else if (type === 'loot_room') {
+      /* 储藏室增强：多个架子增加道具概率 */
+      for (let i = 0; i < 4; i++) {
+        const sx = wx + 1 + Math.floor(hash3(seed + i * 7, wx + i, wy + i) * (w - 2));
+        const sy = wy + 1 + Math.floor(hash3(seed + i * 7 + 3, wx + i, wy + i) * (h - 2));
+        _lcSet(sx, sy, TILE.SHELF, F.STAND | F.CLIMB, 0.55);
+      }
+      /* 中央箱子 */
+      _lcSet(wx + (w >> 1), wy + (h >> 1), TILE.CRATE, F.STAND | F.VAULT | F.CLIMB, 0.4);
     }
     return { x: wx + (w >> 1), y: wy + (h >> 1), w, h, type, doors };
   }
@@ -6311,7 +6350,17 @@ function generateWorld(level, seed) {
       _lcSet(wx + 1, wy + 1, TILE.PIPE, F.CLIMB, 1.0); _lcSet(wx + 2, wy + 1, TILE.PIPE, F.CLIMB, 1.0);
       _lcSet(wx + 1, wy + 2, TILE.PIPE, F.CLIMB, 1.0); _lcSet(wx + 2, wy + 2, TILE.CRATE, F.STAND | F.VAULT, 0.4);
     } else if (type === 'junction') { w = 5; h = 5; _makeRoom(wx, wy, w, h, 'corridor_junction');
-    } else { w = 4; h = 4; _makeRoom(wx, wy, w, h, 'standard'); }
+    } else {
+      /* 迭代27：房间类型扩展 — 随机分配special类型 */
+      const _rt = Math.random();
+      let _rType = 'standard';
+      if (_rt < 0.08) _rType = 'loot_room';       /* 8%储藏室 */
+      else if (_rt < 0.14) _rType = 'trap';        /* 6%陷阱房 */
+      else if (_rt < 0.20) _rType = 'maze_room';   /* 6%迷宫房 */
+      w = 4; h = 4;
+      if (_rType === 'maze_room') { w = 5; h = 5; }
+      _makeRoom(wx, wy, w, h, _rType);
+    }
     const center = { x: wx + (w >> 1), y: wy + (h >> 1) };
     _landmarks.push({ x: center.x, y: center.y, type, w, h, wx, wy });
     return center;
@@ -7065,6 +7114,10 @@ function generateWorld(level, seed) {
           if (hv !== undefined) height[i] = height[i] + hv;
         }
         if (waterOn && t === TILE.EMPTY && hash3(ox + x, ay, 91) < 0.78) f |= F.WATER;
+        /* 迭代29：实验室主题辐射区 */
+        if (level._radiationChance && t === TILE.EMPTY && hash3(seed + 0x801, ox + x, ay) < level._radiationChance) {
+          f |= F.RADIATION;
+        }
         flags[i] = f;
       }
     }
@@ -9433,6 +9486,20 @@ class Player {
       this.stamina -= 5 * dt;
     }
 
+    /* 迭代30：减速区域检测 */
+    this.inSlowZone = false;
+    if (world._slowZones) {
+      for (let _szIdx = 0; _szIdx < world._slowZones.length; _szIdx++) {
+        const _sz = world._slowZones[_szIdx];
+        const _szdx = this.x - _sz.x, _szdy = this.y - _sz.y;
+        const _szDist = Math.sqrt(_szdx * _szdx + _szdy * _szdy);
+        if (_szDist < _sz.radius) {
+          this.inSlowZone = true;
+          break;
+        }
+      }
+    }
+
     /* --- 抓握攀爬 --- */
     this.grabTarget = this.findClimbTarget(world);
 
@@ -9538,6 +9605,8 @@ class Player {
     if (this.exhausted > 0) speed *= 0.62;
     if (this.wet) speed *= SPEED_WATER;
     if (this.z > 0.05) speed *= 0.92;
+    /* 迭代30：减速区域效果 */
+    if (this.inSlowZone) speed *= 0.5;
     /* 游泳：在深水中进一步减速并模拟浮力 */
     this.swimming = false;
     if (this.inWater && this.z < 0.5) {
@@ -10203,6 +10272,8 @@ class Entity {
     const losRaw = dist < _effSight && lineOfSight(world, this.x, this.y, player.x, player.y, 0.62);
     /* 躲藏/隐藏的玩家更难被发现 */
     let hearRange = def.hear * (player.crouch ? 0.4 : player.sprinting ? 1.75 : 1);
+    /* 迭代26：重型怪物听觉补偿 — 速度慢但感知范围大 */
+    if (this.type === 'rot' || this.type === 'duller') hearRange *= 1.3;
     let heard = dist < hearRange && (player.noise > 1 || dist < hearRange * 0.5);
     /* 迭代16：储物柜躲藏的玩家几乎无法被发现，除非entity直接站在面前 */
     let los = losRaw;
@@ -10473,6 +10544,18 @@ class Entity {
     /* 迭代31：关卡难度速度倍数 + 精英加成 */
     speed *= this.speedMul;
     if (this.isElite) speed *= 1.2;
+    /* 迭代26：类型差异化AI — 不同怪物类型的基础速度乘数 */
+    let _typeSpeedMul = 1;
+    if (this.type === 'hound' || this.type === 'crawler') _typeSpeedMul = 1.15;  /* 快速型：速度+15% */
+    else if (this.type === 'rot' || this.type === 'duller') _typeSpeedMul = 0.75;  /* 重型：速度-25% */
+    else if (this.type === 'stalker' || this.type === 'skin_stealer') _typeSpeedMul = 0.9;  /* 潜行型：速度-10% */
+    else if (this.type === 'watcher') _typeSpeedMul = 0.7;  /* 凝视者：极慢但感知大 */
+    else if (this.type === 'partygoer') _typeSpeedMul = 1.25;  /* 派对客：极快 */
+    else if (this.type === 'echo') _typeSpeedMul = 0.85;  /* 回声：中等偏慢 */
+    else if (this.type === 'howler') _typeSpeedMul = 1.05;  /* 嚎叫者：略快 */
+    speed *= _typeSpeedMul;
+    /* 迭代26：重型怪物攻击范围加成 — rot/duller 伤害距离+0.5 */
+    this._typeAttackRangeBonus = (this.type === 'rot' || this.type === 'duller') ? 0.5 : 0;
     if (this.state === 'chase') speed *= 1 + this.rage * 0.22;
     else if (this.state === 'investigate') speed *= 0.7;  /* 迭代19 */
     else if (this.state === 'search') speed *= 0.6;       /* 迭代21 */
@@ -10719,6 +10802,44 @@ class Entity {
         if (!world.rotTrails) world.rotTrails = [];
         world.rotTrails.push({ x: this.x, y: this.y, t: 6 });
         if (world.rotTrails.length > 40) world.rotTrails.shift();
+      }
+    }
+
+    /* 迭代30：重型怪物特殊能力 — 追击时留下减速区域 */
+    if ((this.type === 'rot' || this.type === 'duller') && this.state === 'chase') {
+      if (!this._slowZoneTimer) this._slowZoneTimer = 0;
+      this._slowZoneTimer -= dt;
+      if (this._slowZoneTimer <= 0) {
+        this._slowZoneTimer = 2.5 + this.rng() * 1.5;
+        if (!world._slowZones) world._slowZones = [];
+        world._slowZones.push({ x: this.x, y: this.y, radius: 1.8, duration: 4 });
+        if (world._slowZones.length > 15) world._slowZones.shift();
+      }
+    }
+    /* 老化减速区域 */
+    if (world._slowZones) {
+      for (let _szi = world._slowZones.length - 1; _szi >= 0; _szi--) {
+        world._slowZones[_szi].duration -= dt;
+        if (world._slowZones[_szi].duration <= 0) {
+          world._slowZones.splice(_szi, 1);
+        }
+      }
+    }
+
+    /* 迭代30：潜行者(回声)特殊能力 — 偶尔在玩家附近生成幻象 */
+    if (this.type === 'echo' && this.state === 'chase' && Math.random() < 0.005) {
+      /* 生成一个短暂的幻象位置 */
+      if (!world._phantoms) world._phantoms = [];
+      const _pAng = Math.random() * Math.PI * 2;
+      const _pDist = 4 + Math.random() * 3;
+      world._phantoms.push({ x: player.x + Math.cos(_pAng) * _pDist, y: player.y + Math.sin(_pAng) * _pDist, t: 2.5 });
+      if (world._phantoms.length > 5) world._phantoms.shift();
+    }
+    /* 老化幻象 */
+    if (world._phantoms) {
+      for (let _phi = world._phantoms.length - 1; _phi >= 0; _phi--) {
+        world._phantoms[_phi].t -= dt;
+        if (world._phantoms[_phi].t <= 0) world._phantoms.splice(_phi, 1);
       }
     }
 
@@ -16084,6 +16205,37 @@ class ThreeJSRendererBridge {
       /* 迭代14：模型大小微偏 */
       const sizeVar = 0.95 + Math.random() * 0.1;
       mesh.scale.set(sizeVar, sizeVar, sizeVar);
+      /* 迭代28：模型视觉多样性 — 随机装饰物 */
+      const _decRoll = Math.random();
+      if (_decRoll < 0.15) {
+        /* 角 */
+        const hornMat = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.9 });
+        const hornL = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 4), hornMat);
+        hornL.position.set(-0.18, 0.85, 0);
+        hornL.rotation.z = 0.3;
+        mesh.add(hornL);
+        const hornR = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 4), hornMat);
+        hornR.position.set(0.18, 0.85, 0);
+        hornR.rotation.z = -0.3;
+        mesh.add(hornR);
+      } else if (_decRoll < 0.25) {
+        /* 脊刺 */
+        const spikeMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.85 });
+        for (let _si = 0; _si < 3; _si++) {
+          const spike = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 4), spikeMat);
+          spike.position.set(0, 0.5 + _si * 0.22, -0.15);
+          spike.rotation.x = -0.4;
+          mesh.add(spike);
+        }
+      } else if (_decRoll < 0.33) {
+        /* 尾巴 */
+        const tailMat = new THREE.MeshStandardMaterial({ color: 0x3a2a15, roughness: 0.9 });
+        const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 0.5, 4), tailMat);
+        tail.position.set(0, 0.3, -0.35);
+        tail.rotation.x = 0.8;
+        tail.name = '_decor_tail';
+        mesh.add(tail);
+      }
       this.scene.add(mesh);
       this._entityMeshes.push(mesh);
     }
@@ -16155,6 +16307,22 @@ class ThreeJSRendererBridge {
         const maker = this._ENTITY_MAKERS[s.entityType] || this._ENTITY_MAKERS.hound;
         e = maker();
         e.userData.entityType = s.entityType;
+        /* 迭代28：swap时也加装饰 */
+        const _decRoll2 = Math.random();
+        if (_decRoll2 < 0.15) {
+          const _hornMat = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.9 });
+          const _hL = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 4), _hornMat);
+          _hL.position.set(-0.18, 0.85, 0); _hL.rotation.z = 0.3; e.add(_hL);
+          const _hR = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 4), _hornMat);
+          _hR.position.set(0.18, 0.85, 0); _hR.rotation.z = -0.3; e.add(_hR);
+        } else if (_decRoll2 < 0.25) {
+          const _spMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.85 });
+          for (let _si2 = 0; _si2 < 3; _si2++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 4), _spMat); sp.position.set(0, 0.5 + _si2 * 0.22, -0.15); sp.rotation.x = -0.4; e.add(sp); }
+        } else if (_decRoll2 < 0.33) {
+          const _tlMat = new THREE.MeshStandardMaterial({ color: 0x3a2a15, roughness: 0.9 });
+          const _tl = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 0.5, 4), _tlMat);
+          _tl.position.set(0, 0.3, -0.35); _tl.rotation.x = 0.8; _tl.name = '_decor_tail'; e.add(_tl);
+        }
         this.scene.add(e);
         this._entityMeshes[i] = e;
       }
@@ -19652,6 +19820,27 @@ class Game {
     level._entityCountAdj = _envRand() < 0.5 ? -1 : 1;
     /* 物资数量 ±20% */
     level._itemMult = 0.8 + _envRand() * 0.4;
+    /* 迭代29：关卡主题多样化 — 根据关卡索引应用不同主题 */
+    if (!_origLevel.isHub && !_origLevel.isEasterEgg) {
+      const _themes = ['default', 'tunnel', 'lab', 'hall'];
+      const _theme = _themes[index % _themes.length];
+      level._theme = _theme;
+      if (_theme === 'tunnel') {
+        /* 地下隧道：狭窄走廊，更多怪物 */
+        level._sizeAdj = 0.75;
+        level._entityCountAdj = (level._entityCountAdj || 0) + 1;
+        level.fog = (level.fog || 0.075) * 1.2;
+      } else if (_theme === 'lab') {
+        /* 废弃实验室：更多道具和陷阱 */
+        level._itemMult = (level._itemMult || 1) * 1.5;
+        level._radiationChance = 0.3;
+      } else if (_theme === 'hall') {
+        /* 开阔大厅：少量怪物，更多探索空间 */
+        level._sizeAdj = 1.3;
+        level._entityCountAdj = Math.max(-1, (level._entityCountAdj || 0) - 1);
+        level.fog = (level.fog || 0.075) * 0.8;
+      }
+    }
     this._levelEnvironment = { fog: level.fog, ambient: level.ambient, colorShift: _colorShift };
     this.level = level;
 
@@ -21295,7 +21484,7 @@ class Game {
       const d = Math.hypot(e.x - p.x, e.y - p.y);
       if (d < 12 && (e.state === 'chase' || e.state === 'stare')) anyNear = true;
 
-      const _contactDist = (e.type === 'duller') ? 1.2 : 0.8;
+      const _contactDist = (e.type === 'duller') ? 1.2 : 0.8 + (e._typeAttackRangeBonus || 0); /* 迭代26：重型攻击范围加成 */
       if (d < _contactDist) {
         /* 接触：一碰即死（自动攻击已移除） */
         if (this.state === 'playing' && !this.creativeMode) {
