@@ -1376,6 +1376,9 @@ input[type="range"]::-moz-range-thumb {
 /* ========== 迭代49: 陷阱提示 ========== */
 #trap-warning{position:fixed;bottom:18%;left:50%;transform:translateX(-50%);z-index:85;font-family:'Courier New',monospace;font-size:12px;color:#c44;background:rgba(20,10,10,.8);border:1px solid rgba(200,60,60,.3);padding:6px 16px;border-radius:3px;pointer-events:none;display:none;transition:opacity .3s;}
 #trap-warning.show{display:block;}
+#wave-display.show{display:block;}
+#event-notify.show{opacity:1;}
+@keyframes pulse{0%{opacity:1;}100%{opacity:0.5;}}
 /* ========== 迭代50: 任务面板 ========== */
 #quest-panel{position:fixed;top:120px;right:12px;z-index:75;width:200px;background:rgba(20,18,12,.8);border:1px solid rgba(180,140,60,.2);border-radius:4px;padding:10px 12px;font-family:'Courier New',monospace;display:none;max-height:300px;overflow-y:auto;}
 #quest-panel.show{display:block;}
@@ -1420,6 +1423,55 @@ input[type="range"]::-moz-range-thumb {
   <div id="npc-dialog"><div class="npc-name" id="npc-name">幸存者</div><div class="npc-text" id="npc-text">...</div><div class="npc-options" id="npc-options"></div></div>
   <div id="trap-warning">⚠ 你感到地板在震动...</div>
   <div id="quest-panel"><div class="quest-title">📋 任务列表</div><div id="quest-list"></div></div>
+  <div id="wave-display" style="position:fixed;top:90px;left:50%;transform:translateX(-50%);z-index:80;font-family:'Courier New',monospace;font-size:12px;color:rgba(207,199,168,.8);background:rgba(20,18,12,.7);border:1px solid rgba(180,140,60,.25);padding:4px 14px;border-radius:3px;pointer-events:none;display:none;transition:opacity .3s;"></div>
+  <div id="event-notify" style="position:fixed;top:45%;left:50%;transform:translateX(-50%);z-index:85;font-family:'Courier New',monospace;font-size:13px;color:#e6c87c;background:rgba(20,18,12,.85);border:1px solid rgba(180,140,60,.35);padding:8px 20px;border-radius:4px;pointer-events:none;opacity:0;transition:opacity .4s;text-align:center;max-width:80vw;"></div>
+  <!-- 迭代55：游戏内设置面板 -->
+  <div id="ingame-settings-overlay" style="position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;">
+    <div style="background:rgba(20,18,12,.95);border:1px solid rgba(180,140,60,.3);border-radius:6px;padding:20px 24px;max-width:380px;width:90vw;font-family:'Courier New',monospace;color:var(--tc);max-height:80vh;overflow-y:auto;">
+      <h3 style="margin:0 0 14px;color:#e6c87c;font-size:14px;border-bottom:1px solid rgba(180,140,60,.2);padding-bottom:8px;">⚙ 游戏设置</h3>
+      <div style="margin-bottom:10px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:4px;"><span>鼠标灵敏度</span><b id="igs-sens-val" style="color:#e8d080;">1.0</b></label>
+        <input type="range" id="igs-sens" min="0.2" max="3" step="0.1" value="1" style="width:100%;">
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:4px;"><span>主音量</span><b id="igs-vol-val" style="color:#e8d080;">60%</b></label>
+        <input type="range" id="igs-vol" min="0" max="1" step="0.05" value="0.6" style="width:100%;">
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:4px;"><span>音效音量</span><b id="igs-sfx-val" style="color:#e8d080;">70%</b></label>
+        <input type="range" id="igs-sfx" min="0" max="1" step="0.05" value="0.7" style="width:100%;">
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:4px;"><span>环境音量</span><b id="igs-amb-val" style="color:#e8d080;">40%</b></label>
+        <input type="range" id="igs-amb" min="0" max="1" step="0.05" value="0.4" style="width:100%;">
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:4px;"><span>画面抖动</span><b id="igs-shake-val" style="color:#e8d080;">100%</b></label>
+        <input type="range" id="igs-shake" min="0" max="1" step="0.1" value="1" style="width:100%;">
+      </div>
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:11px;margin-bottom:6px;">画质</label>
+        <div style="display:flex;gap:4px;" id="igs-quality">
+          <button data-igs-q="low" style="flex:1;padding:4px;background:rgba(40,36,24,.6);border:1px solid rgba(180,140,60,.2);color:var(--tc);font-size:10px;cursor:pointer;border-radius:2px;font-family:inherit;">低</button>
+          <button data-igs-q="medium" style="flex:1;padding:4px;background:rgba(40,36,24,.6);border:1px solid rgba(180,140,60,.2);color:var(--tc);font-size:10px;cursor:pointer;border-radius:2px;font-family:inherit;">中</button>
+          <button data-igs-q="high" style="flex:1;padding:4px;background:rgba(40,36,24,.6);border:1px solid rgba(180,140,60,.2);color:var(--tc);font-size:10px;cursor:pointer;border-radius:2px;font-family:inherit;">高</button>
+          <button data-igs-q="ultra" style="flex:1;padding:4px;background:rgba(40,36,24,.6);border:1px solid rgba(180,140,60,.2);color:var(--tc);font-size:10px;cursor:pointer;border-radius:2px;font-family:inherit;">极致</button>
+        </div>
+      </div>
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:11px;margin-bottom:6px;color:rgba(207,199,168,.6);">操作提示</label>
+        <div style="font-size:10px;color:rgba(207,199,168,.5);line-height:1.8;background:rgba(20,18,12,.4);padding:8px;border-radius:3px;border:1px solid rgba(180,140,60,.1);">
+          WASD/方向键：移动 · Shift：冲刺<br>
+          鼠标左键/V：攻击 · Tab：背包<br>
+          E：交互/躲藏 · F：抓握/关门<br>
+          空格：跳跃 · C：蹲下 · H：除雾(创世)
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="igs-close" style="padding:6px 16px;background:rgba(180,140,60,.2);border:1px solid rgba(180,140,60,.3);color:#e8d080;font-size:11px;cursor:pointer;border-radius:3px;font-family:inherit;">关闭</button>
+      </div>
+    </div>
+  </div>
   <div id="quest-toast"></div>
 
   <!-- ======================= HUD ======================= -->
@@ -1483,6 +1535,8 @@ input[type="range"]::-moz-range-thumb {
 
     <div id="crosshair" class="crosshair"></div>
     <div id="fear-crosshair" class="fear-crosshair"></div>
+    <!-- 迭代55：游戏中设置按钮 -->
+    <div id="hud-settings-btn" style="position:fixed;top:10px;right:10px;z-index:50;width:32px;height:32px;background:rgba(20,18,12,.6);border:1px solid rgba(180,140,60,.2);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;pointer-events:auto;opacity:0.5;transition:opacity .2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'" onclick="if(typeof G!=='undefined')G.toggleIngameSettings()">⚙</div>
     <div id="banner" class="banner"></div>
     <div id="flood" class="flood"><i id="flood-fill"></i></div>
     <div id="grab-indicator" class="grab-indicator">抓握</div>
@@ -9432,6 +9486,57 @@ class Player {
     return false;
   }
 
+  /* 迭代51：道具升级系统 */
+  tryUpgrade(uid) {
+    const UPGRADE_RECIPES = {
+      pipe:    { materials: { battery: 2 }, name: '强化铁管',   statMul: { damage: 1.5, durability: 1.4 } },
+      wrench:  { materials: { battery: 1, bandage: 1 }, name: '强化扳手', statMul: { damage: 1.4, durability: 1.5 } },
+      knife:   { materials: { battery: 2 }, name: '强化刀',     statMul: { damage: 1.6, durability: 1.3 } },
+      bat:     { materials: { biscuit: 2 }, name: '强化棒球棍', statMul: { damage: 1.4, durability: 1.5 } },
+      crowbar: { materials: { battery: 1, bandage: 1 }, name: '强化撬棍', statMul: { damage: 1.5, durability: 1.4 } },
+      machete: { materials: { battery: 3 }, name: '强化砍刀',   statMul: { damage: 1.6, durability: 1.3 } },
+      extinguisher: { materials: { water: 2 }, name: '强化灭火器', statMul: { damage: 1.3, durability: 1.6 } },
+    };
+    const item = this.inventory.find(function(i) { return i.uid === uid; });
+    if (!item) return { success: false, error: '物品不存在' };
+    const recipe = UPGRADE_RECIPES[item.type];
+    if (!recipe) return { success: false, error: '该物品无法升级' };
+    if (item.upgradeLevel && item.upgradeLevel >= 3) return { success: false, error: '已达最大升级等级(+3)' };
+    /* 检查材料 */
+    const consumed = [];
+    for (const matType in recipe.materials) {
+      const need = recipe.materials[matType];
+      let found = 0;
+      for (let i = 0; i < this.inventory.length; i++) {
+        if (this.inventory[i].type === matType && this.inventory[i].uid !== uid) {
+          consumed.push(this.inventory[i].uid);
+          found++;
+          if (found >= need) break;
+        }
+      }
+      if (found < need) return { success: false, error: '材料不足：需要 ' + need + ' 个' + (NAMES_UPG[matType] || matType) };
+    }
+    /* 消耗材料 */
+    for (let c = 0; c < consumed.length; c++) {
+      this.removeFromInventory(consumed[c]);
+    }
+    /* 应用升级 */
+    const lvl = (item.upgradeLevel || 0) + 1;
+    item.upgradeLevel = lvl;
+    item.displayName = recipe.name + (lvl > 1 ? '+' + lvl : '+');
+    /* 更新武器伤害和耐久 */
+    if (WEAPONS[item.type]) {
+      const base = WEAPONS[item.type];
+      item.bonusDamage = Math.floor(base.damage * (recipe.statMul.damage - 1) * lvl);
+      item.bonusDurability = Math.floor(base.durability * (recipe.statMul.durability - 1) * lvl);
+      /* 如果当前装备，刷新武器耐久 */
+      if (this.weapon === item.type && this.mainHand && this.mainHand.uid === uid) {
+        this.weaponDurability += item.bonusDurability;
+      }
+    }
+    return { success: true, name: item.displayName, level: lvl };
+  }
+
   /* ---------------- 手持 / 使用物品 ---------------- */
 
   equipItem(type) {
@@ -9509,6 +9614,8 @@ class Player {
     /* 迭代41：不同武器类型有不同伤害倍率和耐久消耗 */
     const weaponDmgMul = isFist ? 1.0 : (w.durability <= 15 ? 1.2 : w.durability <= 20 ? 1.0 : 0.9);
     const weaponDurCost = isFist ? 0 : (w.durability <= 15 ? 2 : 1);
+    /* 迭代51：升级武器额外伤害 */
+    const upgradeBonus = (!isFist && this.mainHand && this.mainHand.bonusDamage) ? this.mainHand.bonusDamage : 0;
 
     for (const e of entities) {
       if (e.isDead) continue;
@@ -9519,7 +9626,7 @@ class Player {
       const angTo = Math.atan2(dy, dx);
       let da = Math.abs(((angTo - this.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
       if (da < w.arc / 2) {
-        const dmg = w.damage * weaponDmgMul * (1 - d / (w.range + 0.5) * 0.3);  /* 距离衰减 */
+        const dmg = (w.damage + upgradeBonus) * weaponDmgMul * (1 - d / (w.range + 0.5) * 0.3);  /* 距离衰减 */
         e.takeDamage(dmg, this.x, this.y, w);
         hitAny = true;
       }
@@ -10007,6 +10114,8 @@ const WEAPONS = {
   crowbar: { name: '撬棍',   damage: 35, range: 1.5, arc: 1.0, durability: 20, swingTime: 0.35 },
   machete: { name: '砍刀',   damage: 50, range: 1.4, arc: 0.9, durability: 15, swingTime: 0.28 }
 };
+
+const NAMES_UPG = { biscuit:'压缩饼干', water:'杏仁水', flashlight:'手电筒', navigator:'导航仪', canteen:'水壶', keycard:'钥匙卡', battery:'电池', pipe:'铁管', wrench:'扳手', knife:'刀', extinguisher:'灭火器', key:'钥匙', bandage:'绷带', pill:'镇静剂', map:'地图碎片', radio:'收音机', flare:'信号弹', bat:'棒球棍', crowbar:'撬棍', machete:'砍刀' };
 
 const ITEMS = {
   bandage: { name: '绷带', icon: '🩹', desc: '恢复30点理智' },
@@ -21898,6 +22007,11 @@ class Game {
       p.sanity = Math.max(0, p.sanity - 0.3 * dt);
     }
 
+    /* 迭代52-53：波次系统和随机事件系统更新 */
+    if(typeof updateWaveSystem==='function')updateWaveSystem(dt);
+    if(typeof updateEventSystem==='function')updateEventSystem(dt);
+    if(typeof updateWaveUI==='function')updateWaveUI();
+
     /* 死亡判定 */
     if (!this.creativeMode && p.sanity <= 0) {
       p.sanity = 0;
@@ -23734,6 +23848,64 @@ class Game {
     setTimeout(() => this.input.requestLock(), 50);
   }
 
+  /* 迭代55：游戏内设置面板 */
+  toggleIngameSettings() {
+    const ov = document.getElementById('ingame-settings-overlay');
+    if (!ov) return;
+    const isVisible = ov.style.display === 'flex';
+    if (isVisible) {
+      ov.style.display = 'none';
+      this.state = 'playing';
+      setTimeout(() => this.input.requestLock(), 50);
+    } else {
+      ov.style.display = 'flex';
+      this._prevState = this.state;
+      this.state = 'settings';
+      this.input.exitLock();
+      /* 同步当前设置值 */
+      const s = this.settings;
+      const sensEl = document.getElementById('igs-sens');
+      const volEl = document.getElementById('igs-vol');
+      const sfxEl = document.getElementById('igs-sfx');
+      const ambEl = document.getElementById('igs-amb');
+      const shakeEl = document.getElementById('igs-shake');
+      if (sensEl) { sensEl.value = s.sensitivity || 1; document.getElementById('igs-sens-val').textContent = Number(sensEl.value).toFixed(1); }
+      if (volEl) { volEl.value = s.volume || 0.6; document.getElementById('igs-vol-val').textContent = Math.round(volEl.value * 100) + '%'; }
+      if (sfxEl) { sfxEl.value = s.sfxVolume != null ? s.sfxVolume : 0.7; document.getElementById('igs-sfx-val').textContent = Math.round(sfxEl.value * 100) + '%'; }
+      if (ambEl) { ambEl.value = s.ambientVolume != null ? s.ambientVolume : 0.4; document.getElementById('igs-amb-val').textContent = Math.round(ambEl.value * 100) + '%'; }
+      if (shakeEl) { shakeEl.value = s.shake || 1; document.getElementById('igs-shake-val').textContent = Math.round(shakeEl.value * 100) + '%'; }
+      /* 高亮当前画质 */
+      document.querySelectorAll('[data-igs-q]').forEach(b => {
+        b.style.borderColor = b.dataset.igsQ === (s.quality || 'medium') ? '#c4a35a' : 'rgba(180,140,60,.2)';
+        b.style.background = b.dataset.igsQ === (s.quality || 'medium') ? 'rgba(180,140,60,.15)' : 'rgba(40,36,24,.6)';
+      });
+      /* 绑定事件（使用一次性标记避免重复绑定） */
+      if (!ov._bound) {
+        ov._bound = true;
+        const bindSlider = (id, valId, fmt, cb) => {
+          const el = document.getElementById(id);
+          if (el) el.addEventListener('input', () => { document.getElementById(valId).textContent = fmt(el.value); cb(el.value); });
+        };
+        bindSlider('igs-sens', 'igs-sens-val', v => Number(v).toFixed(1), v => { this.settings.sensitivity = Number(v); this.input.sensitivity = Number(v); this.saveSettings(); });
+        bindSlider('igs-vol', 'igs-vol-val', v => Math.round(v * 100) + '%', v => { this.settings.volume = Number(v); this.audio.setVolume(Number(v)); this.saveSettings(); });
+        bindSlider('igs-sfx', 'igs-sfx-val', v => Math.round(v * 100) + '%', v => { this.settings.sfxVolume = Number(v); this.audio.setSfxVolume(Number(v)); this.saveSettings(); });
+        bindSlider('igs-amb', 'igs-amb-val', v => Math.round(v * 100) + '%', v => { this.settings.ambientVolume = Number(v); this.audio.setAmbientVolume(Number(v)); this.saveSettings(); });
+        bindSlider('igs-shake', 'igs-shake-val', v => Math.round(v * 100) + '%', v => { this.settings.shake = Number(v); this.saveSettings(); });
+        document.querySelectorAll('[data-igs-q]').forEach(b => {
+          b.addEventListener('click', () => {
+            this.applyQuality(b.dataset.igsQ);
+            document.querySelectorAll('[data-igs-q]').forEach(bb => {
+              bb.style.borderColor = bb.dataset.igsQ === b.dataset.igsQ ? '#c4a35a' : 'rgba(180,140,60,.2)';
+              bb.style.background = bb.dataset.igsQ === b.dataset.igsQ ? 'rgba(180,140,60,.15)' : 'rgba(40,36,24,.6)';
+            });
+          });
+        });
+        const closeBtn = document.getElementById('igs-close');
+        if (closeBtn) closeBtn.addEventListener('click', () => this.toggleIngameSettings());
+      }
+    }
+  }
+
   submitKeypad() {
     const overlay = document.getElementById('puzzle-overlay');
     const display = document.getElementById('puzzle-display');
@@ -23935,9 +24107,26 @@ class Game {
       if (item) {
         const isSelected = p._selectedItem === item.uid;
         const selStyle = isSelected ? 'border-color:#ffcc40;box-shadow:0 0 8px rgba(255,204,64,.3);' : '';
-        html += `<div class="inv-slot has" data-uid="${item.uid}" title="${DESC[item.type] || NAMES[item.type] || item.type}" style="cursor:pointer;position:relative;${selStyle}">
-          <div class="inv-icon">${ICONS[item.type]||'?'}</div>
-          <div class="inv-name" style="font-size:0.6em">${NAMES[item.type]||item.type}</div>
+        /* 迭代54：道具耐久显示和升级标记 */
+        const wDef = WEAPONS[item.type];
+        let durBar = '';
+        let upgradeMark = '';
+        if (wDef && isFinite(wDef.durability)) {
+          const maxDur = wDef.durability + (item.bonusDurability || 0);
+          const curDur = (p.mainHand && p.mainHand.uid === item.uid) ? p.weaponDurability : maxDur;
+          const pct = Math.max(0, Math.min(100, (curDur / maxDur) * 100));
+          const barColor = pct > 60 ? '#8ee6b0' : pct > 30 ? '#e8d080' : '#c44';
+          durBar = `<div style="position:absolute;bottom:2px;left:3px;right:3px;height:3px;background:rgba(255,255,255,0.08);border-radius:1px;"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:1px;transition:width .2s;"></div></div>`;
+          if (pct <= 30) durBar = `<div style="position:absolute;bottom:2px;left:3px;right:3px;height:3px;background:rgba(255,255,255,0.08);border-radius:1px;box-shadow:0 0 3px rgba(204,68,68,0.5);"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:1px;animation:pulse 1s infinite alternate;"></div></div>`;
+        }
+        if (item.upgradeLevel && item.upgradeLevel > 0) {
+          upgradeMark = `<span style="position:absolute;top:1px;right:2px;font-size:0.55em;color:#ffd700;font-weight:700;text-shadow:0 0 3px rgba(255,215,0,0.5);">+${item.upgradeLevel}</span>`;
+        }
+        const displayName = item.displayName || NAMES[item.type] || item.type;
+        html += `<div class="inv-slot has" data-uid="${item.uid}" title="${DESC[item.type] || displayName}" style="cursor:pointer;position:relative;${selStyle}">
+          <div class="inv-icon">${ICONS[item.type]||'?'}${upgradeMark}</div>
+          <div class="inv-name" style="font-size:0.6em">${displayName}</div>
+          ${durBar}
         </div>`;
       } else {
         html += `<div class="inv-slot" style="opacity:0.4"><div class="inv-icon">·</div></div>`;
@@ -25645,9 +25834,9 @@ function hasSaveData(){return !!localStorage.getItem('backrooms_save');}
 function respawnFromSave(){var sv=loadGame();if(!sv||typeof G==='undefined')return false;currentFloor=sv.floor||1;if(G.player){G.player.x=sv.px;G.player.y=sv.py;G.player.sanity=Math.max(sv.sanity,30);G.player.stamina=Math.max(sv.stamina,30);}getFloorIndicator();regenerateFloor();if(G.hud)G.hud.toast('从存档点复活...',3);return true;}
 function initNPC(){if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];npcPos={x:sr.x+3,y:sr.y+3};}
 function checkNPCProximity(px,py){if(!npcPos)return false;var dx=px-npcPos.x,dy=py-npcPos.y;return(dx*dx+dy*dy<NPC_DETECT_DIST*NPC_DETECT_DIST);}
-function openNPCDialog(){npcDialogOpen=true;var dlg=document.getElementById('npc-dialog');var ne=document.getElementById('npc-name');var te=document.getElementById('npc-text');var oe=document.getElementById('npc-options');if(!dlg)return;ne.textContent='\ud83e\uddd1 幸存者';te.textContent=NPC_DIALOGUES.greeting[Math.floor(Math.random()*NPC_DIALOGUES.greeting.length)];var oh='';oh+='<button class="npc-opt" onclick="npcAction(\'hint\')">\ud83d\udca1 有什么提示吗？</button>';for(var i=0;i<NPC_DIALOGUES.trade.length;i++){(function(idx){oh+='<button class="npc-opt" onclick="npcAction(\'trade\','+idx+')">'+NPC_DIALOGUES.trade[idx].text+'</button>';})(i);}oh+='<button class="npc-opt" onclick="npcAction(\'leave\')">\ud83d\udeaa 离开</button>';oe.innerHTML=oh;dlg.classList.add('show');var pr=document.getElementById('npc-prompt');if(pr)pr.classList.remove('show');}
+function openNPCDialog(){npcDialogOpen=true;var dlg=document.getElementById('npc-dialog');var ne=document.getElementById('npc-name');var te=document.getElementById('npc-text');var oe=document.getElementById('npc-options');if(!dlg)return;ne.textContent='\ud83e\uddd1 幸存者';te.textContent=NPC_DIALOGUES.greeting[Math.floor(Math.random()*NPC_DIALOGUES.greeting.length)];var oh='';oh+='<button class="npc-opt" onclick="npcAction(\'hint\')">\ud83d\udca1 有什么提示吗？</button>';oh+='<button class="npc-opt" onclick="npcAction(\'upgrade\')">\u2b06\ufe0f 升级道具（需要材料）</button>';for(var i=0;i<NPC_DIALOGUES.trade.length;i++){(function(idx){oh+='<button class="npc-opt" onclick="npcAction(\'trade\','+idx+')">'+NPC_DIALOGUES.trade[idx].text+'</button>';})(i);}oh+='<button class="npc-opt" onclick="npcAction(\'leave\')">\ud83d\udeaa 离开</button>';oe.innerHTML=oh;dlg.classList.add('show');var pr=document.getElementById('npc-prompt');if(pr)pr.classList.remove('show');}
 function closeNPCDialog(){npcDialogOpen=false;var dlg=document.getElementById('npc-dialog');if(dlg)dlg.classList.remove('show');}
-function npcAction(type,idx){var te=document.getElementById('npc-text');if(type==='hint'){te.textContent=NPC_DIALOGUES.hints[Math.floor(Math.random()*NPC_DIALOGUES.hints.length)];}else if(type==='trade'){var trade=NPC_DIALOGUES.trade[idx];if(!trade)return;var canTrade=true;if(trade.cost.sanity&&typeof G!=='undefined'&&G.player){if(G.player.sanity<trade.cost.sanity){te.textContent='你的理智不够...你需要更多。';canTrade=false;}}if(canTrade){if(trade.cost.sanity&&G.player)G.player.sanity-=trade.cost.sanity;if(trade.reward.biscuit&&typeof G!=='undefined'){if(!G.inventory)G.inventory={};G.inventory.biscuit=(G.inventory.biscuit||0)+trade.reward.biscuit;}if(trade.reward.almond&&typeof G!=='undefined'){if(!G.inventory)G.inventory={};G.inventory.almond=(G.inventory.almond||0)+trade.reward.almond;}te.textContent='拿去吧，希望你用得上。';if(typeof G!=='undefined'&&G.hud)G.hud.toast('获得道具！',2);}}else if(type==='leave'){te.textContent=NPC_DIALOGUES.farewell;setTimeout(closeNPCDialog,1500);}}
+function npcAction(type,idx){var te=document.getElementById('npc-text');if(type==='hint'){te.textContent=NPC_DIALOGUES.hints[Math.floor(Math.random()*NPC_DIALOGUES.hints.length)];}else if(type==='upgrade'){if(typeof G==='undefined'||!G.player){te.textContent='你现在无法升级。';return;}var p=G.player;var weapons=p.inventory.filter(function(it){return WEAPONS[it.type];});if(weapons.length===0){te.textContent='你没有可以升级的武器。需要铁管、扳手、刀等。';}else{var w=weapons[0];var result=p.tryUpgrade(w.uid);if(result.success){te.textContent='升级成功！'+result.name+'（+'+result.level+'）';if(G.hud)G.hud.toast('升级成功: '+result.name,3);if(G.playSound)G.playSound('craft');if(G.renderInventory)G.renderInventory();}else{te.textContent=result.error||'升级失败';}}if(npcDialogOpen){var oe=document.getElementById('npc-options');if(oe){var oh2='';oh2+='<button class="npc-opt" onclick="npcAction(\'upgrade\')">\u2b06\ufe0f 继续升级</button>';oh2+='<button class="npc-opt" onclick="npcAction(\'hint\')">\ud83d\udca1 有什么提示吗？</button>';for(var ti=0;ti<NPC_DIALOGUES.trade.length;ti++){(function(idx2){oh2+='<button class="npc-opt" onclick="npcAction(\'trade\','+idx2+')">'+NPC_DIALOGUES.trade[idx2].text+'</button>';})(ti);}oh2+='<button class="npc-opt" onclick="npcAction(\'leave\')">\ud83d\udeaa 离开</button>';oe.innerHTML=oh2;}}}else if(type==='trade'){var trade=NPC_DIALOGUES.trade[idx];if(!trade)return;var canTrade=true;if(trade.cost.sanity&&typeof G!=='undefined'&&G.player){if(G.player.sanity<trade.cost.sanity){te.textContent='你的理智不够...你需要更多。';canTrade=false;}}if(canTrade){if(trade.cost.sanity&&G.player)G.player.sanity-=trade.cost.sanity;if(trade.reward.biscuit&&typeof G!=='undefined'){if(!G.inventory)G.inventory={};G.inventory.biscuit=(G.inventory.biscuit||0)+trade.reward.biscuit;}if(trade.reward.almond&&typeof G!=='undefined'){if(!G.inventory)G.inventory={};G.inventory.almond=(G.inventory.almond||0)+trade.reward.almond;}te.textContent='拿去吧，希望你用得上。';if(typeof G!=='undefined'&&G.hud)G.hud.toast('获得道具！',2);}}else if(type==='leave'){te.textContent=NPC_DIALOGUES.farewell;setTimeout(closeNPCDialog,1500);}}
 window.npcAction=npcAction;
 function generateTraps(){activeTraps=[];if(!world||!world.safeRooms)return;var tc=3+currentFloor*2;for(var i=0;i<tc;i++){var tks=Object.keys(TRAP_TYPES);var tp=tks[Math.floor(Math.random()*tks.length)];var sr=world.safeRooms[0];var tx,ty,att=0;do{tx=(sr?sr.x:0)+Math.floor(Math.random()*40)-10;ty=(sr?sr.y:0)+Math.floor(Math.random()*40)-10;att++;}while(sr&&Math.abs(tx-sr.x)<5&&Math.abs(ty-sr.y)<5&&att<20);activeTraps.push({x:tx+0.5,y:ty+0.5,type:tp,triggered:false});}}
 function checkTraps(px,py){for(var i=0;i<activeTraps.length;i++){var trap=activeTraps[i];if(trap.triggered)continue;var dx=px-trap.x,dy=py-trap.y;var dist=Math.sqrt(dx*dx+dy*dy);if(dist<TRAP_TRIGGER_DIST){triggerTrap(trap);}else if(dist<TRAP_DETECT_DIST*2){showTrapWarning(TRAP_TYPES[trap.type].visual);}}}
@@ -25665,6 +25854,187 @@ function updateSystems46_50(dt){if(typeof G==='undefined'||!G.player)return;var 
 function patchDeathScreen(){var ds=document.getElementById('screen-dead');if(!ds)return;var bc=ds.querySelector('.menu-buttons');if(!bc)return;if(document.getElementById('dead-save-btn'))return;var sb=document.createElement('button');sb.id='dead-save-btn';sb.className='btn btn-ghost';sb.style.cssText='color:#ffd700;border-color:rgba(255,215,0,.3);';sb.textContent='Continue from save';sb.onclick=function(){if(hasSaveData()){respawnFromSave();if(typeof G!=='undefined'){G.state='playing';var scs=document.querySelectorAll('.screen');for(var i=0;i<scs.length;i++)scs[i].classList.remove('active');}}else{if(typeof G!=='undefined'&&G.hud)G.hud.toast('No save data',2);}};var fb=bc.querySelector('.btn');if(fb&&fb.nextSibling)bc.insertBefore(sb,fb.nextSibling);else bc.appendChild(sb);}
 function initSystems46_50(){console.log('[iter46-50] init');getFloorIndicator();placeFloorStairs();initSavePoint();initNPC();generateTraps();initQuests();setTimeout(patchDeathScreen,1000);}
 (function waitForGame(){if(typeof G!=='undefined'&&G.state){initSystems46_50();}else{setTimeout(waitForGame,500);}})();
+
+/* ============================ 迭代52：敌人波次系统 ============================ */
+var waveSystem={
+  waveNumber:0,
+  active:false,
+  timer:90,
+  prepTime:30,
+  countdown:0,
+  enemiesAlive:0,
+  rewardGiven:false,
+  display:null
+};
+function updateWaveSystem(dt){
+  if(typeof G==='undefined'||!G.player||!G.entities)return;
+  if(waveSystem.active){
+    var aliveCount=0;
+    for(var i=0;i<G.entities.length;i++){if(!G.entities[i].isDead)aliveCount++;}
+    waveSystem.enemiesAlive=aliveCount;
+    if(aliveCount===0&&waveSystem.waveNumber>0&&!waveSystem.rewardGiven){
+      waveSystem.rewardGiven=true;
+      waveSystem.active=false;
+      waveSystem.timer=60+waveSystem.waveNumber*15;
+      waveSystem.countdown=0;
+      if(G.player){G.player.sanity=Math.min(100,G.player.sanity+10);G.player.stamina=Math.min(100,G.player.stamina+15);}
+      if(G.hud){G.hud.toast('波次 '+waveSystem.waveNumber+' 清除！奖励: +10理智 +15体力',4);}
+      if(G.playSound)G.playSound('craft');
+      updateWaveUI();
+    }
+  } else {
+    waveSystem.timer-=dt;
+    waveSystem.countdown=Math.ceil(waveSystem.timer);
+    if(waveSystem.timer<=0){
+      waveSystem.waveNumber++;
+      waveSystem.active=true;
+      waveSystem.rewardGiven=false;
+      spawnWaveEnemies();
+      if(G.hud)G.hud.toast('⚔ 第 '+waveSystem.waveNumber+' 波敌人来袭！',4);
+      if(G.playSound)G.playSound('hurt');
+      updateWaveUI();
+    }
+  }
+}
+function spawnWaveEnemies(){
+  if(typeof G==='undefined'||!G.player)return;
+  var types=['hound','crawler','smiler','stalker','rot'];
+  var count=Math.min(2+waveSystem.waveNumber,10);
+  var maxTypeIdx=Math.min(Math.floor(waveSystem.waveNumber/2),types.length-1);
+  for(var i=0;i<count;i++){
+    var tIdx=Math.floor(Math.random()*(maxTypeIdx+1));
+    var etype=types[tIdx];
+    var angle=Math.random()*Math.PI*2;
+    var dist=8+Math.random()*6;
+    var ex=G.player.x+Math.cos(angle)*dist;
+    var ey=G.player.y+Math.sin(angle)*dist;
+    if(typeof world!=='undefined'&&world.height){
+      var wi=idx(world,Math.floor(ex),Math.floor(ey));
+      if(wi>=0&&world.height[wi]<=0.3){
+        var spec={type:etype,x:ex,y:ey,z:0};
+        var newEnt=new Entity(spec,world,99999+i+waveSystem.waveNumber*100);
+        newEnt.speedMul=1+waveSystem.waveNumber*0.05;
+        newEnt.onDeath=function(ent){if(typeof G!=='undefined')G.levelKills++;};
+        newEnt._gameRef=G;
+        G.entities.push(newEnt);
+      }
+    }
+  }
+}
+function updateWaveUI(){
+  var el=document.getElementById('wave-display');
+  if(!el)return;
+  if(waveSystem.active){
+    el.classList.add('show');
+    el.innerHTML='<span style="color:#c44">⚔ 波次 '+waveSystem.waveNumber+'</span> | 敌人: '+waveSystem.enemiesAlive;
+  } else if(waveSystem.countdown>0&&waveSystem.countdown<=30){
+    el.classList.add('show');
+    el.innerHTML='<span style="color:#c4a35a">下一波: '+waveSystem.countdown+'s</span> | 波次 '+(waveSystem.waveNumber+1);
+  } else {
+    el.classList.remove('show');
+  }
+}
+
+/* ============================ 迭代53：随机事件系统 ============================ */
+var eventSystem={
+  timer:45+Math.random()*30,
+  activeEvents:[],
+  cooldown:0
+};
+var RANDOM_EVENTS=[
+  {id:'airdrop',name:'道具空投',desc:'附近有空投物资！',color:'#4af44a',duration:0,
+    effect:function(){
+      if(typeof G==='undefined'||!G.player)return;
+      var drops=['battery','bandage','biscuit','flare'];
+      for(var i=0;i<2;i++){
+        var dt=drops[Math.floor(Math.random()*drops.length)];
+        var a=Math.random()*Math.PI*2,d=3+Math.random()*4;
+        if(G.items)G.items.push({type:dt,x:G.player.x+Math.cos(a)*d,y:G.player.y+Math.sin(a)*d,taken:false,key:'evt_'+Date.now()+'_'+i,bob:Math.random()*6.28});
+      }
+      if(G.hud)G.hud.toast('📦 道具空投！附近出现物资',3);
+    }
+  },
+  {id:'raid',name:'敌人突袭',desc:'敌人蜂拥而至！',color:'#c44',duration:0,
+    effect:function(){
+      if(typeof G==='undefined'||!G.player)return;
+      var count=2+Math.floor(Math.random()*3);
+      for(var i=0;i<count;i++){
+        var a=Math.random()*Math.PI*2,d=6+Math.random()*5;
+        var ex=G.player.x+Math.cos(a)*d,ey=G.player.y+Math.sin(a)*d;
+        if(typeof world!=='undefined'&&world.height){
+          var wi=idx(world,Math.floor(ex),Math.floor(ey));
+          if(wi>=0&&world.height[wi]<=0.3){
+            var types=['hound','crawler','smiler'];
+            var et=types[Math.floor(Math.random()*types.length)];
+            var spec={type:et,x:ex,y:ey,z:0};
+            var ne=new Entity(spec,world,88888+i);
+            ne.onDeath=function(ent){if(typeof G!=='undefined')G.levelKills++;};
+            ne._gameRef=G;
+            G.entities.push(ne);
+          }
+        }
+      }
+      if(G.hud)G.hud.toast('💀 敌人突袭！小心！',3);
+    }
+  },
+  {id:'fog',name:'浓雾降临',desc:'浓雾笼罩了周围...',color:'#888',duration:20,
+    effect:function(){
+      if(typeof G==='undefined')return;
+      G._fogBase=0.15;
+      setTimeout(function(){if(typeof G!=='undefined')G._fogBase=0.055;},20000);
+      if(G.hud)G.hud.toast('🌫 浓雾降临...视野受限',3);
+    }
+  },
+  {id:'sanity_drain',name:'精神侵蚀',desc:'你感到一阵眩晕...',color:'#a040a0',duration:0,
+    effect:function(){
+      if(typeof G==='undefined'||!G.player)return;
+      G.player.sanity=Math.max(0,G.player.sanity-15);
+      if(G.hud)G.hud.toast('🧠 精神侵蚀！理智 -15',3);
+    }
+  },
+  {id:'npc_visit',name:'旅行者',desc:'一个神秘的旅人出现在附近',color:'#e6c87c',duration:0,
+    effect:function(){
+      if(typeof G==='undefined'||!G.player)return;
+      if(G.player.sanity<80){G.player.sanity=Math.min(100,G.player.sanity+20);}
+      if(G.player.stamina<50){G.player.stamina=Math.min(100,G.player.stamina+20);}
+      if(G.hud)G.hud.toast('🧳 一位旅人给了你些许安慰',3);
+    }
+  },
+  {id:'storm',name:'电磁风暴',desc:'电磁干扰！手电筒闪烁',color:'#4488ff',duration:15,
+    effect:function(){
+      if(typeof G==='undefined'||!G.player)return;
+      G.player.forceDark=true;
+      setTimeout(function(){if(typeof G!=='undefined'&&G.player)G.player.forceDark=false;},15000);
+      if(G.hud)G.hud.toast('⚡ 电磁风暴！手电筒失灵',3);
+    }
+  }
+];
+function updateEventSystem(dt){
+  if(typeof G==='undefined'||!G.player)return;
+  if(eventSystem.cooldown>0){eventSystem.cooldown-=dt;return;}
+  eventSystem.timer-=dt;
+  if(eventSystem.timer<=0){
+    triggerRandomEvent();
+    eventSystem.timer=40+Math.random()*40;
+  }
+}
+function triggerRandomEvent(){
+  var evt=RANDOM_EVENTS[Math.floor(Math.random()*RANDOM_EVENTS.length)];
+  if(!evt)return;
+  evt.effect();
+  showEventNotification(evt);
+  eventSystem.cooldown=30;
+}
+function showEventNotification(evt){
+  var el=document.getElementById('event-notify');
+  if(!el)return;
+  el.style.borderColor=evt.color;
+  el.style.color=evt.color;
+  el.textContent=evt.name+'：'+evt.desc;
+  el.classList.add('show');
+  clearTimeout(el._ht);
+  el._ht=setTimeout(function(){el.classList.remove('show');},4000);
+}
 
 </script>
 
