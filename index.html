@@ -29795,6 +29795,97 @@ function displayAchievement(achievementId) {
   return names[achievementId] || achievementId;
 }
 
+// ========== 迭代211-220: 最后冲刺 ==========
+
+// 迭代211: 怪物追踪玩家
+function trackPlayer(entity, playerX, playerY, awareness) {
+  var dx = playerX - entity.x, dy = playerY - entity.y;
+  var dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist > awareness) return null;
+  return { targetX: playerX, targetY: playerY, distance: dist };
+}
+
+// 迭代212: 道具修复站
+var REPAIR_STATIONS = [];
+function addRepairStation(x, y) {
+  REPAIR_STATIONS.push({ x: x, y: y, uses: 5 });
+}
+function useRepairStation(index, item, amount) {
+  var station = REPAIR_STATIONS[index];
+  if (!station || station.uses <= 0) return false;
+  station.uses--;
+  return repairItem(item, amount);
+}
+
+// 迭代213: 可破坏物体类型扩展
+var DESTRUCTIBLE_TYPES = ['barrel', 'crate', 'locker', 'chest', 'vase', 'pillar'];
+function getRandomDestructibleType() {
+  return DESTRUCTIBLE_TYPES[Math.floor(Math.random() * DESTRUCTIBLE_TYPES.length)];
+}
+
+// 迭代214: 温度适应系统
+var TEMP_RESISTANCE = { cold: 0, heat: 0 };
+function updateTempResistance(type, amount) {
+  TEMP_RESISTANCE[type] = Math.min(1, (TEMP_RESISTANCE[type] || 0) + amount);
+}
+function getTempDamageReduction(temp) {
+  if (temp < 0) return TEMP_RESISTANCE.cold || 0;
+  if (temp > 35) return TEMP_RESISTANCE.heat || 0;
+  return 0;
+}
+
+// 迭代215: 声音记录系统
+var SOUND_HISTORY = [];
+function recordSound(x, y, type, volume) {
+  SOUND_HISTORY.push({ x: x, y: y, type: type, volume: volume, time: Date.now() });
+  if (SOUND_HISTORY.length > 50) SOUND_HISTORY.shift();
+}
+
+// 迭代216: 营地建造系统
+var CAMP_RESOURCES = { wood: 5, cloth: 3 };
+function canBuildCamp(resources) {
+  for (var res in CAMP_RESOURCES) {
+    if ((resources[res] || 0) < CAMP_RESOURCES[res]) return false;
+  }
+  return true;
+}
+
+// 迭代217: 怪物进化树
+var EVOLUTION_TREE = {
+  hound: ['alpha_hound', 'dire_hound'],
+  stalker: ['shadow_stalker', 'phantom_stalker']
+};
+function getEvolutionPath(monsterType, stage) {
+  var tree = EVOLUTION_TREE[monsterType];
+  if (!tree || stage >= tree.length) return monsterType;
+  return tree[stage];
+}
+
+// 迭代218: NPC任务系统
+var NPC_QUESTS = {
+  trader: [
+    { id: 'collect_scrap', desc: '收集5个废料', reward: 'wrench' },
+    { id: 'hunt_monsters', desc: '击杀3只怪物', reward: 'bandage' }
+  ]
+};
+function getNPCQuests(npcId) {
+  return NPC_QUESTS[npcId] || [];
+}
+
+// 迭代219: 迷雾揭示奖励
+function revealFogReward(revealed) {
+  if (revealed > 50) return { xp: 20, item: 'map' };
+  if (revealed > 20) return { xp: 10 };
+  return { xp: 5 };
+}
+
+// 迭代220: 成就进度追踪
+var ACHIEVEMENT_PROGRESS = {};
+function updateAchievementProgress(achievementId, current, target) {
+  ACHIEVEMENT_PROGRESS[achievementId] = { current: current, target: target, completed: current >= target };
+  return ACHIEVEMENT_PROGRESS[achievementId];
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
