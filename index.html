@@ -29496,6 +29496,102 @@ function getBossPhaseAdvanced(currentHp, maxHp) {
   return BOSS_PHASES_ADVANCED[0];
 }
 
+// ========== 迭代181-190: 最终内容冲刺 ==========
+
+// 迭代181: 怪物仇恨值衰减
+function decayHate(monsterId, decayRate) {
+  if (!MONSTER_HATE[monsterId]) return;
+  for (var tid in MONSTER_HATE[monsterId]) {
+    MONSTER_HATE[monsterId][tid] = Math.max(0, MONSTER_HATE[monsterId][tid] - decayRate);
+    if (MONSTER_HATE[monsterId][tid] === 0) delete MONSTER_HATE[monsterId][tid];
+  }
+}
+
+// 迭代182: 道具使用记录
+var ITEM_USE_LOG = [];
+function logItemUse(itemId, context) {
+  ITEM_USE_LOG.push({ item: itemId, context: context, time: Date.now() });
+  if (ITEM_USE_LOG.length > 100) ITEM_USE_LOG.shift();
+}
+
+// 迭代183: 可破坏物体掉落
+var DESTRUCTIBLE_LOOT = {
+  barrel: ['scrap', 'battery'], crate: ['bandage', 'herb'],
+  locker: ['wrench', 'pipe'], chest: ['rare_scrap', 'gem']
+};
+function rollDestructibleLoot(type) {
+  var loot = DESTRUCTIBLE_LOOT[type];
+  if (!loot || loot.length === 0) return null;
+  return loot[Math.floor(Math.random() * loot.length)];
+}
+
+// 迭代184: 环境温度区域
+var TEMPERATURE_ZONES = [
+  { x: 0, y: 0, radius: 10, temp: -10, name: '冰冻区' },
+  { x: 50, y: 50, radius: 8, temp: 40, name: '高温区' }
+];
+function getZoneTemperature(px, py) {
+  for (var i = 0; i < TEMPERATURE_ZONES.length; i++) {
+    var z = TEMPERATURE_ZONES[i];
+    var dist = Math.sqrt(Math.pow(px-z.x,2)+Math.pow(py-z.y,2));
+    if (dist < z.radius) return z.temp;
+  }
+  return 20; // default
+}
+
+// 迭代185: 声音衰减系统
+function calculateSoundAttenuation(distance, maxDistance) {
+  if (distance >= maxDistance) return 0;
+  return 1 - (distance / maxDistance);
+}
+
+// 迭代186: 营地恢复效果
+function getCampRecoveryEffect(camp) {
+  return { hpRestore: 20, sanityRestore: 15, usesLeft: camp.uses };
+}
+
+// 迭代187: 怪物进化阶段显示
+function getEvolutionInfo(monsterId) {
+  var data = EVOLUTION_DATA[monsterId];
+  if (!data) return { stage: 0, name: '普通', xp: 0, nextLevel: 50 };
+  var stageNames = ['幼体', '成体', '精英', '首领'];
+  return {
+    stage: data.stage, name: stageNames[data.stage] || '普通',
+    xp: data.xp, nextLevel: 50 * (data.stage + 1)
+  };
+}
+
+// 迭代188: NPC交易刷新
+var NPC_REFRESH_TIME = 60000; // 60秒
+var NPC_LAST_REFRESH = {};
+function shouldRefreshNPC(npcId) {
+  var last = NPC_LAST_REFRESH[npcId] || 0;
+  return Date.now() - last > NPC_REFRESH_TIME;
+}
+function refreshNPC(npcId) {
+  NPC_LAST_REFRESH[npcId] = Date.now();
+}
+
+// 迭代189: 迷雾探索度
+function calculateExploration() {
+  var revealed = 0, total = 0;
+  for (var key in FOG_OF_WAR) {
+    if (FOG_OF_WAR[key]) revealed++;
+    total++;
+  }
+  return total > 0 ? (revealed / total * 100).toFixed(1) : '0.0';
+}
+
+// 迭代190: 成就解锁检测
+function checkAchievements() {
+  var achievements = [];
+  if (ACHIEVEMENT_TRACKER.totalKills >= 10) achievements.push('first_blood');
+  if (ACHIEVEMENT_TRACKER.totalKills >= 50) achievements.push('killer');
+  if (ACHIEVEMENT_TRACKER.totalItems >= 20) achievements.push('collector');
+  if (ACHIEVEMENT_TRACKER.totalRooms >= 10) achievements.push('explorer');
+  return achievements;
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
