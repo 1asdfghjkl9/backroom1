@@ -1389,17 +1389,9 @@ input[type="range"]::-moz-range-thumb {
       </div>
     </div>
 
-    <!-- 右上角：HP条 + 理智条 + 体力条 -->
+    <!-- 右上角：理智条 + 体力条 -->
     <div class="hud-topright">
-      <div class="stat" id="stat-hp">
-        <div class="stat-label">
-          <span class="stat-name">生命 <em>HP</em></span>
-          <span class="stat-val" id="hp-val">120</span>
-        </div>
-        <div class="bar"><div class="bar-fill" id="hp-bar" style="background:#c44;"></div></div>
-      </div>
-
-      <div class="stat" id="stat-sanity">
+      <div class="stat" id="stat-sanity" style="display:none">
         <div class="stat-label">
           <span class="stat-name">理智 <em>SANITY</em></span>
           <span class="stat-val" id="sanity-val">100</span>
@@ -1415,7 +1407,7 @@ input[type="range"]::-moz-range-thumb {
         <div class="bar"><div class="bar-fill" id="stamina-bar"></div></div>
       </div>
 
-      <div class="stat" id="stat-thirst">
+      <div class="stat" id="stat-thirst" style="display:none">
         <div class="stat-label">
           <span class="stat-name">口渴 <em>THIRST</em></span>
           <span class="stat-val" id="thirst-val">100</span>
@@ -1433,7 +1425,7 @@ input[type="range"]::-moz-range-thumb {
 
       <div class="chips">
         <span class="chip" id="chip-biscuit" title="压缩饼干：按 1 食用，快速恢复体力">饼干 <b>0</b></span>
-        <span class="chip" id="chip-water" title="杏仁水：按 2 饮用，恢复理智">杏仁水 <b>0</b></span>
+        <span class="chip" id="chip-water" title="杏仁水：按 2 饮用，恢复理智" style="display:none">杏仁水 <b>0</b></span>
         <span class="chip" id="chip-battery" title="手电电量：按 Q 开关手电">电量 <b>100%</b></span>
         <span class="chip chip-item" id="chip-weapon" title="当前武器：鼠标左键/V键攻击">武器 <b>拳头</b></span>
         <span class="chip chip-item" id="chip-collect" title="本关目标物品">收集 <b>0/3</b></span>
@@ -7431,8 +7423,8 @@ function generateWorld(level, seed) {
     lamps,
     ceilLight,
     ceilingH: level.ceilingH ?? 1.35,
-    ambient: level.ambient ?? 0.3,
-    fog: level.fog ?? 0.075,
+    ambient: level.ambient ?? 0.5,
+    fog: (level.fog ?? 0.075) * 0.5,
     lampColor: level.lampColor ?? 0xffe9b8,
     fogColor: level.fogColor ?? 0x14110b,
     hemiSky: level.hemiSky ?? 0xa89a6a,
@@ -7883,7 +7875,7 @@ const LEVELS = [
     floorTex: 'carpet',
     ceilTex: 'panel',
     ambient: 0.44,
-    fog: 0.05,
+    fog: 0.025,
     lampColor: 0xffe9b8,   /* 暖白荧光灯 */
     fogColor: 0x2a2418,
     hemiSky: 0xa89a6a, hemiGround: 0x191510,
@@ -7919,7 +7911,7 @@ const LEVELS = [
     floorTex: 'concrete',
     ceilTex: 'panel',
     ambient: 0.26,
-    fog: 0.085,
+    fog: 0.042,
     lampColor: 0xc8d0e0,   /* 冷白日光灯管 */
     fogColor: 0x1a1c22,
     hemiSky: 0x5a6478, hemiGround: 0x0e1014,
@@ -7956,7 +7948,7 @@ const LEVELS = [
     floorTex: 'carpet',
     ceilTex: 'panel',
     ambient: 0.35,
-    fog: 0.02,
+    fog: 0.01,
     lampColor: 0xfff4d6,
     fogColor: 0x1a1810,
     hemiSky: 0xb09878, hemiGround: 0x18140a,
@@ -8013,7 +8005,7 @@ const LEVELS = [
     floorTex: 'rust',
     ceilTex: 'pipe',
     ambient: 0.16,
-    fog: 0.09,
+    fog: 0.045,
     lampColor: 0xff8c3a,   /* 钠灯暖橙+电气青混色 */
     fogColor: 0x140a04,
     hemiSky: 0x5a4828, hemiGround: 0x100a04,
@@ -8050,7 +8042,7 @@ const LEVELS = [
     floorTex: 'pool',
     ceilTex: 'panel',
     ambient: 0.17,
-    fog: 0.07,
+    fog: 0.035,
     lampColor: 0x6fd4c8,   /* 泳池青绿 */
     fogColor: 0x0a1a1e,
     hemiSky: 0x4a8898, hemiGround: 0x081418,
@@ -8089,7 +8081,7 @@ const LEVELS = [
     floorTex: 'carpet',
     ceilTex: 'panel',
     ambient: 0.24,
-    fog: 0.075,
+    fog: 0.038,
     lampColor: 0xf0e6cc,   /* 办公暖白荧光 */
     fogColor: 0x1e1a14,
     hemiSky: 0x908a72, hemiGround: 0x14100a,
@@ -8130,7 +8122,7 @@ const LEVELS = [
     floorTex: 'epoxy',
     ceilTex: 'truss',
     ambient: 0.2,
-    fog: 0.09,
+    fog: 0.045,
     lampColor: 0xffd08a,   /* 仓库钠灯黄 */
     fogColor: 0x1c160e,
     hemiSky: 0x7a6438, hemiGround: 0x100c06,
@@ -8171,7 +8163,7 @@ const LEVELS = [
     floorTex: 'hospital',
     ceilTex: 'panel',
     ambient: 0.13,
-    fog: 0.1,
+    fog: 0.05,
     lampColor: 0xd4f0e4,   /* 医院冷绿白 */
     fogColor: 0x101816,
     hemiSky: 0x507a68, hemiGround: 0x080c0a,
@@ -8253,7 +8245,7 @@ const LEVELS = [
     floorTex: 'core',
     ceilTex: 'core',
     ambient: 0.11,
-    fog: 0.1,
+    fog: 0.05,
     lampColor: 0x4acae8,   /* 核心层赛博青蓝 */
     fogColor: 0x040a18,
     hemiSky: 0x18406a, hemiGround: 0x04080e,
@@ -8550,7 +8542,7 @@ const LEVELS = [
     floorTex: 'concrete',
     ceilTex: 'panel',
     ambient: 0.2,
-    fog: 0.07,
+    fog: 0.035,
     lampColor: 0xe8d8b0,
     fogColor: 0x181410,
     hemiSky: 0x807060, hemiGround: 0x100c08,
@@ -9395,12 +9387,11 @@ class Player {
       }
     }
 
-    /* --- 口渴系统（迭代25深度整合） --- */
-    if (!cmd.noclip) {
+    /* --- 口渴系统已禁用 --- */
+    /* if (!cmd.noclip) {
     this.thirst -= this.thirstRate * dt;
     if (this.thirst <= 0) {
       this.thirst = 0;
-      /* 迭代25：thirst=0时每5秒扣5HP */
       this._thirstDamageTimer = (this._thirstDamageTimer || 0) + dt;
       if (this._thirstDamageTimer >= 5) {
         this._thirstDamageTimer = 0;
@@ -9411,11 +9402,10 @@ class Player {
     if (this.thirst < 30) this.thirstRate = 0.9;
     else if (this.thirst < 60) this.thirstRate = 0.8;
     else this.thirstRate = 0.9;
-    /* 迭代25：thirst<15时掉sanity */
     if (this.thirst < 15) {
       this.sanity -= 1 * dt;
     }
-    }
+    } */
 
     /* --- 攻击冷却 --- */
     if (this.attackCooldown > 0) this.attackCooldown -= dt;
@@ -10580,14 +10570,14 @@ class ThreeJSRendererBridge {
   _initThree() {
     const THREE = window.THREE;
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x14110b, 0.055);
+    this.scene.fog = new THREE.FogExp2(0x14110b, 0.028);
 
     this.worldGroup = new THREE.Group();
     this.scene.add(this.worldGroup);
     this.chunkList = [];
 
     /* Lights */
-    this.hemi = new THREE.HemisphereLight(0xa89a6a, 0x191510, 0.46);
+    this.hemi = new THREE.HemisphereLight(0xa89a6a, 0x191510, 0.72);
     this.scene.add(this.hemi);
 
     this.lightPool = [];
@@ -10599,7 +10589,7 @@ class ThreeJSRendererBridge {
     }
 
     /* Flashlight spotlight — tighter cone, brighter center */
-    this.flash = new THREE.SpotLight(0xfff4d6, 3.0, 22, 0.42, 0.5, 1.2);
+    this.flash = new THREE.SpotLight(0xfff4d6, 4.5, 26, 0.42, 0.5, 1.2);
     this.flash.position.set(0, 0, 0);
     this.flashTarget = new THREE.Object3D();
     this.flashTarget.position.set(0, 0, -1);
@@ -15761,7 +15751,7 @@ class ThreeJSRendererBridge {
         L.position.set(l.x, WALL_H - 0.18, l.z);
         const f = flickerMul(i, time);
         const drop = Math.max(0, 1 - d / 400);
-        L.intensity = 2.6 * f * drop * lightMul;
+        L.intensity = 3.8 * f * drop * lightMul;
       }
       return;
     }
@@ -19764,6 +19754,47 @@ class Game {
     /* 成就：初次遭遇 */
     this.unlockAchievement('first_blood');
     this.levelDamageTaken++;
+    /* 恐怖音效：尖锐高频 + 低频隆隆 */
+    if (this.audio && this.audio.ctx) {
+      try {
+        const ctx = this.audio.ctx;
+        const now = ctx.currentTime;
+        /* 尖锐刺耳高频音 */
+        const osc1 = ctx.createOscillator();
+        const g1 = ctx.createGain();
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(880, now);
+        osc1.frequency.exponentialRampToValueAtTime(1800, now + 0.3);
+        osc1.frequency.exponentialRampToValueAtTime(60, now + 2.0);
+        g1.gain.setValueAtTime(0.0, now);
+        g1.gain.linearRampToValueAtTime(0.35, now + 0.05);
+        g1.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+        osc1.connect(g1); g1.connect(ctx.destination);
+        osc1.start(now); osc1.stop(now + 2.1);
+        /* 低频隆隆 */
+        const osc2 = ctx.createOscillator();
+        const g2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(50, now);
+        osc2.frequency.linearRampToValueAtTime(30, now + 2.0);
+        g2.gain.setValueAtTime(0.4, now);
+        g2.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+        osc2.connect(g2); g2.connect(ctx.destination);
+        osc2.start(now); osc2.stop(now + 2.6);
+        /* 噪声爆裂 */
+        const bufSize = ctx.sampleRate * 0.5;
+        const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+        const noise = ctx.createBufferSource();
+        noise.buffer = buf;
+        const ng = ctx.createGain();
+        ng.gain.setValueAtTime(0.3, now);
+        ng.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        noise.connect(ng); ng.connect(ctx.destination);
+        noise.start(now); noise.stop(now + 0.6);
+      } catch(e) {}
+    }
   }
 
   /* 更新死亡序列 */
