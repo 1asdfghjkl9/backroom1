@@ -28635,6 +28635,150 @@ function loadHotbar() { try { var s = JSON.parse(localStorage.getItem(HOTBAR_KEY
 function setHotbarSlot(slot, itemType) { if (slot >= 0 && slot < 5) { HOTBAR.slots[slot] = itemType; saveHotbar(); } }
 function selectHotbarSlot(slot) { if (slot >= 0 && slot < 5) HOTBAR.selected = slot; }
 
+// ========== 迭代111-120: 高级系统包 ==========
+
+// 迭代111: 怪物追踪痕迹
+var MONSTER_TRAILS = [];
+function addMonsterTrail(x, y, type) {
+  MONSTER_TRAILS.push({ x: x, y: y, type: type, time: Date.now(), alpha: 1.0 });
+  if (MONSTER_TRAILS.length > 50) MONSTER_TRAILS.shift();
+}
+function updateMonsterTrails() {
+  var now = Date.now();
+  for (var i = MONSTER_TRAILS.length - 1; i >= 0; i--) {
+    var age = (now - MONSTER_TRAILS[i].time) / 1000;
+    MONSTER_TRAILS[i].alpha = Math.max(0, 1 - age / 15);
+    if (MONSTER_TRAILS[i].alpha <= 0) MONSTER_TRAILS.splice(i, 1);
+  }
+}
+
+// 迭代112: 道具分解系统
+function disassembleItem(itemType) {
+  var recipes = {
+    pipe: ['battery'], wrench: ['battery'], knife: ['battery'],
+    flashlight: ['battery', 'battery'], radio: ['battery', 'battery'],
+    bat: ['bandage'], crowbar: ['battery']
+  };
+  return recipes[itemType] || [];
+}
+
+// 迭代113: 环境互动 - 可破坏物件
+var DESTRUCTIBLES = [];
+function generateDestructibles(rooms) {
+  DESTRUCTIBLES = [];
+  rooms.forEach(function(r) {
+    if (Math.random() < 0.3) {
+      DESTRUCTIBLES.push({ x: r.x + Math.random()*r.w, y: r.y + Math.random()*r.h, type: 'crate', hp: 3, drops: ['battery', 'bandage'] });
+    }
+  });
+}
+function attackDestructible(index) {
+  if (index < 0 || index >= DESTRUCTIBLES.length) return null;
+  var d = DESTRUCTIBLES[index];
+  d.hp--;
+  if (d.hp <= 0) {
+    var drop = d.drops[Math.floor(Math.random() * d.drops.length)];
+    DESTRUCTIBLES.splice(index, 1);
+    return drop;
+  }
+  return null;
+}
+
+// 迭代114: 温度系统
+var TEMPERATURE = { current: 20, target: 20, comfort: [15, 25] };
+function updateTemperature(dt, weather) {
+  var targets = { clear: 20, foggy: 15, stormy: 8, bloody: 30, eclipse: -5, calm: 22 };
+  TEMPERATURE.target = targets[weather] || 20;
+  TEMPERATURE.current += (TEMPERATURE.target - TEMPERATURE.current) * 0.01 * dt;
+}
+function getTemperatureEffect() {
+  var t = TEMPERATURE.current;
+  if (t < 0) return { staminaDrain: 3, sanityDrain: 2 };
+  if (t < 10) return { staminaDrain: 1 };
+  if (t > 35) return { staminaDrain: 2, sanityDrain: 1 };
+  return {};
+}
+
+// 迭代115: 怪物声音系统
+var MONSTER_SOUNDS = {
+  hound: { growl: 0.3, roar: 0.1, range: 8 },
+  crawler: { click: 0.5, screech: 0.05, range: 6 },
+  stalker: { whisper: 0.2, silence: 0.8, range: 4 },
+  smiler: { laugh: 0.1, giggle: 0.3, range: 10 },
+  echo: { mimic: 0.4, static: 0.2, range: 12 }
+};
+function playMonsterSound(entity) {
+  var sounds = MONSTER_SOUNDS[entity.type] || {};
+  var roll = Math.random();
+  var cumulative = 0;
+  for (var sound in sounds) {
+    if (sound === 'range') continue;
+    cumulative += sounds[sound];
+    if (roll < cumulative) return sound;
+  }
+  return null;
+}
+
+// 迭代116: 玩家营地系统
+var CAMP_KEY = 'backrooms_camp_v1';
+function saveCamp(data) { try { localStorage.setItem(CAMP_KEY, JSON.stringify(data)); } catch(e) {} }
+function loadCamp() { try { return JSON.parse(localStorage.getItem(CAMP_KEY) || 'null'); } catch(e) { return null; } }
+function upgradeCamp(camp, resource) {
+  if (!camp) camp = { level: 0, storage: 0, healing: 0 };
+  if (resource === 'battery') camp.storage++;
+  if (resource === 'bandage') camp.healing++;
+  camp.level = camp.storage + camp.healing;
+  saveCamp(camp);
+  return camp;
+}
+
+// 迭代117: 怪物进化追踪
+var EVOLUTION_DATA = {};
+function recordMonsterBehavior(monsterType, behavior) {
+  if (!EVOLUTION_DATA[monsterType]) EVOLUTION_DATA[monsterType] = {};
+  EVOLUTION_DATA[monsterType][behavior] = (EVOLUTION_DATA[monsterType][behavior] || 0) + 1;
+}
+function getEvolvedBehavior(monsterType) {
+  var data = EVOLUTION_DATA[monsterType];
+  if (!data) return 'normal';
+  var max = 0, behavior = 'normal';
+  for (var k in data) { if (data[k] > max) { max = data[k]; behavior = k; } }
+  return behavior;
+}
+
+// 迭代118: 道具共享（NPC交易扩展）
+var NPC_WISH_LIST = [
+  { npc: 'trader', wants: 'battery', offers: 'bandage', ratio: 2 },
+  { npc: 'healer', wants: 'biscuit', offers: 'pill', ratio: 3 },
+  { npc: 'scavenger', wants: 'pipe', offers: 'key', ratio: 1 },
+  { npc: 'mystic', wants: 'flare', offers: 'radio', ratio: 3 }
+];
+function checkNPCTrade(npcIndex, inventory) {
+  var trade = NPC_WISH_LIST[npcIndex];
+  if (!trade) return false;
+  var count = inventory.filter(function(i){ return i.type === trade.wants; }).length;
+  return count >= trade.ratio;
+}
+
+// 迭代119: 地图迷雾系统
+var FOG_OF_WAR = { revealed: {} };
+function revealArea(cx, cy, radius) {
+  for (var x = Math.floor(cx - radius); x <= Math.ceil(cx + radius); x++) {
+    for (var y = Math.floor(cy - radius); y <= Math.ceil(cy + radius); y++) {
+      var dx = x - cx, dy = y - cy;
+      if (dx*dx + dy*dy <= radius*radius) FOG_OF_WAR.revealed[x+','+y] = true;
+    }
+  }
+}
+function isRevealed(x, y) { return !!FOG_OF_WAR.revealed[Math.floor(x)+','+Math.floor(y)]; }
+
+// 迭代120: 游戏统计追踪
+var GAME_STATS = { totalKills: 0, totalDeaths: 0, totalItems: 0, totalTime: 0, maxLevel: 0, maxCombo: 0, totalCrafts: 0, totalDistance: 0 };
+var STATS_KEY = 'backrooms_stats_v1';
+function loadStats() { try { var s = JSON.parse(localStorage.getItem(STATS_KEY)); if (s) Object.assign(GAME_STATS, s); } catch(e) {} }
+function saveStats() { try { localStorage.setItem(STATS_KEY, JSON.stringify(GAME_STATS)); } catch(e) {} }
+function updateStat(key, amount) { if (GAME_STATS.hasOwnProperty(key)) { GAME_STATS[key] += (amount || 1); saveStats(); } }
+
 </script>
 
     <!-- Supabase 聊天面板 -->
