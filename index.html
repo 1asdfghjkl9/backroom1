@@ -19148,7 +19148,7 @@ const DEATH_LINES = [
   '你终于分不清哪一面墙是真的。'
 ];
 
-const SCREEN_IDS = ['menu', 'levels', 'help', 'settings', 'pause', 'dead', 'complete', 'victory', 'feedback', 'custom-levels', 'achievements', 'leaderboard', 'archives', 'changelog'];
+const SCREEN_IDS = ['menu', 'levels', 'help', 'settings', 'pause', 'dead', 'complete', 'victory', 'feedback', 'custom-levels', 'achievements', 'leaderboard', 'archives', 'changelog', 'daily-challenge'];
 
 function showScreen(name) {
   for (const id of SCREEN_IDS) {
@@ -19243,6 +19243,19 @@ class Game {
     };
     this._fogBase = 0.055;
     this._ambientBase = 0.55;
+
+    /* 迭代61-65：统计追踪变量 */
+    this.runStartTime = Date.now();
+    this.totalKills = 0;
+    this.totalItemsCollected = 0;
+    this.totalPuzzlesSolved = 0;
+    this.totalRoomsExplored = 0;
+    this.totalEnchants = 0;
+    this.totalBossKills = 0;
+    this.allItemTypes = new Set();
+    this.dailyMode = false;
+    this.dailySeed = 0;
+    this.dailyRules = {};
 
     this.cmpTimer = 0;
     this.cmpTarget = null;
@@ -27083,6 +27096,123 @@ var EXTRA_ACHIEVEMENTS = [
   { id: 'deep_diver_10', name: '🔦 深渊潜者', desc: '到达第10层', check: function(s){ return s.levelIndex >= 10; } },
   { id: 'completionist', name: '🏅 完美主义者', desc: '完成所有其他成就', check: function(s){ return s.totalAchievements >= 9; } }
 ];
+
+// ========== 迭代66-70: 陷阱改进、怪物增强、环境事件、道具效果、难度曲线 ==========
+
+// --- 迭代66: 陷阱改进 - 连锁陷阱和陷阱提示 ---
+function checkTrapProximity(px, py, traps) {
+  if (!traps || !traps.length) return null;
+  for (var i = 0; i < traps.length; i++) {
+    var t = traps[i];
+    var dx = px - t.x, dy = py - t.y;
+    if (dx*dx + dy*dy < 1.5*1.5) return t;
+  }
+  return null;
+}
+function showTrapWarning(type) {
+  var el = document.getElementById('trap-warning');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'trap-warning';
+    el.style.cssText = 'position:fixed;top:20%;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(200,50,50,0.8);color:#fff;border-radius:4px;font-size:13px;z-index:5000;opacity:0;transition:opacity 0.3s;pointer-events:none;';
+    document.body.appendChild(el);
+  }
+  var msgs = { spike: '⚠️ 地刺陷阱！', poison: '☠️ 毒气区域！', teleport: '🌀 传送陷阱！' };
+  el.textContent = msgs[type] || '⚠️ 陷阱！';
+  el.style.opacity = '1';
+  clearTimeout(el._ht);
+  el._ht = setTimeout(function(){ el.style.opacity = '0'; }, 2000);
+}
+
+// --- 迭代67: 怪物增强 - 精英怪物和变异 ---
+function createEliteVariant(entity) {
+  if (!entity) return null;
+  var eliteTypes = ['berserker', 'ghost', 'titan'];
+  var eliteType = eliteTypes[Math.floor(Math.random() * eliteTypes.length)];
+  var elite = Object.assign({}, entity);
+  elite.isElite = true;
+  elite.eliteType = eliteType;
+  switch(eliteType) {
+    case 'berserker':
+      elite.hp *= 1.5;
+      elite.speed *= 1.3;
+      elite.damage *= 1.8;
+      elite.color = 0xff3300;
+      break;
+    case 'ghost':
+      elite.hp *= 0.7;
+      elite.speed *= 1.5;
+      elite.damage *= 1.2;
+      elite.color = 0x8888ff;
+      elite.phasing = true;
+      break;
+    case 'titan':
+      elite.hp *= 3.0;
+      elite.speed *= 0.6;
+      elite.damage *= 2.5;
+      elite.color = 0x44ff44;
+      elite.scale = 1.5;
+      break;
+  }
+  return elite;
+}
+
+// --- 迭代68: 环境事件系统增强 ---
+var ENV_EVENTS = [
+  { name: '地震', desc: '地面开始颤抖...', duration: 8, effect: 'shake', color: '#a86' },
+  { name: '血月', desc: '月光变成了血色', duration: 15, effect: 'bloodMoon', color: '#f33' },
+  { name: '黑暗降临', desc: '所有光源变暗', duration: 10, effect: 'darkness', color: '#222' },
+  { name: '道具雨', desc: '天空中掉落道具', duration: 5, effect: 'itemRain', color: '#fc0' },
+  { name: '怪物狂潮', desc: '大量怪物涌来', duration: 12, effect: 'monsterWave', color: '#f66' },
+  { name: '时间扭曲', desc: '时间流速改变', duration: 10, effect: 'timeWarp', color: '#a3f' },
+  { name: '幽灵出没', desc: '幽灵在走廊游荡', duration: 8, effect: 'ghostAppear', color: '#88f' },
+  { name: '补给空投', desc: '远处传来补给箱落地的声音', duration: 3, effect: 'supplyDrop', color: '#0f0' }
+];
+function triggerEnvEvent(game) {
+  var evt = ENV_EVENTS[Math.floor(Math.random() * ENV_EVENTS.length)];
+  if (game && game.hud && game.hud.toast) {
+    game.hud.toast(evt.name + ': ' + evt.desc, 4);
+  }
+  return evt;
+}
+
+// --- 迭代69: 道具组合效果 ---
+var ITEM_COMBOS = {
+  'bandage+pill': { name: '急救包', effect: 'heal_full', desc: '完全恢复生命' },
+  'flare+radio': { name: '求救信号', effect: 'rescue', desc: '召唤NPC支援' },
+  'battery+flashlight': { name: '超光灯', effect: 'super_light', desc: '全地图照明10秒' },
+  'key+map': { name: '寻宝图', effect: 'reveal', desc: '显示所有道具位置' }
+};
+function checkItemCombo(inventory) {
+  if (!inventory || !Array.isArray(inventory)) return null;
+  var types = inventory.map(function(i){ return i.type; }).sort();
+  for (var comboKey in ITEM_COMBOS) {
+    var parts = comboKey.split('+');
+    var found = true;
+    for (var p = 0; p < parts.length; p++) {
+      if (types.indexOf(parts[p]) === -1) { found = false; break; }
+    }
+    if (found) return { key: comboKey, combo: ITEM_COMBOS[comboKey] };
+  }
+  return null;
+}
+
+// --- 迭代70: 难度曲线优化 ---
+function getDifficultyParams(levelIndex) {
+  var base = {
+    monsterCount: 3 + Math.floor(levelIndex * 0.8),
+    monsterHpMul: 1 + levelIndex * 0.12,
+    monsterSpeedMul: 1 + levelIndex * 0.08,
+    monsterDamageMul: 1 + levelIndex * 0.1,
+    trapCount: Math.floor(levelIndex * 0.3),
+    itemSpawnRate: Math.max(0.3, 1 - levelIndex * 0.05),
+    eliteChance: Math.min(0.3, levelIndex * 0.03),
+    bossEvery: 5,
+    fogDensity: 0.055 + levelIndex * 0.003,
+    sanityDrain: 1 + levelIndex * 0.1
+  };
+  return base;
+}
 
 </script>
 
