@@ -27267,6 +27267,25 @@ function getLeaderboard() {
 function saveToLeaderboard(data) {
   var lb = getLeaderboard();
   data.date = new Date().toLocaleDateString();
+  /* 迭代61：同时保存到本地详细记录 */
+  try {
+    var runs = JSON.parse(localStorage.getItem('backrooms_local_runs') || '[]');
+    runs.push({
+      date: Date.now(),
+      level: data.level || 0,
+      survivalTime: data.survival || 0,
+      kills: data.kills || 0,
+      items: data.items || 0,
+      puzzles: data.puzzles || 0,
+      rooms: data.rooms || 0,
+      score: data.score || 0,
+      grade: data.grade || 'D',
+      daily: !!data.daily
+    });
+    runs.sort(function(a, b) { return b.score - a.score; });
+    if (runs.length > 50) runs = runs.slice(0, 50);
+    localStorage.setItem('backrooms_local_runs', JSON.stringify(runs));
+  } catch(e) {}
   lb.push(data);
   lb.sort(function(a,b){ return b.score - a.score; });
   lb = lb.slice(0, 10);
@@ -27310,65 +27329,100 @@ function calculateScore(gameData) {
   return { score: Math.round(total), grade: grade, expl: Math.round(expl), combat: Math.round(combat), collection: Math.round(collection), puzzle: Math.round(puzzle), survival: Math.round(survival) };
 }
 
-// --- 教程系统 ---
+// --- 迭代63：教程系统（升级版） ---
 const TUTORIAL_KEY = 'backrooms_tutorial_done';
 function shouldShowTutorial() {
   return !localStorage.getItem(TUTORIAL_KEY);
 }
 function showTutorial() {
+  var overlay = document.getElementById('tutorial-overlay');
+  if (!overlay) return;
+  overlay.classList.add('active');
+  overlay.style.display = '';
   var steps = [
-    { title: '🎮 移动', desc: '使用 WASD 键或屏幕摇杆移动角色' },
-    { title: '⚔️ 攻击', desc: '点击屏幕或攻击按钮来击打怪物' },
-    { title: '🎒 背包', desc: '按 Tab 键或点击背包按钮打开背包管理道具' }
+    { icon: '🎮', title: '移动', text: '使用 WASD 键或屏幕摇杆移动角色，鼠标控制视角方向。', keys: ['W', 'A', 'S', 'D'] },
+    { icon: '⚔️', title: '攻击', text: '面对实体时按 V 键或鼠标左键攻击。近战武器需要靠近才能造成伤害。', keys: ['V', '鼠标左键'] },
+    { icon: '🎒', title: '背包与物品', text: '按 Tab 打开背包。数字键 1/2/Q/R 快速切换手持物品，再按一次使用。', keys: ['Tab', '1', '2', 'Q', 'R'] },
+    { icon: '🔦', title: '手持系统', text: '一次只能手持一件物品。手电(Q)照明，导航仪(R)显示地图。', keys: ['Q', 'R'] },
+    { icon: '⚒️', title: '合成', text: '在背包中拖拽材料到合成区域可制作新物品。尝试用基础材料制作强力道具！', keys: ['合成区'] }
   ];
   var currentStep = 0;
   function renderStep() {
     var s = steps[currentStep];
-    var overlay = document.getElementById('tutorial-overlay');
-    if (!overlay) return;
-    overlay.innerHTML = '<div class="puzzle-box" style="max-width:400px;text-align:center">' +
-      '<h3>' + s.title + '</h3>' +
-      '<p style="color:#ccc;margin:16px 0">' + s.desc + '</p>' +
-      '<p style="color:#888;font-size:12px">步骤 ' + (currentStep+1) + ' / ' + steps.length + '</p>' +
-      '<button onclick="window._tutorialNext()" style="padding:8px 24px;background:#fc0;color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:bold">' +
-      (currentStep < steps.length - 1 ? '下一步' : '开始游戏') + '</button></div>';
+    var indicator = document.getElementById('tut-step-indicator');
+    var title = document.getElementById('tut-title');
+    var icon = document.getElementById('tut-icon');
+    var text = document.getElementById('tut-text');
+    var keys = document.getElementById('tut-keys');
+    var nextBtn = document.getElementById('tut-next-btn');
+    if (indicator) indicator.textContent = '步骤 ' + (currentStep+1) + '/' + steps.length;
+    if (title) title.textContent = s.title;
+    if (icon) icon.textContent = s.icon;
+    if (text) text.textContent = s.text;
+    if (keys) {
+      keys.innerHTML = '';
+      for (var i = 0; i < s.keys.length; i++) {
+        var k = document.createElement('span');
+        k.className = 'tut-key' + (i === 0 ? ' highlight' : '');
+        k.textContent = s.keys[i];
+        keys.appendChild(k);
+      }
+    }
+    if (nextBtn) nextBtn.textContent = currentStep >= steps.length - 1 ? '开始游戏！' : '下一步';
   }
   window._tutorialNext = function() {
     currentStep++;
     if (currentStep >= steps.length) {
       localStorage.setItem(TUTORIAL_KEY, '1');
-      var el = document.getElementById('tutorial-overlay');
-      if (el) el.remove();
+      if (overlay) { overlay.classList.remove('active'); overlay.style.display = 'none'; }
       return;
     }
     renderStep();
   };
-  var html = '<div id="tutorial-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:99999"></div>';
-  document.body.insertAdjacentHTML('beforeend', html);
+  window._tutorialSkip = function() {
+    localStorage.setItem(TUTORIAL_KEY, '1');
+    if (overlay) { overlay.classList.remove('active'); overlay.style.display = 'none'; }
+  };
   renderStep();
+  var nextBtn = document.getElementById('tut-next-btn');
+  var skipBtn = document.getElementById('tut-skip-btn');
+  if (nextBtn) nextBtn.onclick = window._tutorialNext;
+  if (skipBtn) skipBtn.onclick = window._tutorialSkip;
 }
 
-// --- 每日挑战 ---
+// --- 迭代64：每日挑战（升级版） ---
 const DAILY_KEY = 'backrooms_daily_v1';
 function getDailyChallenge() {
-  var today = new Date();
-  var seed = today.getFullYear() * 10000 + (today.getMonth()+1) * 100 + today.getDate();
-  try {
-    var saved = JSON.parse(localStorage.getItem(DAILY_KEY) || '{}');
-    if (saved.date === seed) return { seed: seed, completed: !!saved.completed };
-  } catch(e) {}
-  return { seed: seed, completed: false };
+  var dayIndex = Math.floor(Date.now() / 86400000);
+  var seed = dayIndex;
+  var _s = dayIndex;
+  var rand = function(n) { _s = (_s * 1103515245 + 12345) & 0x7fffffff; return _s % n; };
+  var rulePool = ['no_items', 'extra_enemies', 'speed_mode', 'low_sanity', 'no_flashlight'];
+  var numRules = 2 + rand(2);
+  var selected = [];
+  var rules = {};
+  for (var i = 0; i < numRules && i < rulePool.length; i++) {
+    var idx = rand(rulePool.length - i);
+    var picked = rulePool.splice(idx, 1)[0];
+    selected.push(picked);
+    rules[picked] = true;
+  }
+  var startLevel = 1 + rand(5);
+  var dt = new Date(dayIndex * 86400000);
+  var dateStr = dt.getFullYear() + '/' + (dt.getMonth()+1) + '/' + dt.getDate();
+  var completed = false;
+  try { var saved = JSON.parse(localStorage.getItem(DAILY_KEY) || '{}'); completed = saved.date === dayIndex && !!saved.completed; } catch(e) {}
+  return { dayIndex: dayIndex, seed: seed, rules: rules, ruleNames: selected, startLevel: startLevel, dateStr: dateStr, completed: completed };
 }
 function completeDailyChallenge() {
-  var today = new Date();
-  var seed = today.getFullYear() * 10000 + (today.getMonth()+1) * 100 + today.getDate();
-  try { localStorage.setItem(DAILY_KEY, JSON.stringify({ date: seed, completed: true })); } catch(e) {}
+  var dayIndex = Math.floor(Date.now() / 86400000);
+  try { localStorage.setItem(DAILY_KEY, JSON.stringify({ date: dayIndex, completed: true })); } catch(e) {}
+  try { localStorage.setItem('backrooms_daily_completed_' + dayIndex, '1'); } catch(e) {}
 }
 function startDailyChallenge() {
   var daily = getDailyChallenge();
   if (daily.completed) {
     if (typeof G !== 'undefined' && G.hud) G.hud.toast('今日挑战已完成！明天再来', 3);
-    else alert('今日挑战已完成！明天再来');
     return;
   }
   window._dailyChallengeActive = true;
@@ -27376,16 +27430,22 @@ function startDailyChallenge() {
   if (typeof G !== 'undefined') {
     G._dailyChallenge = true;
     G._dailySeed = daily.seed;
+    G.dailyMode = true;
+    G.dailySeed = daily.seed;
+    G.dailyRules = daily.rules;
     G.clearRun();
-    G.startLevel(0);
-    /* 应用每日挑战规则 */
-    if (G.player) {
-      G.player.sanity = 60;
-      G.player.maxSanity = 60;
-    }
-    G._entitySpeedMult = 1.3;
-    G._itemSpawnMult = 0.5;
-    if (G.hud) G.hud.toast('⚔️ 每日挑战开始！怪物+30%速度 | 道具-50% | 初始理智60', 5);
+    G.startLevel(daily.startLevel);
+    if (daily.rules.no_items) { G.inventory = { cookie: 0, water: 0 }; G.heldItem = null; }
+    if (daily.rules.low_sanity && G.player) { G.player.sanity = 50; }
+    if (daily.rules.extra_enemies) { G._entitySpeedMult = 1.3; }
+    if (daily.rules.speed_mode && G.player) { G.player.staminaDrain = (G.player.staminaDrain || 1) * 0.5; }
+    var ruleTexts = [];
+    if (daily.rules.no_items) ruleTexts.push('无道具');
+    if (daily.rules.extra_enemies) ruleTexts.push('怪物加速');
+    if (daily.rules.speed_mode) ruleTexts.push('极速模式');
+    if (daily.rules.low_sanity) ruleTexts.push('低理智');
+    if (daily.rules.no_flashlight) ruleTexts.push('黑暗模式');
+    if (G.hud) G.hud.toast('⚔️ 每日挑战: ' + ruleTexts.join(' | '), 5);
   }
 }
 
@@ -27670,6 +27730,152 @@ function getRandomWeather() {
     if (r <= 0) return weathers[i];
   }
   return 'clear';
+}
+
+// ========== 迭代76-80: 交易系统、隐藏房间、怪物掉落、时间系统、特效 ==========
+
+// --- 迭代76: NPC交易系统 ---
+var NPC_TRADES = [
+  { give: 'bandage', giveCount: 2, get: 'pill', getCount: 1, name: '医疗交换' },
+  { give: 'battery', giveCount: 3, get: 'flare', getCount: 1, name: '能源交换' },
+  { give: 'biscuit', giveCount: 3, get: 'water', getCount: 2, name: '食物交换' },
+  { give: 'pipe', giveCount: 1, get: 'bandage', getCount: 2, name: '武器换医疗' },
+  { give: 'key_card', giveCount: 1, get: 'map', getCount: 1, name: '钥匙卡换地图' }
+];
+function canTrade(tradeIndex, inventory) {
+  if (tradeIndex < 0 || tradeIndex >= NPC_TRADES.length) return false;
+  var trade = NPC_TRADES[tradeIndex];
+  var count = 0;
+  for (var i = 0; i < inventory.length; i++) {
+    if (inventory[i].type === trade.give) count++;
+  }
+  return count >= trade.giveCount;
+}
+function executeTrade(tradeIndex, player) {
+  if (!canTrade(tradeIndex, player.inventory)) return false;
+  var trade = NPC_TRADES[tradeIndex];
+  // 移除支付物品
+  var removed = 0;
+  for (var i = player.inventory.length - 1; i >= 0 && removed < trade.giveCount; ) {
+    if (player.inventory[i].type === trade.give) {
+      player.inventory.splice(i, 1);
+      removed++;
+    } else { i--; }
+  }
+  // 添加获得物品
+  for (var j = 0; j < trade.getCount; j++) {
+    player.addItem(trade.get);
+  }
+  return true;
+}
+
+// --- 迭代77: 隐藏房间系统 ---
+function generateHiddenRoom(rooms, levelIndex) {
+  if (!rooms || rooms.length === 0) return null;
+  // 10%概率每关生成一个隐藏房间
+  if (Math.random() > 0.1 + levelIndex * 0.02) return null;
+  var baseRoom = rooms[Math.floor(Math.random() * rooms.length)];
+  return {
+    x: baseRoom.x + (Math.random() - 0.5) * 3,
+    y: baseRoom.y + (Math.random() - 0.5) * 3,
+    w: 2.5,
+    h: 2.5,
+    hidden: true,
+    revealed: false,
+    loot: ['key', 'pill', 'flare', 'bandage'][Math.floor(Math.random() * 4)],
+    requiresKey: Math.random() > 0.5
+  };
+}
+function revealHiddenRoom(room, playerX, playerY) {
+  var dx = playerX - room.x;
+  var dy = playerY - room.y;
+  if (dx*dx + dy*dy < 4) {
+    if (room.requiresKey) {
+      // 检查是否有钥匙
+      return false;
+    }
+    room.revealed = true;
+    return true;
+  }
+  return false;
+}
+
+// --- 迭代78: 怪物掉落表 ---
+var MONSTER_LOOT = {
+  hound: { items: ['bandage'], chance: 0.3, rare: ['pill'], rareChance: 0.1 },
+  crawler: { items: ['battery'], chance: 0.4, rare: ['flare'], rareChance: 0.15 },
+  stalker: { items: ['biscuit'], chance: 0.25, rare: ['key'], rareChance: 0.05 },
+  smiler: { items: ['water'], chance: 0.35, rare: ['map'], rareChance: 0.1 },
+  rot: { items: ['bandage', 'battery'], chance: 0.5, rare: ['pill'], rareChance: 0.2 },
+  echo: { items: ['flare'], chance: 0.3, rare: ['radio'], rareChance: 0.08 },
+  boss: { items: ['key_card', 'pill', 'bandage'], chance: 1.0, rare: ['radio', 'map'], rareChance: 0.5 },
+  default: { items: ['biscuit'], chance: 0.15, rare: [], rareChance: 0 }
+};
+function rollMonsterLoot(monsterType) {
+  var loot = MONSTER_LOOT[monsterType] || MONSTER_LOOT.default;
+  var drops = [];
+  // 普通掉落
+  if (Math.random() < loot.chance) {
+    var item = loot.items[Math.floor(Math.random() * loot.items.length)];
+    drops.push(item);
+  }
+  // 稀有掉落
+  if (Math.random() < loot.rareChance && loot.rare.length > 0) {
+    var rareItem = loot.rare[Math.floor(Math.random() * loot.rare.length)];
+    drops.push(rareItem);
+  }
+  return drops;
+}
+
+// --- 迭代79: 日夜循环系统 ---
+var DAY_CYCLE = {
+  duration: 300, // 5分钟一个完整周期
+  phases: [
+    { name: '黎明', start: 0, end: 0.15, lightMul: 0.6, monsterMul: 0.8, color: '#aa8855' },
+    { name: '白天', start: 0.15, end: 0.45, lightMul: 1.0, monsterMul: 1.0, color: '#ccbb88' },
+    { name: '黄昏', start: 0.45, end: 0.6, lightMul: 0.7, monsterMul: 1.2, color: '#886644' },
+    { name: '夜晚', start: 0.6, end: 0.85, lightMul: 0.3, monsterMul: 1.8, color: '#332211' },
+    { name: '深夜', start: 0.85, end: 1.0, lightMul: 0.15, monsterMul: 2.2, color: '#110808' }
+  ]
+};
+function getDayPhase(gameTime) {
+  var cycle = (gameTime % DAY_CYCLE.duration) / DAY_CYCLE.duration;
+  for (var i = 0; i < DAY_CYCLE.phases.length; i++) {
+    var phase = DAY_CYCLE.phases[i];
+    if (cycle >= phase.start && cycle < phase.end) return phase;
+  }
+  return DAY_CYCLE.phases[0];
+}
+
+// --- 迭代80: 粒子特效系统 ---
+function createParticleBurst(x, y, count, color, size, life) {
+  var particles = [];
+  for (var i = 0; i < count; i++) {
+    var angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+    var speed = 1 + Math.random() * 3;
+    particles.push({
+      x: x, y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: size * (0.5 + Math.random() * 0.5),
+      color: color,
+      life: life * (0.7 + Math.random() * 0.3),
+      maxLife: life
+    });
+  }
+  return particles;
+}
+function updateParticles(particles, dt) {
+  for (var i = particles.length - 1; i >= 0; i--) {
+    var p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= 0.98;
+    p.vy *= 0.98;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  return particles;
 }
 
 </script>
