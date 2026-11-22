@@ -1860,6 +1860,7 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
           <button class="btn btn-ghost" id="inv-use-main" style="font-size:0.8em;padding:4px 12px">使用主手</button>
           <button class="btn btn-ghost" id="inv-swap" style="font-size:0.8em;padding:4px 12px">交换主副手</button>
           <button class="btn btn-ghost" id="inv-drop" style="font-size:0.8em;padding:4px 12px">丢弃选中</button>
+          <button class="btn btn-ghost" id="inv-craft" style="font-size:0.8em;padding:4px 12px;color:#e8d080">合成</button>
         </div>
         <div class="panel-foot" style="margin-top:14px">
           <span style="font-size:0.75em;color:#8a7a5a">左键=装备到主手 | 右键=装备到副手 | 双击主手/副手=使用</span>
@@ -9018,6 +9019,7 @@ class Player {
     this.heldItem = null;          /* 当前手持物品：'biscuit'|'water'|'flashlight'|'navigator'|null */
     this.weapon = null;            /* 当前装备武器：'pipe'|'wrench'|'knife'|'extinguisher'|null */
     this.weaponDurability = 0;     /* 武器耐久 */
+    this.itemDurability = {};      /* 物品耐久度 {uid: durability} */
     /* 新背包系统 */
     this.inventory = [];           /* 背包物品数组，每个元素 {type, uid} */
     this.mainHand = null;          /* 主手物品引用 */
@@ -9135,8 +9137,10 @@ class Player {
   /* ---------------- 新背包系统 ---------------- */
   addItem(type) {
     if (this.inventory.length >= this.invMaxSlots) return false;
+    // 物品不可堆叠，每种物品最多持有一个
+    if (this.inventory.find(function(i) { return i.type === type; })) return false;
     const uid = type + '_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-    this.inventory.push({ type, uid });
+    this.inventory.push({ type: type, uid: uid });
     return true;
   }
   removeFromInventory(uid) {
@@ -9260,6 +9264,33 @@ class Player {
     return false;
   }
 
+  /* 道具合成 */
+  tryCraft() {
+    const CRAFT_RECIPES = {
+      'bandage+water': { result: 'pill', name: '镇静剂', desc: '绷带+杏仁水=镇静剂' },
+      'battery+flare': { result: 'radio', name: '收音机', desc: '电池+信号弹=收音机' },
+    };
+    if (this.inventory.length < 2) return false;
+    for (let i = 0; i < this.inventory.length; i++) {
+      for (let j = i + 1; j < this.inventory.length; j++) {
+        const key1 = this.inventory[i].type + '+' + this.inventory[j].type;
+        const key2 = this.inventory[j].type + '+' + this.inventory[i].type;
+        const recipe = CRAFT_RECIPES[key1] || CRAFT_RECIPES[key2];
+        if (recipe) {
+          const uid1 = this.inventory[i].uid;
+          const uid2 = this.inventory[j].uid;
+          this.removeFromInventory(uid1);
+          this.removeFromInventory(uid2);
+          if (this.addItem(recipe.result)) {
+            return { success: true, item: recipe.result, name: recipe.name };
+          }
+          return { success: false, error: '背包已满' };
+        }
+      }
+    }
+    return false;
+  }
+
   /* ---------------- 手持 / 使用物品 ---------------- */
 
   equipItem(type) {
@@ -9351,6 +9382,11 @@ class Player {
     if (hitAny && !isFist) {
       this.weaponDurability--;
       if (this.weaponDurability <= 0) {
+        // 武器损坏，从背包和主手移除
+        if (this.mainHand && this.mainHand.type === this.weapon) {
+          this.removeFromInventory(this.mainHand.uid);
+          this.mainHand = null;
+        }
         this.weapon = null;
         this.weaponDurability = 0;
       }
@@ -22840,6 +22876,30 @@ class Game {
         this.renderInventory();
       }
     };
+    const craftBtn = document.getElementById('inv-craft');
+    if (craftBtn) craftBtn.onclick = () => {
+      const result = this.player.tryCraft();
+      if (result === false) {
+        this.hud.toast('没有可合成的配方', 2);
+      } else if (result.success) {
+        this.hud.toast(`合成成功：${result.name}！`, 3);
+        if (this.audio && this.audio.ctx) {
+          try {
+            const ctx = this.audio.ctx;
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.frequency.value = 660;
+            g.gain.setValueAtTime(0.1, ctx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+            o.start(); o.stop(ctx.currentTime + 0.2);
+          } catch(e) {}
+        }
+      } else {
+        this.hud.toast(result.error || '合成失败', 2);
+      }
+      this.renderInventory();
+    };
   }
 
   closeInventory() {
@@ -22867,6 +22927,23 @@ class Game {
     const p = this.player;
     const ICONS = { biscuit:'🍪', water:'💧', flashlight:'🔦', navigator:'🧭', canteen:'🥤', keycard:'💳', battery:'🔋', pipe:'🔧', wrench:'🔨', knife:'🔪', extinguisher:'🧯', key:'🗝️', bandage:'🩹', pill:'💊', map:'🗺️', radio:'📻', flare:'🧨' };
     const NAMES = { biscuit:'压缩饼干', water:'杏仁水', flashlight:'手电筒', navigator:'导航仪', canteen:'水壶', keycard:'钥匙卡', battery:'电池', pipe:'铁管', wrench:'扳手', knife:'刀', extinguisher:'灭火器', key:'钥匙', bandage:'绷带', pill:'镇静剂', map:'地图碎片', radio:'收音机', flare:'信号弹' };
+    const DESC = {
+      biscuit: '压缩饼干\n恢复15体力\n+5理智',
+      water: '杏仁水\n恢复20理智\n+10口渴度',
+      flashlight: '手电筒\n照亮黑暗区域\n持续消耗电量',
+      navigator: '导航仪\n显示小地图\n持续消耗电量',
+      battery: '电池\n恢复35电量',
+      keycard: '钥匙卡\n开启特殊门',
+      bandage: '绷带\n恢复30理智',
+      pill: '镇静剂\n恢复50理智\n-10体力',
+      flare: '信号弹\n一次性照明\n驱散附近怪物',
+      radio: '收音机\n吸引或驱散怪物',
+      pipe: '铁管\n耐久: 12',
+      wrench: '扳手\n耐久: 15',
+      knife: '刀\n耐久: 8',
+      extinguisher: '灭火器\n耐久: 20',
+      canteen: '水壶\n持续补充口渴',
+    };
 
     // 渲染主手
     const mainEl = document.getElementById('hand-main');
@@ -22880,6 +22957,13 @@ class Game {
       mainEl.onclick = () => {
         if (p.mainHand) {
           p.useMainHandItem(this.audio);
+          this.renderInventory();
+        }
+      };
+      mainEl.ondblclick = () => {
+        if (p.mainHand) {
+          p.useMainHandItem(this.audio);
+          this.hud.toast('使用了主手道具', 2);
           this.renderInventory();
         }
       };
@@ -22919,7 +23003,7 @@ class Game {
       if (item) {
         const isSelected = p._selectedItem === item.uid;
         const selStyle = isSelected ? 'border-color:#ffcc40;box-shadow:0 0 8px rgba(255,204,64,.3);' : '';
-        html += `<div class="inv-slot has" data-uid="${item.uid}" title="${NAMES[item.type]||item.type}" style="cursor:pointer;position:relative;${selStyle}">
+        html += `<div class="inv-slot has" data-uid="${item.uid}" title="${DESC[item.type] || NAMES[item.type] || item.type}" style="cursor:pointer;position:relative;${selStyle}">
           <div class="inv-icon">${ICONS[item.type]||'?'}</div>
           <div class="inv-name" style="font-size:0.6em">${NAMES[item.type]||item.type}</div>
         </div>`;
