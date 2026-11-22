@@ -29241,6 +29241,136 @@ function updateGameStats(stats) {
   }
 }
 
+// ========== 迭代161-170: 内容深化 ==========
+
+// 迭代161: 怪物巡逻路径生成
+function generatePatrolPath(startX, startY, radius, points) {
+  var path = [];
+  var angle = Math.random() * Math.PI * 2;
+  for (var i = 0; i < points; i++) {
+    angle += (Math.random() - 0.5) * 1.5;
+    var dist = radius * (0.5 + Math.random() * 0.5);
+    path.push({ x: startX + Math.cos(angle) * dist, y: startY + Math.sin(angle) * dist });
+  }
+  return path;
+}
+
+// 迭代162: 道具分解回收
+function decomposeItem(itemType) {
+  var recipes = {
+    pipe: { scrap: 2 }, wrench: { scrap: 3, metal: 1 },
+    knife: { metal: 2 }, battery: { energy: 1 },
+    bandage: { cloth: 2 }
+  };
+  return recipes[itemType] || { scrap: 1 };
+}
+
+// 迭代163: 可破坏物体系统
+var DESTRUCTIBLES = [];
+function addDestructible(x, y, type) {
+  DESTRUCTIBLES.push({ x: x, y: y, type: type, hp: type === 'barrel' ? 30 : 20, maxHp: type === 'barrel' ? 30 : 20 });
+}
+function damageDestructible(index, damage) {
+  if (!DESTRUCTIBLES[index]) return false;
+  DESTRUCTIBLES[index].hp -= damage;
+  if (DESTRUCTIBLES[index].hp <= 0) {
+    DESTRUCTIBLES.splice(index, 1);
+    return true; // destroyed
+  }
+  return false;
+}
+
+// 迭代164: 温度系统
+var TEMPERATURE = { current: 20, target: 20 };
+function updateTemperature(dt) {
+  TEMPERATURE.current += (TEMPERATURE.target - TEMPERATURE.current) * dt * 0.1;
+  return TEMPERATURE.current;
+}
+function getTemperatureEffect() {
+  if (TEMPERATURE.current < 5) return 'freezing';
+  if (TEMPERATURE.current < 15) return 'cold';
+  if (TEMPERATURE.current > 35) return 'hot';
+  return 'normal';
+}
+
+// 迭代165: 声音传播系统
+var SOUND_SOURCES = [];
+function emitSound(x, y, volume, type) {
+  SOUND_SOURCES.push({ x: x, y: y, volume: volume, type: type, time: Date.now() });
+  if (SOUND_SOURCES.length > 20) SOUND_SOURCES.shift();
+}
+function getSoundsInRange(px, py, maxDist) {
+  return SOUND_SOURCES.filter(function(s){
+    var dist = Math.sqrt(Math.pow(s.x-px,2)+Math.pow(s.y-py,2));
+    return dist < maxDist && Date.now() - s.time < 5000;
+  });
+}
+
+// 迭代166: 营地系统
+var CAMPS = [];
+function createCamp(x, y) {
+  CAMPS.push({ x: x, y: y, uses: 3, maxUses: 3 });
+}
+function useCamp(index) {
+  if (!CAMPS[index] || CAMPS[index].uses <= 0) return false;
+  CAMPS[index].uses--;
+  return true; // restored hp/sanity
+}
+
+// 迭代167: 怪物进化系统
+var EVOLUTION_DATA = {};
+function evolveMonster(monsterId, type) {
+  if (!EVOLUTION_DATA[monsterId]) EVOLUTION_DATA[monsterId] = { stage: 0, xp: 0 };
+  EVOLUTION_DATA[monsterId].xp += 10;
+  if (EVOLUTION_DATA[monsterId].xp >= 50 && EVOLUTION_DATA[monsterId].stage < 3) {
+    EVOLUTION_DATA[monsterId].stage++;
+    return true; // evolved
+  }
+  return false;
+}
+
+// 迭代168: NPC交易系统
+var NPC_TRADES = {
+  trader: [
+    { give: 'battery', get: 'bandage', ratio: 2 },
+    { give: 'scrap', get: 'pipe', ratio: 5 }
+  ],
+  healer: [
+    { give: 'bandage', get: 'heal', amount: 30 }
+  ]
+};
+function executeTrade(npcType, tradeIndex) {
+  var trades = NPC_TRADES[npcType];
+  if (!trades || !trades[tradeIndex]) return false;
+  return trades[tradeIndex];
+}
+
+// 迭代169: 战争迷雾系统
+var FOG_OF_WAR = {};
+function revealArea(x, y, radius) {
+  var gx = Math.floor(x / 2), gy = Math.floor(y / 2);
+  for (var dx = -radius; dx <= radius; dx++) {
+    for (var dy = -radius; dy <= radius; dy++) {
+      if (dx*dx + dy*dy <= radius*radius) FOG_OF_WAR[gx+dx + ',' + (gy+dy)] = true;
+    }
+  }
+}
+function isRevealed(x, y) {
+  var gx = Math.floor(x / 2), gy = Math.floor(y / 2);
+  return FOG_OF_WAR[gx + ',' + gy] || false;
+}
+
+// 迭代170: 成就统计追踪
+var ACHIEVEMENT_TRACKER = {
+  killsThisRun: 0, itemsThisRun: 0, roomsExplored: 0,
+  totalKills: 0, totalItems: 0, totalRooms: 0
+};
+function trackAchievement(type, amount) {
+  ACHIEVEMENT_TRACKER[type + 'ThisRun'] = (ACHIEVEMENT_TRACKER[type + 'ThisRun'] || 0) + amount;
+  ACHIEVEMENT_TRACKER['total' + type.charAt(0).toUpperCase() + type.slice(1)] =
+    (ACHIEVEMENT_TRACKER['total' + type.charAt(0).toUpperCase() + type.slice(1)] || 0) + amount;
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
