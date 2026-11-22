@@ -29007,6 +29007,107 @@ function getEvolutionStage(killCount) {
   return EVOLUTION_STAGES[0];
 }
 
+// ========== 迭代141-150: 深度内容扩展 ==========
+
+// 迭代141: 怪物巡逻路线可视化
+function drawPatrolRoute(ctx, route, color) {
+  if (!route || route.length < 2) return;
+  ctx.strokeStyle = color || 'rgba(255,100,100,0.3)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(route[0].x, route[0].y);
+  for (var i = 1; i < route.length; i++) ctx.lineTo(route[i].x, route[i].y);
+  ctx.closePath();
+  ctx.stroke();
+}
+
+// 迭代142: 道具使用时间轴
+var ITEM_TIMELINE = [];
+function recordItemUse(itemType, timestamp) {
+  ITEM_TIMELINE.push({ type: itemType, time: timestamp });
+  if (ITEM_TIMELINE.length > 50) ITEM_TIMELINE.shift();
+}
+function getItemUseHistory(itemType) {
+  return ITEM_TIMELINE.filter(function(r){ return r.type === itemType; });
+}
+
+// 迭代143: 怪物AI决策树
+function monsterDecisionTree(entity, player, environment) {
+  var dist = Math.sqrt(Math.pow(entity.x-player.x,2)+Math.pow(entity.y-player.y,2));
+  if (entity.hp < entity.maxHp * 0.2) return 'flee';
+  if (dist < 2) return 'attack';
+  if (dist < 8) return 'chase';
+  if (entity.alertLevel > 50) return 'search';
+  return 'patrol';
+}
+
+// 迭代144: 环境音效触发
+var AMBIENT_TRIGGERS = {
+  dark: { sound: 'distant_scream', chance: 0.02 },
+  corridor: { sound: 'footsteps_behind', chance: 0.03 },
+  room: { sound: 'whisper', chance: 0.01 },
+  exit: { sound: 'eerie_hum', chance: 0.05 }
+};
+
+// 迭代145: 道具耐久可视化
+function getDurabilityColor(current, max) {
+  var ratio = current / max;
+  if (ratio > 0.7) return '#4f4';
+  if (ratio > 0.4) return '#ff4';
+  if (ratio > 0.2) return '#f84';
+  return '#f44';
+}
+
+// 迭代146: 怪物死亡掉落优化
+function optimizeLootDrop(monsterType, playerLuck) {
+  var base = rollMonsterLoot(monsterType);
+  if (playerLuck > 0.5 && Math.random() < playerLuck * 0.3) {
+    base.push('battery'); // 额外掉落
+  }
+  return base;
+}
+
+// 迭代147: 玩家移动轨迹
+var PLAYER_TRAIL = [];
+function recordPlayerTrail(x, y) {
+  PLAYER_TRAIL.push({ x: x, y: y, time: Date.now() });
+  if (PLAYER_TRAIL.length > 100) PLAYER_TRAIL.shift();
+}
+function getPlayerTrail(age) {
+  var cutoff = Date.now() - (age || 10000);
+  return PLAYER_TRAIL.filter(function(p){ return p.time > cutoff; });
+}
+
+// 迭代148: 怪物重生机制
+var RESPAWN_POINTS = {};
+function setRespawnPoint(monsterType, x, y) {
+  RESPAWN_POINTS[monsterType] = { x: x, y: y, count: 0 };
+}
+function checkRespawn(monsterType, respawnTime) {
+  var rp = RESPAWN_POINTS[monsterType];
+  if (!rp) return false;
+  if (Date.now() - (rp.lastDeath || 0) < (respawnTime || 30000)) return false;
+  rp.count++;
+  return rp.count <= 3; // 最多重生3次
+}
+
+// 迭代149: 道具稀有度提示音
+function playRaritySound(rarity) {
+  var freqs = { common: 440, uncommon: 550, rare: 660, epic: 880, legendary: 1100 };
+  return freqs[rarity] || 440;
+}
+
+// 迭代150: 游戏难度自适应
+var ADAPTIVE_DIFFICULTY = { baseLevel: 1, playerSkill: 0.5 };
+function updateAdaptiveDifficulty(playerPerformance) {
+  // playerPerformance: 0(很差) 到 1(很强)
+  ADAPTIVE_DIFFICULTY.playerSkill = ADAPTIVE_DIFFICULTY.playerSkill * 0.9 + playerPerformance * 0.1;
+  ADAPTIVE_DIFFICULTY.baseLevel = 1 + Math.floor(ADAPTIVE_DIFFICULTY.playerSkill * 10);
+}
+function getAdaptiveMultiplier() {
+  return 0.8 + ADAPTIVE_DIFFICULTY.playerSkill * 0.4; // 0.8x 到 1.2x
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
