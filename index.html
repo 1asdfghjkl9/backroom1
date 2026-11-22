@@ -1905,6 +1905,15 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
         <p id="dead-text">你听见自己的呼吸变成了别人的。</p>
         <p id="dead-cause"></p>
         <div id="dead-stats"></div>
+        <!-- 迭代32：详细死亡统计面板 -->
+        <div id="death-stats-detail" style="margin-top:12px;padding:10px 14px;background:rgba(20,18,12,.6);border:1px solid rgba(180,140,60,.15);border-radius:4px;text-align:left;font-size:11px;color:rgba(207,199,168,.7);line-height:1.8;display:none;">
+          <div style="color:rgba(196,163,90,.5);font-size:9px;letter-spacing:.1em;margin-bottom:6px;">详细统计</div>
+          <div>存活时间: <span id="stat-time" style="color:#e8dcc0">0:00</span></div>
+          <div>击杀数: <span id="stat-kills" style="color:#e8dcc0">0</span></div>
+          <div>收集道具: <span id="stat-items" style="color:#e8dcc0">0</span></div>
+          <div>道具种类: <span id="stat-types" style="color:#e8dcc0">0</span></div>
+          <div>到达层级: <span id="stat-level" style="color:#e8dcc0">-</span></div>
+        </div>
         <div class="menu-buttons">
           <button class="btn btn-primary" data-action="restart" id="dead-restart-btn">返回中枢</button>
           <button class="btn btn-ghost" data-action="quit">返回主菜单</button>
@@ -18332,29 +18341,38 @@ class HUD {
       }
     }
 
-    // 画物品（黄色点）
+    // 画物品（迭代33：黄色点，更醒目）
     for (const it of game.items) {
       if (it.taken) continue;
       const dx = it.x - px, dy = it.y - py;
       if (Math.abs(dx) > range || Math.abs(dy) > range) continue;
       const sx = (dx + range) * scale;
       const sy = (dy + range) * scale;
-      ctx.fillStyle = it.type === 'objective' ? '#e6c87c' : '#8a7';
+      /* 迭代33：目标物用金色，普通道具用亮黄色 */
+      ctx.fillStyle = it.type === 'objective' ? '#e6c87c' : '#ff4';
       ctx.beginPath();
-      ctx.arc(sx, sy, 2, 0, Math.PI * 2);
+      ctx.arc(sx, sy, it.type === 'objective' ? 3 : 2, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // 画实体（红色点）
+    // 画实体（迭代33：红色点，追逐状态更亮）
     for (const e of game.entities) {
       const dx = e.x - px, dy = e.y - py;
       if (Math.abs(dx) > range || Math.abs(dy) > range) continue;
       const sx = (dx + range) * scale;
       const sy = (dy + range) * scale;
-      ctx.fillStyle = e.state === 'chase' ? '#e44' : '#c66';
+      ctx.fillStyle = e.state === 'chase' ? '#f44' : '#c66';
       ctx.beginPath();
-      ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+      ctx.arc(sx, sy, e.state === 'chase' ? 3 : 2.5, 0, Math.PI * 2);
       ctx.fill();
+      /* 迭代33：追逐中的怪物加闪烁外圈 */
+      if (e.state === 'chase') {
+        ctx.strokeStyle = 'rgba(255,68,68,0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
     /* 迭代15：画怪物脚印（小暗红色点） */
@@ -18396,17 +18414,25 @@ class HUD {
       }
     }
 
-    // 画玩家（白色三角，指向朝向）
+    // 画玩家（蓝色三角，指向朝向）— 迭代33改进
     const cx = range * scale, cy = range * scale;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(player.angle + Math.PI / 2);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = '#4af';
     ctx.beginPath();
-    ctx.moveTo(0, -4);
-    ctx.lineTo(-3, 3);
-    ctx.lineTo(3, 3);
+    ctx.moveTo(0, -5);
+    ctx.lineTo(-3.5, 3.5);
+    ctx.lineTo(3.5, 3.5);
+    ctx.closePath();
     ctx.fill();
+    /* 迭代33：玩家方向指示线 */
+    ctx.strokeStyle = 'rgba(68,170,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -5);
+    ctx.lineTo(0, -10);
+    ctx.stroke();
     ctx.restore();
   }
 }
@@ -18450,6 +18476,11 @@ const ACHIEVEMENTS = [
   { id: 'survive_120',    name: '坚忍',       desc: '通过存活方式通关',           icon: '∞' },
   { id: 'creative',       name: '创世神',     desc: '使用创作者模式',             icon: '◈' },
   { id: 'collect_all',    name: '拾荒者',     desc: '在单关中收集 10 个道具',     icon: '◇' },
+  /* 迭代31：新增成就 */
+  { id: 'deep_diver',     name: '深潜者',     desc: '到达第5层',               icon: '▽' },
+  { id: 'collector',      name: '收藏家',     desc: '收集10种不同道具',         icon: '◈' },
+  { id: 'survivor',       name: '幸存者',     desc: '存活超过10分钟',           icon: '♺' },
+  { id: 'crafter',        name: '工匠',       desc: '完成第一次合成',           icon: '⚒' },
 ];
 
 const DEATH_LINES = [
@@ -18496,6 +18527,10 @@ class Game {
     this.fieldTimer = 0;
     this.objectiveCount = 3;
     this.levelTime = 0;
+    /* 迭代31：全局存活时间追踪（跨关卡） */
+    this.totalPlayTime = 0;
+    this._survivorUnlocked = false;
+    this._collectedItemTypes = new Set();
     this.time = 0;
     this.lastTs = 0;
     this.interactable = null;
@@ -19791,6 +19826,8 @@ class Game {
     }
     const _origLevel = LEVELS[Math.max(0, Math.min(LEVELS.length - 1, index))];
     this.levelIndex = index;
+    /* 迭代31：到达第5层解锁深潜者成就 */
+    if (index >= 5) this.unlockAchievement('deep_diver');
 
     /* 迭代40：关卡环境变化系统 - 每次进入同一关卡都有变化 */
     const _envSeed = (index * 7919 + Date.now()) | 0;
@@ -20336,6 +20373,8 @@ class Game {
     /* 成就：初次遭遇 */
     this.unlockAchievement('first_blood');
     this.levelDamageTaken++;
+    /* 迭代35：受伤音效反馈 */
+    this.playSound('hurt');
     /* 恐怖音效：尖锐高频 + 低频隆隆 */
     if (this.audio && this.audio.ctx) {
       try {
@@ -20403,6 +20442,106 @@ class Game {
     p.pitch = Math.max(-1.2, p.pitch - dt * 0.4);
     if (t >= 1) {
       this.die();
+    }
+  }
+
+  /* 迭代34：上下文操作提示系统 */
+  _contextHintTimer = 0;
+  showContextHint() {
+    const player = this.player;
+    const w = this.world;
+    if (!player || !w) return;
+    const hints = [];
+
+    // 检测附近物品
+    if (this.items) {
+      for (const item of this.items) {
+        if (item.taken) continue;
+        const dx = player.x - item.x;
+        const dy = player.y - item.y;
+        if (dx * dx + dy * dy < 2.5) {
+          const nm = ITEMS[item.type] ? ITEMS[item.type].name : item.type;
+          hints.push('按 E 拾取 ' + nm);
+          break;
+        }
+      }
+    }
+
+    // 检测附近门
+    const tx = Math.floor(player.x + Math.cos(player.angle) * 0.8);
+    const ty = Math.floor(player.y + Math.sin(player.angle) * 0.8);
+    if (w.type) {
+      const di = idx(w, tx, ty);
+      if (di >= 0 && w.type[di] === TILE.EXIT) {
+        hints.push('按 F 开关门');
+      }
+    }
+
+    // 检测附近出口
+    if (w.exitPos) {
+      const edx = player.x - w.exitPos.x;
+      const edy = player.y - w.exitPos.y;
+      if (edx * edx + edy * edy < 3) {
+        hints.push('按 E 进入出口');
+      }
+    }
+
+    // 显示提示（每0.5秒最多触发一次）
+    if (hints.length > 0) {
+      this.hud.setPrompt(hints[0]);
+    }
+  }
+
+  /* 迭代35：统一音效反馈 */
+  playSound(type) {
+    if (!this.audio || !this.audio.ctx) return;
+    const ctx = this.audio.ctx;
+    const now = ctx.currentTime;
+
+    if (type === 'door_open') {
+      /* 低频砰声 */
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(this.audio.sfxGroup || ctx.destination);
+      o.type = 'sine';
+      o.frequency.setValueAtTime(80, now);
+      o.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+      g.gain.setValueAtTime(0.3, now);
+      g.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+      o.start(now); o.stop(now + 0.2);
+    } else if (type === 'pickup') {
+      /* 清脆叮咚 */
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(this.audio.sfxGroup || ctx.destination);
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(800, now);
+      o.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+      g.gain.setValueAtTime(0.2, now);
+      g.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+      o.start(now); o.stop(now + 0.1);
+    } else if (type === 'craft') {
+      /* 上升音调 */
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(this.audio.sfxGroup || ctx.destination);
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(400, now);
+      o.frequency.exponentialRampToValueAtTime(800, now + 0.3);
+      g.gain.setValueAtTime(0.2, now);
+      g.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+      o.start(now); o.stop(now + 0.3);
+    } else if (type === 'hurt') {
+      /* 低沉冲击 */
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(this.audio.sfxGroup || ctx.destination);
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(150, now);
+      o.frequency.exponentialRampToValueAtTime(50, now + 0.3);
+      g.gain.setValueAtTime(0.3, now);
+      g.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+      o.start(now); o.stop(now + 0.3);
     }
   }
 
@@ -20552,6 +20691,25 @@ class Game {
         const secs = Math.floor(this._deathSurvivalTime % 60);
         statsEl.innerHTML = '到达层级: <b>' + (this._deathLevelName || '未知') + '</b><br>' +
           '存活时间: <b>' + mins + '分' + secs + '秒</b>';
+      }
+
+      /* 迭代32：详细死亡统计面板 */
+      const detailPanel = document.getElementById('death-stats-detail');
+      if (detailPanel) {
+        detailPanel.style.display = 'block';
+        const totalTime = this.totalPlayTime || this._deathSurvivalTime || 0;
+        const tMins = Math.floor(totalTime / 60);
+        const tSecs = Math.floor(totalTime % 60);
+        const statTime = document.getElementById('stat-time');
+        if (statTime) statTime.textContent = tMins + '分' + tSecs + '秒';
+        const statKills = document.getElementById('stat-kills');
+        if (statKills) statKills.textContent = this.levelKills || 0;
+        const statItems = document.getElementById('stat-items');
+        if (statItems) statItems.textContent = this.levelItemsCollected || 0;
+        const statTypes = document.getElementById('stat-types');
+        if (statTypes) statTypes.textContent = this._collectedItemTypes ? this._collectedItemTypes.size : 0;
+        const statLevel = document.getElementById('stat-level');
+        if (statLevel) statLevel.textContent = this._deathLevelName || '未知';
       }
 
       /* 迭代19：死亡回放提示 — 最近事件 */
@@ -20780,6 +20938,12 @@ class Game {
     if (!p || !w) return;
 
     this.levelTime += dt;
+    /* 迭代31：累计存活时间，解锁幸存者成就 */
+    this.totalPlayTime += dt;
+    if (!this._survivorUnlocked && this.totalPlayTime >= 600) {
+      this._survivorUnlocked = true;
+      this.unlockAchievement('survivor');
+    }
 
     /* 迭代19：更新最近事件记录（老化+裁剪） */
     if (this._recentEvents) {
@@ -21106,6 +21270,8 @@ class Game {
           w.doorTimers[key] = 8.0;
         }
         if (this.audio) this.audio.door();
+        /* 迭代35：门音效反馈 */
+        this.playSound('door_open');
         this.hud.toast(w.doorStates[key] ? '门已关闭（8秒后自动开启）' : '门已打开', 1.5);
         /* Force rebuild to update door mesh */
         if (this.renderer) this.renderer._forceDoorRebuild = true;
@@ -21121,6 +21287,13 @@ class Game {
 
     /* 罗盘：没集齐就指最近的目标物，集齐了指出口 */
     this.updateCompass(dt);
+
+    /* 迭代34：上下文操作提示（每0.3秒检测一次） */
+    this._contextHintTimer = (this._contextHintTimer || 0) - dt;
+    if (this._contextHintTimer <= 0) {
+      this._contextHintTimer = 0.3;
+      this.showContextHint();
+    }
 
     /* 迭代49: 门计时器倒计时 */
     if (this.world && this.world.doorTimers) {
@@ -22532,6 +22705,11 @@ class Game {
     this.audio.pickup();
     this.levelItemsCollected = (this.levelItemsCollected || 0) + 1;
     if (this.levelItemsCollected >= 10) this.unlockAchievement('collect_all');
+    /* 迭代31：追踪收集的不同道具类型，解锁收藏家成就 */
+    this._collectedItemTypes.add(it.type);
+    if (this._collectedItemTypes.size >= 10) this.unlockAchievement('collector');
+    /* 迭代35：拾取音效反馈 */
+    this.playSound('pickup');
 
     if (it.type === 'biscuit') {
       if (p.addItem('biscuit')) { this.hud.toast('拾取 压缩饼干 · 已放入背包', 3); }
@@ -22615,6 +22793,7 @@ class Game {
       p.arcFlash = Math.max(p.arcFlash || 0, 0.9);
       p.hurtFlash = Math.max(p.hurtFlash || 0, 0.4);
       this.audio.hurt();
+      this.playSound('hurt');
       this.hud.banner('触电了 · 理智 -12', 2);
     }
 
@@ -23072,6 +23251,10 @@ class Game {
         this.hud.toast('没有可合成的配方', 2);
       } else if (result.success) {
         this.hud.toast(`合成成功：${result.name}！`, 3);
+        /* 迭代31：完成第一次合成解锁工匠成就 */
+        this.unlockAchievement('crafter');
+        /* 迭代35：合成音效反馈 */
+        this.playSound('craft');
         if (this.audio && this.audio.ctx) {
           try {
             const ctx = this.audio.ctx;
