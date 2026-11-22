@@ -1388,6 +1388,26 @@ input[type="range"]::-moz-range-thumb {
 #quest-panel .quest-item .q-reward{color:rgba(180,140,60,.5);font-size:9px;}
 #quest-toast{position:fixed;top:40%;left:50%;transform:translate(-50%,-50%);z-index:200;font-family:'Courier New',monospace;font-size:14px;color:#6b6;background:rgba(20,30,20,.9);border:1px solid rgba(100,180,100,.3);padding:12px 24px;border-radius:4px;pointer-events:none;display:none;text-align:center;}
 #quest-toast.show{display:block;}
+/* ========== 迭代59: Boss血条 ========== */
+#boss-hud{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:75;width:320px;max-width:80vw;display:none;text-align:center;font-family:var(--font);pointer-events:none;}
+#boss-hud.show{display:block;}
+#boss-hud .boss-name{font-size:11px;color:#e44;letter-spacing:.15em;text-shadow:0 0 8px rgba(200,40,40,.5);margin-bottom:4px;font-weight:700;}
+#boss-hud .boss-bar{width:100%;height:8px;background:rgba(255,255,255,.08);border:1px solid rgba(200,40,40,.3);border-radius:2px;overflow:hidden;}
+#boss-hud .boss-bar-fill{height:100%;background:linear-gradient(90deg,#c44,#e66);transition:width .3s;border-radius:2px;}
+#boss-hud .boss-phase{font-size:9px;color:rgba(200,120,120,.7);margin-top:2px;}
+/* ========== 迭代60: 道具图鉴 ========== */
+#codex-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;font-family:var(--font);}
+#codex-overlay.show{display:flex;}
+#codex-box{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:20px;max-width:440px;width:90%;max-height:80vh;overflow-y:auto;color:var(--tc);}
+#codex-box h3{margin:0 0 12px;color:var(--amber);font-size:14px;letter-spacing:2px;text-align:center;}
+#codex-box .codex-progress{font-size:10px;color:var(--tc-sm);text-align:center;margin-bottom:12px;}
+#codex-box .codex-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+#codex-box .codex-item{background:rgba(20,18,12,.6);border:1px solid rgba(180,140,60,.15);border-radius:4px;padding:8px 4px;text-align:center;font-size:10px;}
+#codex-box .codex-item.found{border-color:rgba(180,140,60,.4);background:rgba(40,35,20,.6);}
+#codex-box .codex-item .codex-icon{font-size:20px;display:block;margin-bottom:4px;}
+#codex-box .codex-item .codex-name{color:var(--tc-sm);font-size:9px;}
+#codex-box .codex-item.found .codex-name{color:var(--amber-l);}
+#codex-box .codex-close{display:block;margin:12px auto 0;background:rgba(180,140,60,.2);border:1px solid rgba(180,140,60,.3);color:var(--amber);padding:6px 20px;border-radius:3px;cursor:pointer;font-family:var(--font);font-size:11px;}
 
 </style>
 </head>
@@ -1423,6 +1443,10 @@ input[type="range"]::-moz-range-thumb {
   <div id="npc-dialog"><div class="npc-name" id="npc-name">幸存者</div><div class="npc-text" id="npc-text">...</div><div class="npc-options" id="npc-options"></div></div>
   <div id="trap-warning">⚠ 你感到地板在震动...</div>
   <div id="quest-panel"><div class="quest-title">📋 任务列表</div><div id="quest-list"></div></div>
+  <!-- 迭代59：Boss血条 -->
+  <div id="boss-hud"><div class="boss-name" id="boss-name"></div><div class="boss-bar"><div class="boss-bar-fill" id="boss-bar-fill" style="width:100%"></div></div><div class="boss-phase" id="boss-phase"></div></div>
+  <!-- 迭代60：道具图鉴 -->
+  <div id="codex-overlay"><div id="codex-box"><h3>📖 道具图鉴</h3><div class="codex-progress" id="codex-progress"></div><div class="codex-grid" id="codex-grid"></div><button class="codex-close" onclick="if(window.game)window.game.closeCodex()">关闭</button></div></div>
   <div id="wave-display" style="position:fixed;top:90px;left:50%;transform:translateX(-50%);z-index:80;font-family:'Courier New',monospace;font-size:12px;color:rgba(207,199,168,.8);background:rgba(20,18,12,.7);border:1px solid rgba(180,140,60,.25);padding:4px 14px;border-radius:3px;pointer-events:none;display:none;transition:opacity .3s;"></div>
   <div id="event-notify" style="position:fixed;top:45%;left:50%;transform:translateX(-50%);z-index:85;font-family:'Courier New',monospace;font-size:13px;color:#e6c87c;background:rgba(20,18,12,.85);border:1px solid rgba(180,140,60,.35);padding:8px 20px;border-radius:4px;pointer-events:none;opacity:0;transition:opacity .4s;text-align:center;max-width:80vw;"></div>
   <!-- 迭代55：游戏内设置面板 -->
@@ -1960,6 +1984,7 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
           <button class="btn btn-ghost" id="inv-swap" style="font-size:0.8em;padding:4px 12px">交换主副手</button>
           <button class="btn btn-ghost" id="inv-drop" style="font-size:0.8em;padding:4px 12px">丢弃选中</button>
           <button class="btn btn-ghost" id="inv-craft" style="font-size:0.8em;padding:4px 12px;color:#e8d080">合成</button>
+          <button class="btn btn-ghost" id="inv-codex" style="font-size:0.8em;padding:4px 12px;color:#6bc" onclick="if(window.game){window.game.openCodex()}">📖 图鉴</button>
         </div>
         <div class="panel-foot" style="margin-top:14px">
           <span style="font-size:0.75em;color:#8a7a5a">左键=装备到主手 | 右键=装备到副手 | 双击主手/副手=使用</span>
@@ -9248,6 +9273,12 @@ class Player {
     this.hidden = false;      // 桌下/低空间隐藏状态
     this.hiding = false;      // 储物柜躲藏状态
     this.hideTimer = 0;       // 躲藏过渡计时
+    /* 迭代56：附魔系统初始化 */
+    this.enchantments = [];
+    this.enchantCooldown = 0;
+    this.nearEnchantAltar = false;
+    /* 迭代60：道具图鉴系统 */
+    this.discoveredItems = new Set();
 
     // 朝向最开阔的方向
     let bestA = 0, bestD = -1;
@@ -9336,6 +9367,14 @@ class Player {
     if (this.inventory.find(function(i) { return i.type === type; })) return false;
     const uid = type + '_' + Date.now() + '_' + Math.floor(Math.random()*1000);
     this.inventory.push({ type: type, uid: uid });
+    /* 迭代60：发现新道具时记录图鉴并通知 */
+    if (this.discoveredItems && !this.discoveredItems.has(type)) {
+      this.discoveredItems.add(type);
+      if (window.game && window.game.hud) {
+        var itemName = (NAMES_UPG && NAMES_UPG[type]) || type;
+        window.game.hud.toast('📖 图鉴更新: ' + itemName, 2.5);
+      }
+    }
     return true;
   }
   removeFromInventory(uid) {
@@ -9537,6 +9576,135 @@ class Player {
     return { success: true, name: item.displayName, level: lvl };
   }
 
+  /* 迭代56：道具附魔系统 */
+  initEnchant() {
+    this.enchantments = [];       /* 当前附魔列表 [{type, duration, timer}] */
+    this.enchantCooldown = 0;     /* 附魔冷却 */
+    this.nearEnchantAltar = false;/* 是否在附魔台附近 */
+  }
+
+  /* 附魔台类型定义 */
+  get ENCHANT_TYPES() {
+    return {
+      fire:     { name: '火焰附魔', cost: 15, duration: 45, dmgMul: 1.5, color: '#ff6622', desc: '攻击附带火焰，额外50%伤害' },
+      ice:      { name: '冰冻附魔', cost: 12, duration: 40, slowMul: 0.5, color: '#66ccff', desc: '攻击冻结敌人，降低50%移动速度8秒' },
+      vampiric: { name: '吸血附魔', cost: 20, duration: 35, healPct: 0.25, color: '#cc44cc', desc: '攻击恢复25%伤害值为生命' },
+      lightning:{ name: '闪电附魔', cost: 18, duration: 30, chainRange: 3.0, chainDmg: 0.5, color: '#ffff44', desc: '攻击连锁闪电，波及3格内其他敌人' }
+    };
+  }
+
+  /* 在附魔台附魔道具 */
+  enchantItem(type) {
+    var types = this.ENCHANT_TYPES;
+    var def = types[type];
+    if (!def) return { success: false, error: '未知附魔类型' };
+    if (!this.weapon) return { success: false, error: '需要先装备武器' };
+    if (this.sanity < def.cost) return { success: false, error: '理智不足（需要' + def.cost + '）' };
+    if (this.enchantCooldown > 0) return { success: false, error: '附魔冷却中' };
+    /* 移除同类型旧附魔 */
+    for (var i = this.enchantments.length - 1; i >= 0; i--) {
+      if (this.enchantments[i].type === type) this.enchantments.splice(i, 1);
+    }
+    /* 消耗理智 */
+    this.sanity -= def.cost;
+    /* 添加附魔 */
+    this.enchantments.push({ type: type, duration: def.duration, timer: def.duration });
+    this.enchantCooldown = 2;
+    /* 最多同时3种附魔 */
+    while (this.enchantments.length > 3) this.enchantments.shift();
+    return { success: true, name: def.name, duration: def.duration };
+  }
+
+  /* 获取当前附魔伤害倍率 */
+  getEnchantDamageMul() {
+    var mul = 1.0;
+    for (var i = 0; i < this.enchantments.length; i++) {
+      var e = this.enchantments[i];
+      if (e.type === 'fire') {
+        var def = this.ENCHANT_TYPES.fire;
+        mul *= def.dmgMul;
+      }
+    }
+    return mul;
+  }
+
+  /* 攻击时触发附魔效果（在Game.updateEntities中调用） */
+  triggerEnchantOnHit(target, game) {
+    for (var i = this.enchantments.length - 1; i >= 0; i--) {
+      var e = this.enchantments[i];
+      /* 冰冻：减速敌人 */
+      if (e.type === 'ice') {
+        target._dullerSlow = Math.max(target._dullerSlow || 0, 8);
+        target.stunned = Math.max(target.stunned || 0, 1.5);
+      }
+      /* 吸血：恢复生命 */
+      if (e.type === 'vampiric') {
+        var healDef = this.ENCHANT_TYPES.vampiric;
+        var healAmt = 0;
+        if (this.weapon && WEAPONS[this.weapon]) {
+          healAmt = WEAPONS[this.weapon].damage * healDef.healPct;
+        }
+        this.hp = Math.min(this.maxHp, this.hp + healAmt);
+      }
+      /* 闪电：连锁伤害 */
+      if (e.type === 'lightning' && game && game.entities) {
+        var lDef = this.ENCHANT_TYPES.lightning;
+        var baseDmg = (this.weapon && WEAPONS[this.weapon]) ? WEAPONS[this.weapon].damage : 12;
+        var chainDmg = baseDmg * lDef.chainDmg;
+        for (var j = 0; j < game.entities.length; j++) {
+          var other = game.entities[j];
+          if (other === target || other.isDead) continue;
+          var cd = Math.hypot(other.x - target.x, other.y - target.y);
+          if (cd < lDef.chainRange) {
+            other.takeDamage(chainDmg, target.x, target.y, null);
+          }
+        }
+      }
+    }
+    /* 消耗附魔持续时间（每次攻击扣5秒） */
+    for (var k = this.enchantments.length - 1; k >= 0; k--) {
+      this.enchantments[k].timer -= 5;
+      if (this.enchantments[k].timer <= 0) this.enchantments.splice(k, 1);
+    }
+  }
+
+  /* 更新附魔计时器 */
+  updateEnchantments(dt) {
+    if (this.enchantCooldown > 0) this.enchantCooldown -= dt;
+    for (var i = this.enchantments.length - 1; i >= 0; i--) {
+      this.enchantments[i].timer -= dt;
+      if (this.enchantments[i].timer <= 0) this.enchantments.splice(i, 1);
+    }
+  }
+
+  /* 迭代60：道具图鉴系统 */
+  discoverItem(itemType) {
+    if (!itemType || this.discoveredItems.has(itemType)) return false;
+    this.discoveredItems.add(itemType);
+    return true;
+  }
+
+  getCodexData() {
+    var allItems = Object.keys(NAMES_UPG || {});
+    var discovered = [];
+    var undiscovered = [];
+    for (var i = 0; i < allItems.length; i++) {
+      var type = allItems[i];
+      if (this.discoveredItems.has(type)) {
+        discovered.push({ type: type, name: (NAMES_UPG[type] || type), icon: (ITEMS[type] && ITEMS[type].icon) || '?' });
+      } else {
+        undiscovered.push({ type: type, name: '???', icon: '?' });
+      }
+    }
+    return { discovered: discovered, undiscovered: undiscovered, total: allItems.length, found: discovered.length };
+  }
+
+  getCodexCompletion() {
+    var allItems = Object.keys(NAMES_UPG || {});
+    if (allItems.length === 0) return 0;
+    return this.discoveredItems.size / allItems.length;
+  }
+
   /* ---------------- 手持 / 使用物品 ---------------- */
 
   equipItem(type) {
@@ -9616,6 +9784,8 @@ class Player {
     const weaponDurCost = isFist ? 0 : (w.durability <= 15 ? 2 : 1);
     /* 迭代51：升级武器额外伤害 */
     const upgradeBonus = (!isFist && this.mainHand && this.mainHand.bonusDamage) ? this.mainHand.bonusDamage : 0;
+    /* 迭代56：附魔伤害倍率 */
+    const enchantMul = (this.enchantments && this.enchantments.length > 0) ? this.getEnchantDamageMul() : 1.0;
 
     for (const e of entities) {
       if (e.isDead) continue;
@@ -9626,8 +9796,16 @@ class Player {
       const angTo = Math.atan2(dy, dx);
       let da = Math.abs(((angTo - this.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
       if (da < w.arc / 2) {
-        const dmg = (w.damage + upgradeBonus) * weaponDmgMul * (1 - d / (w.range + 0.5) * 0.3);  /* 距离衰减 */
-        e.takeDamage(dmg, this.x, this.y, w);
+        const dmg = (w.damage + upgradeBonus) * weaponDmgMul * enchantMul * (1 - d / (w.range + 0.5) * 0.3);  /* 距离衰减+附魔 */
+        /* 迭代57：应用武器抗性 */
+        var resistMul = (window.game && window.game.getWeaponResistance) ? window.game.getWeaponResistance(this.weapon) : 1.0;
+        e.takeDamage(dmg * resistMul, this.x, this.y, w);
+        /* 迭代56：触发附魔特效 */
+        if (this.enchantments && this.enchantments.length > 0) {
+          this.triggerEnchantOnHit(e, window.game);
+        }
+        /* 迭代57：记录武器使用 */
+        if (window.game && window.game.recordWeaponUsage) window.game.recordWeaponUsage(this.weapon);
         hitAny = true;
       }
     }
@@ -10425,6 +10603,15 @@ class Entity {
     /* 迭代31：关卡难度速度倍数 + 精英标记 */
     this.speedMul = 1.0;
     this.isElite = false;
+    /* 迭代59：Boss标记 */
+    this.isBoss = false;
+    this.bossPhase = 0;          /* Boss战阶段 0/1/2 */
+    this.bossAttackTimer = 5;    /* Boss攻击冷却 */
+    this.bossPattern = null;     /* 当前执行的攻击模式 */
+    this.bossWeakness = null;    /* 弱点武器类型 */
+    this.bossChargeDir = 0;      /* 冲锋方向 */
+    this.bossCharging = false;   /* 正在冲锋 */
+    this.bossSummonCooldown = 0; /* 召唤小怪冷却 */
   }
 
   /* 受到攻击 */
@@ -10435,6 +10622,17 @@ class Entity {
       this.hurtFlash = 0.15;
       this.stunned = Math.max(this.stunned, 0.2);
       return;
+    }
+    /* 迭代59：Boss弱点机制 - 弱点武器造成2倍伤害 */
+    if (this.isBoss && this.bossWeakness && weapon) {
+      var attackWeaponType = null;
+      if (window.game && window.game.player && window.game.player.weapon) {
+        attackWeaponType = window.game.player.weapon;
+      }
+      if (attackWeaponType === this.bossWeakness) {
+        amount *= 2.0;
+        if (window.game && window.game.hud) window.game.hud.toast('弱点攻击！', 1);
+      }
     }
     this.hp -= amount;
     this.hurtFlash = 0.3;
@@ -11106,6 +11304,98 @@ class Entity {
     // 步态起伏
     this.stepPhase += dt * (this.state === 'chase' ? 12 : 5);
     this.bobY = Math.sin(this.stepPhase) * 0.02;
+  }
+
+  /* 迭代59：Boss特殊更新逻辑 */
+  updateBoss(dt, world, player, game) {
+    if (!this.isBoss || this.isDead) return;
+    var dist = Math.hypot(player.x - this.x, player.y - this.y);
+
+    /* Boss攻击计时器 */
+    this.bossAttackTimer -= dt;
+    if (this.bossSummonCooldown > 0) this.bossSummonCooldown -= dt;
+
+    /* 阶段转换：HP 60% 和 30% */
+    var hpPct = this.hp / this.maxHp;
+    if (hpPct < 0.3 && this.bossPhase < 2) {
+      this.bossPhase = 2;
+      this.speedMul *= 1.3;
+      if (game && game.hud) game.hud.toast('Boss 进入狂暴状态！', 3);
+    } else if (hpPct < 0.6 && this.bossPhase < 1) {
+      this.bossPhase = 1;
+      this.speedMul *= 1.15;
+      if (game && game.hud) game.hud.toast('Boss 变得更加凶猛！', 3);
+    }
+
+    /* 冲锋模式 */
+    if (this.bossCharging) {
+      var cx = Math.cos(this.bossChargeDir) * this.def.speed * 2.5 * dt;
+      var cy = Math.sin(this.bossChargeDir) * this.def.speed * 2.5 * dt;
+      this._tryMove(world, cx, cy);
+      /* 碰到玩家造成伤害 */
+      if (dist < 1.2) {
+        var dmg = (this.def.damage || 20) * 1.5;
+        player.hp -= dmg;
+        player.hurtFlash = 0.4;
+        player.shake = 0.5;
+        this.bossCharging = false;
+      }
+      /* 冲锋2秒后停止 */
+      if (!this._chargeTimer) this._chargeTimer = 2;
+      this._chargeTimer -= dt;
+      if (this._chargeTimer <= 0) {
+        this.bossCharging = false;
+        this._chargeTimer = 0;
+        this.stunned = 1.5; /* 冲锋后有硬直 */
+      }
+      return;
+    }
+
+    /* 攻击模式选择 */
+    if (this.bossAttackTimer <= 0 && dist < 20) {
+      var patternRoll = Math.random();
+      if (patternRoll < 0.3 && this.bossSummonCooldown <= 0) {
+        /* 召唤小怪 */
+        this.bossSummonMinions(game, world);
+        this.bossAttackTimer = 12 - this.bossPhase * 2;
+        this.bossSummonCooldown = 20;
+      } else if (patternRoll < 0.6) {
+        /* 冲锋 */
+        this.bossCharging = true;
+        this.bossChargeDir = Math.atan2(player.y - this.y, player.x - this.x);
+        this.bossAttackTimer = 8 - this.bossPhase;
+        if (game && game.hud) game.hud.toast('Boss 发起冲锋！', 2);
+      } else {
+        /* 范围攻击 */
+        if (dist < 4) {
+          var aoeDmg = (this.def.damage || 20) * (1 + this.bossPhase * 0.3);
+          player.hp -= aoeDmg;
+          player.hurtFlash = 0.3;
+          player.shake = 0.3;
+        }
+        this.bossAttackTimer = 6 - this.bossPhase;
+      }
+    }
+  }
+
+  /* 迭代59：Boss召唤小怪 */
+  bossSummonMinions(game, world) {
+    if (!game || !game.entities) return;
+    var count = 2 + this.bossPhase;
+    for (var i = 0; i < count; i++) {
+      var ang = Math.random() * Math.PI * 2;
+      var r = 3 + Math.random() * 2;
+      var mx = this.x + Math.cos(ang) * r;
+      var my = this.y + Math.sin(ang) * r;
+      if (idx(world, mx, my) < 0 || world.height[idx(world, mx, my)] > 0.3) continue;
+      var spec = { type: 'hound', x: mx, y: my, z: 0 };
+      var minion = new Entity(spec, world, Math.floor(mx * 97 + my * 13));
+      minion.speedMul = (this.level || 1) * 0.3 + 0.8;
+      minion.onDeath = function(e) { if (game) game.levelKills++; };
+      minion._gameRef = game;
+      game.entities.push(minion);
+    }
+    if (game.hud) game.hud.toast('Boss 召唤了仆从！', 2);
   }
 }
 
@@ -19843,6 +20133,28 @@ class Game {
       if (e.code === 'KeyG' && this.state === 'spawner') {
         this.closeSpawner();
       }
+      /* 迭代56：附魔台交互键 T */
+      if (e.code === 'KeyT' && this.state === 'playing') {
+        if (this.activeAltar) {
+          this.activeAltar = false;
+        } else if (this.openEnchantUI) {
+          this.openEnchantUI();
+        }
+      }
+      /* 迭代56：附魔选择数字键 1-4 */
+      if (this.activeAltar && this.state === 'playing') {
+        if (e.code === 'Digit1') this.handleEnchantChoice(1);
+        else if (e.code === 'Digit2') this.handleEnchantChoice(2);
+        else if (e.code === 'Digit3') this.handleEnchantChoice(3);
+        else if (e.code === 'Digit4') this.handleEnchantChoice(4);
+      }
+      /* 迭代60：图鉴快捷键 C */
+      if (e.code === 'KeyC' && this.state === 'playing') {
+        if (this.openCodex) this.openCodex();
+      }
+      if (e.code === 'Escape' && this.state === 'codex') {
+        if (this.closeCodex) this.closeCodex();
+      }
     });
 
     const invClose = document.getElementById('inv-close');
@@ -20362,6 +20674,32 @@ class Game {
     this.puzzles = [];
     this.activePuzzle = null;
     this.spawnPuzzles(level, world);
+
+    /* 迭代56：附魔台系统 */
+    this.enchantAltars = [];
+    this.activeAltar = null;
+    this.spawnEnchantAltars(level, world);
+
+    /* 迭代57：敌人进化系统 */
+    if (!this.evolutionStats) {
+      this.evolutionStats = {
+        weaponUsage: {},       /* 每种武器使用次数 {weaponType: count} */
+        dodgeCount: 0,         /* 玩家躲避次数 */
+        itemCount: 0,          /* 使用道具次数 */
+        totalKills: 0,         /* 总击杀数 */
+        level: 0,              /* 当前进化等级 */
+        resistances: {}        /* 武器抗性 {weaponType: resistanceMul} */
+      };
+    }
+
+    /* 迭代59：Boss系统 */
+    this.currentBoss = null;
+    this.bossDefeated = false;
+    this._bossHpPct = 0;
+    this._bossName = '';
+    /* 迭代59：延迟生成Boss（等实体系统就绪） */
+    var self59 = this;
+    setTimeout(function() { self59.spawnBoss(level, world); }, 2000);
 
     /* 电闸系统（Level 3 电气管道层） */
     this.switches = [];
@@ -21743,6 +22081,16 @@ class Game {
     /* 实体 */
     this.updateEntities(dt);
 
+    /* 迭代56：更新附魔系统 */
+    if (p.updateEnchantments) p.updateEnchantments(dt);
+    if (this.updateEnchantInteraction) this.updateEnchantInteraction();
+
+    /* 迭代57：更新敌人进化追踪 */
+    if (this.updateEvolution) this.updateEvolution(dt);
+
+    /* 迭代59：更新Boss */
+    if (this.updateBoss) this.updateBoss(dt);
+
     /* 传送点检测（梦境层） */
     if (this.teleporters && this.teleporters.length && this._tpCooldown <= 0) {
       for (const tp of this.teleporters) {
@@ -21965,6 +22313,22 @@ class Game {
     this.hud.update(dt, p, this);
     this.hud.setGrab(p.grabbing);
     this.updateObjectiveText();
+
+    /* 迭代59：更新Boss HUD */
+    var bossHudEl = document.getElementById('boss-hud');
+    if (bossHudEl) {
+      if (this.currentBoss && !this.currentBoss.isDead) {
+        bossHudEl.classList.add('show');
+        var bossNameEl = document.getElementById('boss-name');
+        var bossBarFill = document.getElementById('boss-bar-fill');
+        var bossPhaseEl = document.getElementById('boss-phase');
+        if (bossNameEl) bossNameEl.textContent = this._bossName || 'BOSS';
+        if (bossBarFill) bossBarFill.style.width = Math.max(0, Math.min(100, (this._bossHpPct || 0) * 100)) + '%';
+        if (bossPhaseEl) bossPhaseEl.textContent = this.currentBoss.bossPhase >= 2 ? '阶段 III - 狂暴' : this.currentBoss.bossPhase >= 1 ? '阶段 II - 愤怒' : '阶段 I';
+      } else {
+        bossHudEl.classList.remove('show');
+      }
+    }
 
     /* 迭代46: 追逐音乐系统 */
     if (this.audio && this.entities) {
@@ -23582,7 +23946,344 @@ class Game {
       });
     }
 
+    /* 迭代58：环境谜题系统 - 随机生成密码门、压力板、光线谜题 */
+    if (!level.isHub && !level.isEasterEgg && level.id >= 1) {
+      var puzzleRng = (this.currentSeed || 12345) + level.id * 31337;
+      var pRand = function() { puzzleRng = (puzzleRng * 1103515245 + 12345) & 0x7fffffff; return puzzleRng / 0x7fffffff; };
+      var puzzleCount = 1 + Math.floor(pRand() * 2); /* 1-2个谜题 */
+
+      for (var pi = 0; pi < puzzleCount; pi++) {
+        var puzzleType = ['password', 'pressure', 'mirror'][Math.floor(pRand() * 3)];
+
+        /* 找空地放置谜题 */
+        var px2, py2, tries2 = 0;
+        var W2 = world.w, H2 = world.h;
+        do {
+          px2 = 5 + Math.floor(pRand() * (W2 - 10));
+          py2 = 5 + Math.floor(pRand() * (H2 - 10));
+          tries2++;
+        } while (tries2 < 30 && world.height[py2 * W2 + px2] > 0.3);
+        if (tries2 >= 30) continue;
+
+        if (puzzleType === 'password') {
+          /* 密码门：需要找到散落的数字碎片 */
+          var codeLen = 3 + Math.floor(pRand() * 2); /* 3-4位密码 */
+          var code = '';
+          for (var ci = 0; ci < codeLen; ci++) code += Math.floor(pRand() * 10);
+          puzzles.push({
+            type: 'password',
+            code: code,
+            solved: false,
+            x: px2 + 0.5, y: py2 + 0.5,
+            reward: 'rare'
+          });
+          /* 散落的数字碎片 */
+          for (var di = 0; di < codeLen; di++) {
+            var dx2, dy2, dt2 = 0;
+            do {
+              dx2 = 3 + Math.floor(pRand() * (W2 - 6));
+              dy2 = 3 + Math.floor(pRand() * (H2 - 6));
+              dt2++;
+            } while (dt2 < 20 && world.height[dy2 * W2 + dx2] > 0.3);
+            if (dt2 < 20) {
+              this.items.push({
+                type: 'digit', x: dx2 + 0.5, y: dy2 + 0.5,
+                taken: false, key: 'digit_' + pi + '_' + di,
+                digit: code[di], index: di,
+                bob: Math.random() * 6.28, variant: 'normal'
+              });
+            }
+          }
+        } else if (puzzleType === 'pressure') {
+          /* 压力板谜题：按特定顺序踩踏 */
+          var plateCount = 3 + Math.floor(pRand() * 2); /* 3-4个压力板 */
+          var order = [];
+          var plates = [];
+          for (var oi = 0; oi < plateCount; oi++) {
+            order.push(oi);
+            var ppx, ppy, pt = 0;
+            do {
+              ppx = px2 + Math.floor((pRand() - 0.5) * 8);
+              ppy = py2 + Math.floor((pRand() - 0.5) * 8);
+              pt++;
+            } while (pt < 15 && (ppx < 2 || ppy < 2 || ppx >= W2 - 2 || ppy >= H2 - 2 || world.height[ppy * W2 + ppx] > 0.3));
+            if (pt < 15) {
+              plates.push({ x: ppx + 0.5, y: ppy + 0.5, order: oi, pressed: false });
+            }
+          }
+          /* 随机打乱显示顺序（玩家需要找到正确顺序） */
+          var shuffledOrder = order.slice().sort(function() { return pRand() - 0.5; });
+          puzzles.push({
+            type: 'pressure',
+            plates: plates,
+            correctOrder: order,
+            displayOrder: shuffledOrder,
+            currentIndex: 0,
+            solved: false,
+            x: px2 + 0.5, y: py2 + 0.5,
+            reward: 'rare'
+          });
+        } else if (puzzleType === 'mirror') {
+          /* 光线谜题：调整镜子反射光线到目标 */
+          var mirrorCount = 2 + Math.floor(pRand() * 2); /* 2-3面镜子 */
+          var mirrors = [];
+          for (var mi = 0; mi < mirrorCount; mi++) {
+            var mx, my, mt = 0;
+            do {
+              mx = px2 + Math.floor((pRand() - 0.5) * 6);
+              my = py2 + Math.floor((pRand() - 0.5) * 6);
+              mt++;
+            } while (mt < 15 && (mx < 2 || my < 2 || mx >= W2 - 2 || my >= H2 - 2 || world.height[my * W2 + mx] > 0.3));
+            if (mt < 15) {
+              mirrors.push({
+                x: mx + 0.5, y: my + 0.5,
+                angle: Math.floor(pRand() * 4) * (Math.PI / 2), /* 0/90/180/270度 */
+                targetAngle: 0, /* 需要调整到的角度 */
+                aligned: false
+              });
+            }
+          }
+          /* 目标位置 */
+          var targetAngle = Math.floor(pRand() * 4) * (Math.PI / 2);
+          puzzles.push({
+            type: 'mirror',
+            mirrors: mirrors,
+            targetAngle: targetAngle,
+            solved: false,
+            x: px2 + 0.5, y: py2 + 0.5,
+            reward: 'rare'
+          });
+        }
+      }
+    }
+
     this.puzzles = puzzles;
+  }
+
+  /* 迭代56：生成附魔台（每个关卡1个，放在远离出口和起点的空房间） */
+  spawnEnchantAltars(level, world) {
+    if (level.isHub || level.isEasterEgg) return;
+    const W = world.w, H = world.h;
+    var bestX = -1, bestY = -1, bestDist = 0;
+    for (var attempt = 0; attempt < 30; attempt++) {
+      var ax = 4 + Math.floor(Math.random() * (W - 8));
+      var ay = 4 + Math.floor(Math.random() * (H - 8));
+      var ai = ay * W + ax;
+      if (world.height[ai] > 0.3) continue;
+      /* 离起点和出口都至少10格 */
+      var dStart = Math.hypot(ax - world.start.x, ay - world.start.y);
+      var dExit = Math.hypot(ax - world.exitStand.x, ay - world.exitStand.y);
+      var minDist = Math.min(dStart, dExit);
+      if (minDist > bestDist) { bestDist = minDist; bestX = ax; bestY = ay; }
+    }
+    if (bestX >= 0) {
+      this.enchantAltars.push({
+        x: bestX + 0.5, y: bestY + 0.5,
+        active: true,
+        glowPhase: Math.random() * 6.28
+      });
+    }
+  }
+
+  /* 迭代56：更新附魔台交互 */
+  updateEnchantInteraction() {
+    if (this.state !== 'playing') return;
+    var p = this.player;
+    p.nearEnchantAltar = false;
+    for (var i = 0; i < this.enchantAltars.length; i++) {
+      var altar = this.enchantAltars[i];
+      if (!altar.active) continue;
+      var d = Math.hypot(altar.x - p.x, altar.y - p.y);
+      if (d < 2.0) {
+        p.nearEnchantAltar = true;
+        var A = this.input.touchMode ? '<kbd class="k-touch">T</kbd>' : '<kbd>T</kbd>';
+        this.hud.setPrompt(A + ' 附魔台（消耗理智强化武器）');
+        this.hud.setHot(true);
+        break;
+      }
+    }
+  }
+
+  /* 迭代56：打开附魔台UI（通过键盘T触发） */
+  openEnchantUI() {
+    if (!this.player.nearEnchantAltar || !this.player.weapon) return;
+    this.activeAltar = true;
+    /* 显示附魔选择toast */
+    var types = this.player.ENCHANT_TYPES;
+    var msgs = [];
+    for (var k in types) {
+      var def = types[k];
+      msgs.push(def.name + '(' + def.cost + '理智/' + def.duration + '秒)');
+    }
+    this.hud.toast('附魔台: 1=火焰 2=冰冻 3=吸血 4=闪电', 5);
+  }
+
+  /* 迭代56：处理附魔选择 */
+  handleEnchantChoice(num) {
+    if (!this.activeAltar) return false;
+    var typeMap = { 1: 'fire', 2: 'ice', 3: 'vampiric', 4: 'lightning' };
+    var type = typeMap[num];
+    if (!type) return false;
+    var result = this.player.enchantItem(type);
+    if (result.success) {
+      this.hud.toast('✦ ' + result.name + ' 持续' + result.duration + '秒', 3);
+      if (this.audio) this.audio.clank();
+    } else {
+      this.hud.toast('附魔失败: ' + result.error, 2);
+    }
+    this.activeAltar = false;
+    return true;
+  }
+
+  /* 迭代57：敌人进化系统 - 追踪玩家行为并调整敌人属性 */
+  updateEvolution(dt) {
+    if (!this.evolutionStats) return;
+    var stats = this.evolutionStats;
+    /* 每10秒更新一次进化等级 */
+    if (!this._evoUpdateTimer) this._evoUpdateTimer = 0;
+    this._evoUpdateTimer -= dt;
+    if (this._evoUpdateTimer > 0) return;
+    this._evoUpdateTimer = 10;
+    /* 计算进化等级：基于击杀数和使用模式 */
+    var totalUsage = 0;
+    var maxWeapon = null, maxWeaponCount = 0;
+    for (var wk in stats.weaponUsage) {
+      totalUsage += stats.weaponUsage[wk];
+      if (stats.weaponUsage[wk] > maxWeaponCount) {
+        maxWeaponCount = stats.weaponUsage[wk];
+        maxWeapon = wk;
+      }
+    }
+    /* 进化等级 = 击杀数/5 + 使用集中度奖励 */
+    var newLevel = Math.floor(stats.totalKills / 5);
+    if (totalUsage > 0 && maxWeaponCount / totalUsage > 0.6) newLevel += 1; /* 专精奖励 */
+    if (stats.dodgeCount > 10) newLevel += 1; /* 躲避流奖励 */
+    stats.level = Math.min(newLevel, 10); /* 上限10级 */
+    /* 计算武器抗性 */
+    stats.resistances = {};
+    if (maxWeapon && stats.level >= 2) {
+      stats.resistances[maxWeapon] = 0.7 + (stats.level - 2) * 0.03; /* 最少70%伤害 */
+    }
+    /* 对当前存活敌人应用进化属性 */
+    if (this.entities) {
+      for (var i = 0; i < this.entities.length; i++) {
+        var e = this.entities[i];
+        if (e.isDead || e._evolutionApplied) continue;
+        if (stats.level <= 0) continue;
+        e._evolutionApplied = true;
+        /* 速度提升 */
+        var speedBoost = 1 + stats.level * 0.05;
+        e.speedMul = (e.speedMul || 1) * speedBoost;
+        /* HP提升 */
+        var hpBoost = 1 + stats.level * 0.1;
+        e.hp = Math.floor(e.hp * hpBoost);
+        e.maxHp = e.hp;
+        /* 如果玩家常用躲避，增加敌人感知范围 */
+        if (stats.dodgeCount > 10) {
+          e.def = Object.assign({}, e.def);
+          e.def.sight = (e.def.sight || 10) * 1.2;
+          e.def.hear = (e.def.hear || 8) * 1.15;
+        }
+      }
+    }
+  }
+
+  /* 迭代57：记录玩家武器使用 */
+  recordWeaponUsage(weaponType) {
+    if (!this.evolutionStats) return;
+    if (!weaponType || weaponType === 'fist') return;
+    if (!this.evolutionStats.weaponUsage[weaponType]) {
+      this.evolutionStats.weaponUsage[weaponType] = 0;
+    }
+    this.evolutionStats.weaponUsage[weaponType]++;
+    this.evolutionStats.totalKills++;
+  }
+
+  /* 迭代57：记录玩家躲避 */
+  recordDodge() {
+    if (!this.evolutionStats) return;
+    this.evolutionStats.dodgeCount++;
+  }
+
+  /* 迭代57：记录道具使用 */
+  recordItemUsage() {
+    if (!this.evolutionStats) return;
+    this.evolutionStats.itemCount++;
+  }
+
+  /* 迭代57：获取武器抗性倍率 */
+  getWeaponResistance(weaponType) {
+    if (!this.evolutionStats || !this.evolutionStats.resistances) return 1.0;
+    return this.evolutionStats.resistances[weaponType] || 1.0;
+  }
+
+  /* 迭代59：生成Boss（每5层一次） */
+  spawnBoss(level, world) {
+    if (level.isHub || level.isEasterEgg) return;
+    /* 每5层生成Boss */
+    if (level.id < 2 || level.id % 5 !== 0) return;
+    var W = world.w, H = world.h;
+    /* 在远离起点的位置生成 */
+    var bx, by, tries = 0;
+    do {
+      bx = 8 + Math.floor(Math.random() * (W - 16));
+      by = 8 + Math.floor(Math.random() * (H - 16));
+      tries++;
+    } while (tries < 30 && (world.height[by * W + bx] > 0.3 ||
+      Math.hypot(bx - world.start.x, by - world.start.y) < 15));
+    if (tries >= 30) return;
+    /* 选择Boss类型（基于关卡进度） */
+    var bossTypes = ['hound', 'crawler', 'smiler', 'stalker', 'rot'];
+    var bossTypeIdx = Math.floor((level.id / 5) % bossTypes.length);
+    var spec = { type: bossTypes[bossTypeIdx], x: bx + 0.5, y: by + 0.5, z: 0 };
+    var boss = new Entity(spec, world, Math.floor(bx * 97 + by * 13 + this.currentSeed));
+    /* Boss属性强化 */
+    boss.isBoss = true;
+    boss.maxHp = (boss.def.hp || 50) * (3 + Math.floor(level.id / 5) * 2);
+    boss.hp = boss.maxHp;
+    boss.def = Object.assign({}, boss.def);
+    boss.def.damage = (boss.def.damage || 20) * 1.5;
+    boss.def.speed = (boss.def.speed || 2) * 0.8; /* Boss稍慢但更强 */
+    boss.def.sight = (boss.def.sight || 10) * 1.5;
+    boss.speedMul = 1.0;
+    /* 弱点机制：每种Boss怕不同武器 */
+    var weaknesses = { hound: 'knife', crawler: 'pipe', smiler: 'flashlight', stalker: 'extinguisher', rot: 'wrench' };
+    boss.bossWeakness = weaknesses[bossTypeIdx] || 'pipe';
+    boss.bossAttackTimer = 5;
+    boss.onDeath = function(e) {
+      if (window.game) {
+        window.game.bossDefeated = true;
+        window.game.currentBoss = null;
+        window.game.hud.toast('✦ Boss 已击败！获得大量奖励', 5);
+        /* 奖励 */
+        window.game.player.sanity = Math.min(window.game.player.maxSanity, window.game.player.sanity + 40);
+        window.game.player.hp = Math.min(window.game.player.maxHp, window.game.player.hp + 30);
+        var rareRewards = ['pill', 'bandage', 'flare', 'battery'];
+        for (var r = 0; r < 3; r++) {
+          var reward = rareRewards[Math.floor(Math.random() * rareRewards.length)];
+          window.game.player.addItem(reward);
+        }
+      }
+    };
+    boss._gameRef = this;
+    this.entities.push(boss);
+    this.currentBoss = boss;
+    this.hud.toast('⚠ 强大的存在正在注视着你……', 4);
+  }
+
+  /* 迭代59：更新Boss逻辑 */
+  updateBoss(dt) {
+    if (!this.currentBoss || this.currentBoss.isDead) {
+      this.currentBoss = null;
+      return;
+    }
+    /* Boss HP条显示 */
+    this._bossHpPct = this.currentBoss.hp / this.currentBoss.maxHp;
+    this._bossName = this.currentBoss.def.name + ' (BOSS)';
+    /* Boss特殊更新 */
+    if (this.currentBoss.updateBoss) {
+      this.currentBoss.updateBoss(dt, this.world, this.player, this);
+    }
   }
 
   updatePuzzleInteraction() {
@@ -23601,7 +24302,74 @@ class Game {
       else if (best.type === 'breaker') this.hud.setPrompt(`${A} 拉闸 (${best.done}/${best.steps})`);
       else if (best.type === 'keycard') this.hud.setPrompt(`${A} 刷卡`);
       else if (best.type === 'safe') this.hud.setPrompt(`${A} 输入编号`);
+      /* 迭代58：新谜题类型提示 */
+      else if (best.type === 'password') {
+        var collected = this.getCollectedDigits(best);
+        this.hud.setPrompt(A + ' 密码门 (' + collected + '/' + best.code.length + '碎片)');
+      }
+      else if (best.type === 'pressure') this.hud.setPrompt(A + ' 压力板谜题（按顺序踩踏）');
+      else if (best.type === 'mirror') this.hud.setPrompt(A + ' 光线谜题（调整镜子）');
       this.hud.setHot(true);
+    }
+
+    /* 迭代58：压力板自动触发检测 */
+    this._checkPressurePlates(p);
+  }
+
+  /* 迭代58：获取已收集的密码碎片 */
+  getCollectedDigits(puzzle) {
+    var count = 0;
+    for (var i = 0; i < this.items.length; i++) {
+      var item = this.items[i];
+      if (item.type === 'digit' && item.taken) count++;
+    }
+    return count;
+  }
+
+  /* 迭代58：检查压力板触发 */
+  _checkPressurePlates(p) {
+    for (var i = 0; i < this.puzzles.length; i++) {
+      var pz = this.puzzles[i];
+      if (pz.type !== 'pressure' || pz.solved) continue;
+      for (var j = 0; j < pz.plates.length; j++) {
+        var plate = pz.plates[j];
+        if (plate.pressed) continue;
+        var d = Math.hypot(plate.x - p.x, plate.y - p.y);
+        if (d < 0.8) {
+          /* 检查是否是正确顺序 */
+          if (plate.order === pz.currentIndex) {
+            plate.pressed = true;
+            pz.currentIndex++;
+            this.hud.toast('压力板 ' + pz.currentIndex + '/' + pz.plates.length, 1.5);
+            if (this.audio) this.audio.clank();
+            /* 全部踩完 */
+            if (pz.currentIndex >= pz.plates.length) {
+              pz.solved = true;
+              this._rewardPuzzle(pz);
+            }
+          } else {
+            /* 顺序错误，重置 */
+            pz.currentIndex = 0;
+            for (var k = 0; k < pz.plates.length; k++) pz.plates[k].pressed = false;
+            this.hud.toast('顺序错误！重置', 2);
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  /* 迭代58：谜题完成奖励 */
+  _rewardPuzzle(puzzle) {
+    this.hud.toast('✦ 谜题完成！获得奖励', 4);
+    if (this.audio) this.audio.clank();
+    /* 奖励：恢复理智 + 随机稀有道具 */
+    this.player.sanity = Math.min(this.player.maxSanity, this.player.sanity + 25);
+    var rewards = ['bandage', 'pill', 'battery', 'flare'];
+    var reward = rewards[Math.floor(Math.random() * rewards.length)];
+    if (this.player.addItem(reward)) {
+      var names = { bandage: '绷带', pill: '镇静剂', battery: '电池', flare: '信号弹' };
+      this.hud.toast('获得: ' + (names[reward] || reward), 3);
     }
   }
 
@@ -24016,6 +24784,44 @@ class Game {
         g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
         o.start(); o.stop(ctx.currentTime + 0.1);
       } catch(e) {}
+    }
+    this.state = 'playing';
+    setTimeout(() => this.input.requestLock(), 50);
+  }
+
+  /* 迭代60：打开道具图鉴 */
+  openCodex() {
+    var ov = document.getElementById('codex-overlay');
+    if (!ov || !this.player) return;
+    var data = this.player.getCodexData();
+    /* 更新进度 */
+    var progEl = document.getElementById('codex-progress');
+    if (progEl) progEl.textContent = '完成度: ' + data.found + '/' + data.total + ' (' + Math.floor(data.found / data.total * 100) + '%)';
+    /* 更新网格 */
+    var gridEl = document.getElementById('codex-grid');
+    if (gridEl) {
+      var html = '';
+      for (var i = 0; i < data.discovered.length; i++) {
+        var d = data.discovered[i];
+        html += '<div class="codex-item found"><span class="codex-icon">' + d.icon + '</span><span class="codex-name">' + d.name + '</span></div>';
+      }
+      for (var j = 0; j < data.undiscovered.length; j++) {
+        var u = data.undiscovered[j];
+        html += '<div class="codex-item"><span class="codex-icon">' + u.icon + '</span><span class="codex-name">' + u.name + '</span></div>';
+      }
+      gridEl.innerHTML = html;
+    }
+    ov.classList.add('show');
+    ov.style.display = 'flex';
+    this.state = 'codex';
+  }
+
+  /* 迭代60：关闭道具图鉴 */
+  closeCodex() {
+    var ov = document.getElementById('codex-overlay');
+    if (ov) {
+      ov.classList.remove('show');
+      ov.style.display = 'none';
     }
     this.state = 'playing';
     setTimeout(() => this.input.requestLock(), 50);
