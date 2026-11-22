@@ -28367,6 +28367,158 @@ function clearReplay() {
   try { localStorage.removeItem(REPLAY_KEY); } catch(e) {}
 }
 
+// ========== 迭代96-100: 怪物AI升级、传送门、道具升级、任务系统、关卡生成 ==========
+
+// --- 迭代96: 怪物AI升级 - 包围战术 ---
+function calculateFlankPositions(playerX, playerY, entities) {
+  var positions = [];
+  var chasing = entities.filter(function(e){ return e.state === 'chasing' || e.chasing; });
+  if (chasing.length < 2) return positions;
+  var angleStep = (Math.PI * 2) / chasing.length;
+  for (var i = 0; i < chasing.length; i++) {
+    var angle = angleStep * i;
+    positions.push({
+      x: playerX + Math.cos(angle) * 3,
+      y: playerY + Math.sin(angle) * 3,
+      entity: chasing[i]
+    });
+  }
+  return positions;
+}
+
+// --- 迭代97: 传送门系统 ---
+var PORTALS = [];
+function generatePortals(rooms, levelIndex) {
+  PORTALS = [];
+  if (levelIndex < 2) return;
+  var count = Math.floor(levelIndex / 3) + 1;
+  for (var i = 0; i < count && i < 3; i++) {
+    var from = rooms[Math.floor(Math.random() * rooms.length)];
+    var to = rooms[Math.floor(Math.random() * rooms.length)];
+    PORTALS.push({
+      x: from.x + from.w * 0.5,
+      y: from.y + from.h * 0.5,
+      destX: to.x + to.w * 0.5,
+      destY: to.y + to.h * 0.5,
+      active: true,
+      cooldown: 0
+    });
+  }
+}
+function checkPortal(px, py) {
+  for (var i = 0; i < PORTALS.length; i++) {
+    var p = PORTALS[i];
+    if (!p.active || p.cooldown > 0) continue;
+    var dx = px - p.x, dy = py - p.y;
+    if (dx*dx + dy*dy < 1.5*1.5) return p;
+  }
+  return null;
+}
+
+// --- 迭代98: 道具升级系统 ---
+var UPGRADE_RECIPES = {
+  pipe: { cost: ['battery', 'battery'], result: 'enhanced_pipe', bonus: { damage: 10 } },
+  knife: { cost: ['battery'], result: 'sharpened_knife', bonus: { damage: 8 } },
+  flashlight: { cost: ['battery', 'battery', 'battery'], result: 'super_flashlight', bonus: { range: 5 } },
+  bat: { cost: ['bandage'], result: 'spiked_bat', bonus: { damage: 15 } }
+};
+function canUpgrade(itemType, inventory) {
+  var recipe = UPGRADE_RECIPES[itemType];
+  if (!recipe) return false;
+  var needed = recipe.cost.slice();
+  for (var i = 0; i < inventory.length; i++) {
+    var idx = needed.indexOf(inventory[i].type);
+    if (idx >= 0) needed.splice(idx, 1);
+  }
+  return needed.length === 0;
+}
+function executeUpgrade(itemType, player) {
+  if (!canUpgrade(itemType, player.inventory)) return false;
+  var recipe = UPGRADE_RECIPES[itemType];
+  var needed = recipe.cost.slice();
+  for (var i = player.inventory.length - 1; i >= 0; i--) {
+    var idx = needed.indexOf(player.inventory[i].type);
+    if (idx >= 0) {
+      player.inventory.splice(i, 1);
+      needed.splice(idx, 1);
+      if (needed.length === 0) break;
+    }
+  }
+  // 替换原物品
+  for (var j = 0; j < player.inventory.length; j++) {
+    if (player.inventory[j].type === itemType) {
+      player.inventory[j].type = recipe.result;
+      player.inventory[j].upgraded = true;
+      break;
+    }
+  }
+  return true;
+}
+
+// --- 迭代99: 任务系统 ---
+var QUESTS = [
+  { id: 'collect_5_items', name: '收集者', desc: '收集5个道具', target: 5, type: 'collect', reward: { sanity: 10 } },
+  { id: 'kill_10_monsters', name: '猎手', desc: '击杀10个怪物', target: 10, type: 'kill', reward: { hp: 20 } },
+  { id: 'reach_level_5', name: '探险家', desc: '到达第5层', target: 5, type: 'level', reward: { sanity: 20 } },
+  { id: 'survive_5_min', name: '幸存者', desc: '存活5分钟', target: 300, type: 'survive', reward: { hp: 15, sanity: 15 } },
+  { id: 'craft_3_items', name: '工匠', desc: '合成3次道具', target: 3, type: 'craft', reward: { sanity: 10 } }
+];
+var QUEST_PROGRESS_KEY = 'backrooms_quest_progress_v1';
+function getQuestProgress() {
+  try { return JSON.parse(localStorage.getItem(QUEST_PROGRESS_KEY) || '{}'); } catch(e) { return {}; }
+}
+function updateQuestProgress(questType, amount) {
+  var progress = getQuestProgress();
+  if (!progress[questType]) progress[questType] = 0;
+  progress[questType] += (amount || 1);
+  try { localStorage.setItem(QUEST_PROGRESS_KEY, JSON.stringify(progress)); } catch(e) {}
+  return progress[questType];
+}
+function checkQuestCompletion(questId, progress) {
+  var quest = QUESTS.find(function(q){ return q.id === questId; });
+  if (!quest) return false;
+  var current = progress[quest.type] || 0;
+  return current >= quest.target;
+}
+
+// --- 迭代100: 关卡生成改进 ---
+function generateLevelV2(levelIndex, seed) {
+  var rng = seedRandom(seed || Date.now());
+  var params = getDifficultyParams(levelIndex);
+  var rooms = [];
+  var roomCount = 5 + Math.floor(levelIndex * 1.5);
+  var mapSize = 30 + levelIndex * 5;
+  for (var i = 0; i < roomCount; i++) {
+    var w = 3 + Math.floor(rng() * 5);
+    var h = 3 + Math.floor(rng() * 5);
+    var x = rng() * (mapSize - w);
+    var y = rng() * (mapSize - h);
+    rooms.push({ x: x, y: y, w: w, h: h, type: getRoomType(rng, levelIndex) });
+  }
+  return {
+    rooms: rooms,
+    mapSize: mapSize,
+    monsters: params.monsterCount,
+    items: Math.floor(roomCount * params.itemSpawnRate),
+    hazards: generateHazards(rooms, levelIndex),
+    portals: levelIndex >= 2 ? generatePortals(rooms, levelIndex) : []
+  };
+}
+function seedRandom(seed) {
+  var s = seed;
+  return function() {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+}
+function getRoomType(rng, levelIndex) {
+  var roll = rng();
+  if (roll < 0.05 + levelIndex * 0.01) return 'trap';
+  if (roll < 0.1 + levelIndex * 0.02) return 'loot';
+  if (roll < 0.15) return 'maze';
+  return 'normal';
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
