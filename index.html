@@ -28779,6 +28779,115 @@ function loadStats() { try { var s = JSON.parse(localStorage.getItem(STATS_KEY))
 function saveStats() { try { localStorage.setItem(STATS_KEY, JSON.stringify(GAME_STATS)); } catch(e) {} }
 function updateStat(key, amount) { if (GAME_STATS.hasOwnProperty(key)) { GAME_STATS[key] += (amount || 1); saveStats(); } }
 
+// ========== 迭代121-130: 深度系统包 ==========
+
+// 迭代121: 怪物群居行为
+function getPackBehavior(entities, target) {
+  var nearby = entities.filter(function(e) {
+    return e.type === target.type && e !== target;
+  });
+  if (nearby.length >= 3) return 'flank';
+  if (nearby.length >= 1) return 'support';
+  return 'solo';
+}
+
+// 迭代122: 道具组合效果扩展
+var COMBO_EFFECTS = {
+  'bandage+pill': { name: '急救', effect: 'full_heal' },
+  'battery+flare': { name: '照明弹', effect: 'area_light' },
+  'key+map': { name: '寻宝', effect: 'reveal_items' },
+  'water+biscuit': { name: '营养餐', effect: 'full_restore' }
+};
+
+// 迭代123: 怪物特殊能力
+var SPECIAL_ABILITIES = {
+  hound: { name: '撕咬', damage: 15, bleed: 3, cooldown: 5 },
+  crawler: { name: '蛛网', slow: 0.5, duration: 3, cooldown: 8 },
+  stalker: { name: '暗影步', teleport: true, cooldown: 10 },
+  smiler: { name: '恐惧凝视', sanityDrain: 15, cooldown: 12 },
+  echo: { name: '回声定位', reveal: true, cooldown: 15 }
+};
+
+// 迭代124: 环境叙事
+var NARRATIVE_EVENTS = [
+  { text: '你发现了一本日记，最后一页写着："它们在学习..."', sanity: -5 },
+  { text: '墙上刻着："不要相信镜子"', sanity: -3 },
+  { text: '你听到远处传来 familiar 的声音...', sanity: -2 },
+  { text: '地上有一张便条："如果你看到这条消息，说明我已经..."', sanity: -4 },
+  { text: '空气中弥漫着淡淡的杏仁味，让你感到安心', sanity: +3 }
+];
+function triggerNarrative() {
+  var evt = NARRATIVE_EVENTS[Math.floor(Math.random() * NARRATIVE_EVENTS.length)];
+  return evt;
+}
+
+// 迭代125: 怪物仇恨值系统
+var HATRED = {};
+function addHatred(monsterType, playerId, amount) {
+  if (!HATRED[monsterType]) HATRED[monsterType] = {};
+  HATRED[monsterType][playerId] = (HATRED[monsterType][playerId] || 0) + amount;
+}
+function getMostHated(monsterType) {
+  var h = HATRED[monsterType];
+  if (!h) return null;
+  var max = 0, target = null;
+  for (var k in h) { if (h[k] > max) { max = h[k]; target = k; } }
+  return target;
+}
+
+// 迭代126: 道具升级路径
+var UPGRADE_PATHS = {
+  pipe: ['reinforced_pipe', 'electrified_pipe', 'plasma_pipe'],
+  knife: ['serrated_knife', 'vibro_knife', 'laser_knife'],
+  bat: ['spiked_bat', 'flaming_bat', 'thunder_bat']
+};
+function getUpgradeLevel(itemType) {
+  for (var base in UPGRADE_PATHS) {
+    var path = UPGRADE_PATHS[base];
+    var idx = path.indexOf(itemType);
+    if (idx >= 0) return idx + 1;
+  }
+  return 0;
+}
+
+// 迭代127: 怪物弱点发现
+var WEAKNESS_DISCOVERY = {};
+function discoverWeakness(monsterType, damageType) {
+  if (!WEAKNESS_DISCOVERY[monsterType]) WEAKNESS_DISCOVERY[monsterType] = {};
+  WEAKNESS_DISCOVERY[monsterType][damageType] = (WEAKNESS_DISCOVERY[monsterType][damageType] || 0) + 1;
+  return WEAKNESS_DISCOVERY[monsterType][damageType] >= 3; // 3次发现弱点
+}
+
+// 迭代128: 环境危害免疫
+var IMMUNITIES = { radiation: false, toxic: false, cold: false, electrical: false };
+function gainImmunity(hazardType) {
+  IMMUNITIES[hazardType] = true;
+}
+function hasImmunity(hazardType) {
+  return !!IMMUNITIES[hazardType];
+}
+
+// 迭代129: 道具合成树
+var CRAFT_TREE = {
+  tier1: { bandage: 2, battery: 3, biscuit: 2 },
+  tier2: { medkit: ['bandage', 'pill'], super_battery: ['battery', 'battery', 'battery'] },
+  tier3: { ultimate_kit: ['medkit', 'super_battery', 'flare'] }
+};
+
+// 迭代130: 怪物Boss阶段转换
+var BOSS_PHASES = [
+  { hp: 1.0, name: '正常', speedMul: 1, damageMul: 1 },
+  { hp: 0.6, name: '愤怒', speedMul: 1.3, damageMul: 1.5 },
+  { hp: 0.3, name: '狂暴', speedMul: 1.8, damageMul: 2.0 }
+];
+function getBossPhase(currentHp, maxHp) {
+  var ratio = currentHp / maxHp;
+  for (var i = BOSS_PHASES.length - 1; i >= 0; i--) {
+    if (ratio <= BOSS_PHASES[i].hp) return BOSS_PHASES[i];
+  }
+  return BOSS_PHASES[0];
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
