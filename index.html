@@ -1043,13 +1043,17 @@ input[type="range"]::-moz-range-thumb {
 .puz-ok { color: #6f6; }
 
 /* 背包 */
-.inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 320px; margin: 0 auto; }
 .inv-slot {
   background: #1a1a22; border: 1px solid #2a2a35; border-radius: 8px;
   padding: 12px 8px; text-align: center; position: relative; min-height: 68px;
+  aspect-ratio: 1; transition: transform 0.1s, border-color 0.2s;
 }
 .inv-slot.has { border-color: #444; }
+.inv-slot.has:hover { transform: scale(1.08); border-color: #c0a050; }
 .inv-slot.active { border-color: #ffcc40; box-shadow: 0 0 8px rgba(255,204,64,.15); }
+.hand-slot { transition: transform 0.1s; }
+.hand-slot:hover { transform: scale(1.08); }
 .inv-icon { font-size: 22px; margin-bottom: 4px; }
 .inv-name { font-size: 11px; color: #aaa; line-height: 1.2; }
 .inv-count { position: absolute; top: 4px; right: 6px; font-size: 12px; color: #ffcc40; font-weight: bold; }
@@ -1852,6 +1856,11 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
           </div>
         </div>
         <div id="inv-grid" class="inv-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px"></div>
+        <div style="display:flex;gap:6px;margin-top:8px;justify-content:center">
+          <button class="btn btn-ghost" id="inv-use-main" style="font-size:0.8em;padding:4px 12px">使用主手</button>
+          <button class="btn btn-ghost" id="inv-swap" style="font-size:0.8em;padding:4px 12px">交换主副手</button>
+          <button class="btn btn-ghost" id="inv-drop" style="font-size:0.8em;padding:4px 12px">丢弃选中</button>
+        </div>
         <div class="panel-foot" style="margin-top:14px">
           <span style="font-size:0.75em;color:#8a7a5a">左键=装备到主手 | 右键=装备到副手 | 双击主手/副手=使用</span>
           <button class="btn btn-ghost" id="inv-close" style="float:right">关闭 (Tab)</button>
@@ -7228,6 +7237,16 @@ function generateWorld(level, seed) {
             title: noteData.title, text: noteData.text, bob: 0
           });
         }
+        /* 迭代13：随机生成新道具（20%概率） */
+        if (Math.random() < 0.2) {
+          const newItems = ['bandage', 'pill', 'flare', 'radio'];
+          const itemType = newItems[Math.floor(Math.random() * newItems.length)];
+          const ns = pickSpot(rx, ry, 0x701);
+          items.push({
+            type: itemType, x: ns.x, y: ns.y, taken: false, key: 'ni_' + key + '_' + itemType,
+            bob: Math.random() * 6.28
+          });
+        }
       }
     }
     return { items, ents };
@@ -9213,6 +9232,30 @@ class Player {
       this.drinkFromCanteen(audio);
       return true;
     }
+    if (t === 'bandage') {
+      this.sanity = Math.min(this.maxSanity, this.sanity + 30);
+      this.removeFromInventory(this.mainHand.uid);
+      this.mainHand = null; this.heldItem = null;
+      return true;
+    }
+    if (t === 'pill') {
+      this.sanity = Math.min(this.maxSanity, this.sanity + 50);
+      this.stamina = Math.max(0, this.stamina - 10);
+      this.removeFromInventory(this.mainHand.uid);
+      this.mainHand = null; this.heldItem = null;
+      return true;
+    }
+    if (t === 'flare') {
+      this.purifyAura = 8;
+      this.battery = Math.min(100, this.battery + 20);
+      this.removeFromInventory(this.mainHand.uid);
+      this.mainHand = null; this.heldItem = null;
+      return true;
+    }
+    if (t === 'radio') {
+      this.heldItem = this.heldItem === 'radio' ? null : 'radio';
+      return true;
+    }
     return false;
   }
 
@@ -9720,6 +9763,15 @@ const WEAPONS = {
   wrench:  { name: '扳手',   damage: 42, range: 1.5, arc: 1.0, durability: 20, swingTime: 0.42 },
   knife:   { name: '厨刀',   damage: 28, range: 1.3, arc: 0.7, durability: 15, swingTime: 0.22 },
   extinguisher: { name: '灭火器', damage: 15, range: 2.2, arc: 1.6, durability: 8, swingTime: 0.5, special: 'blinded' }
+};
+
+const ITEMS = {
+  bandage: { name: '绷带', icon: '🩹', desc: '恢复30点理智' },
+  pill: { name: '镇静剂', icon: '💊', desc: '恢复50点理智，但降低10体力' },
+  key: { name: '钥匙', icon: '🗝️', desc: '打开上锁的门' },
+  map: { name: '地图碎片', icon: '🗺️', desc: '揭示部分地图' },
+  radio: { name: '收音机', icon: '📻', desc: '吸引或驱散怪物' },
+  flare: { name: '信号弹', icon: '🧨', desc: '一次性照明，驱散附近怪物' },
 };
 
 const ENTITY_DEF = {
@@ -10273,6 +10325,29 @@ class Entity {
       }
     }
 
+    /* 迭代12：听觉感知 — 玩家跑步噪音吸引怪物 */
+    if (!this.chasing && this.state !== 'chase' && player.sprinting) {
+      const noiseDist = 8; /* 跑步噪音传播距离 */
+      const ndx = this.x - player.x, ndy = this.y - player.y;
+      if (ndx * ndx + ndy * ndy < noiseDist * noiseDist) {
+        this._attracted = true;
+        this._attractX = player.x;
+        this._attractY = player.y;
+      }
+    }
+    /* 被噪音吸引时朝声源方向移动 */
+    if (this._attracted && this.state !== 'chase') {
+      const adx = this._attractX - this.x, ady = this._attractY - this.y;
+      const adist = Math.sqrt(adx * adx + ady * ady);
+      if (adist > 0.5) {
+        const as = 1.2;
+        this.x += (adx / adist) * as * dt;
+        this.y += (ady / adist) * as * dt;
+      } else {
+        this._attracted = false;
+      }
+    }
+
     /* 迭代19-21：增强状态机 — chase/investigate/search/patrol */
     if (los) {
       if (this.state !== 'chase' && dist < 16) {
@@ -10486,6 +10561,16 @@ class Entity {
           targetY = this.homeY;
         }
       }
+      /* 迭代11：巡逻状态 — 未发现玩家时随机走动 */
+      if (!this._patrolAngle) {
+        this._patrolAngle = Math.random() * Math.PI * 2;
+        this._patrolTimer = 2 + Math.random() * 3;
+      }
+      this._patrolTimer = (this._patrolTimer || 0) - dt;
+      if (this._patrolTimer <= 0) {
+        this._patrolAngle = Math.random() * Math.PI * 2;
+        this._patrolTimer = 2 + Math.random() * 3;
+      }
 
       /* 向目标移动 */
       if (targetX !== undefined) {
@@ -10570,6 +10655,24 @@ class Entity {
         if (!world.rotTrails) world.rotTrails = [];
         world.rotTrails.push({ x: this.x, y: this.y, t: 6 });
         if (world.rotTrails.length > 40) world.rotTrails.shift();
+      }
+    }
+
+    /* 迭代15：怪物脚印 — 行走时偶尔在地面留下痕迹 */
+    if (this.state === 'patrol' || this.state === 'chase' || this.state === 'investigate') {
+      if (Math.random() < 0.02) {
+        if (!world._monsterTracks) world._monsterTracks = [];
+        world._monsterTracks.push({ x: this.x, y: this.y, age: 0, type: this.type });
+        if (world._monsterTracks.length > 30) world._monsterTracks.shift();
+      }
+    }
+    /* 老化脚印 */
+    if (world._monsterTracks) {
+      for (let ti = world._monsterTracks.length - 1; ti >= 0; ti--) {
+        world._monsterTracks[ti].age += dt;
+        if (world._monsterTracks[ti].age > 20) {
+          world._monsterTracks.splice(ti, 1);
+        }
       }
     }
 
@@ -15906,6 +16009,17 @@ class ThreeJSRendererBridge {
       const maker = this._ENTITY_MAKERS[etype] || this._ENTITY_MAKERS.hound;
       const mesh = maker();
       mesh.userData.entityType = etype;
+      /* 迭代14：模型多样性 — 轻微随机颜色偏移 */
+      mesh.userData._colorOffset = (Math.random() - 0.5) * 0.15;
+      mesh.traverse(function(child) {
+        if (child.isMesh && child.material && child.material.color) {
+          child.material = child.material.clone();
+          child.material.color.offsetHSL(0, 0, mesh.userData._colorOffset);
+        }
+      });
+      /* 迭代14：模型大小微偏 */
+      const sizeVar = 0.95 + Math.random() * 0.1;
+      mesh.scale.set(sizeVar, sizeVar, sizeVar);
       this.scene.add(mesh);
       this._entityMeshes.push(mesh);
     }
@@ -17915,10 +18029,10 @@ class HUD {
 
     /* 背包系统：显示主手物品和背包数量 */
     const invCount = player.inventory ? player.inventory.length : 0;
-    const mainHandName = player.mainHand ? (player.mainHand.type) : '空';
-    this.el.chipBiscuit.innerHTML = `背包 <b>${invCount}/${player.invMaxSlots || 16}</b>`;
-    this.el.chipWater.innerHTML = `主手 <b>${mainHandName}</b>`;
-    this.el.chipBattery.innerHTML = `电量 <b>${Math.round(player.battery)}%</b>`;
+    const mh = player.mainHand ? player.mainHand.type : '空手';
+    this.el.chipBiscuit.innerHTML = `🎒 <b>${invCount}/${player.invMaxSlots || 16}</b>`;
+    this.el.chipWater.innerHTML = `✋ <b>${mh}</b>`;
+    this.el.chipBattery.innerHTML = `🔋 <b>${Math.round(player.battery)}%</b>`;
     /* 武器栏 */
     if (this.el.chipWeapon) {
       const wn = player.weapon ? `${WEAPONS[player.weapon].name} ${player.weaponDurability}` : '拳头';
@@ -18009,6 +18123,21 @@ class HUD {
       ctx.beginPath();
       ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    /* 迭代15：画怪物脚印（小暗红色点） */
+    if (game.world._monsterTracks) {
+      for (const tr of game.world._monsterTracks) {
+        const dx = tr.x - px, dy = tr.y - py;
+        if (Math.abs(dx) > range || Math.abs(dy) > range) continue;
+        const sx = (dx + range) * scale;
+        const sy = (dy + range) * scale;
+        const alpha = Math.max(0, 1 - tr.age / 20);
+        ctx.fillStyle = `rgba(140,60,60,${(alpha * 0.6).toFixed(2)})`;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     // 画出口（绿色方块）
@@ -22089,6 +22218,17 @@ class Game {
       if (p.addItem('keycard')) { this.hud.toast('拾取 钥匙卡 · 已放入背包', 3); }
       return;
     }
+    /* 新道具拾取 */
+    if (it.type === 'bandage' || it.type === 'pill' || it.type === 'key' || it.type === 'map' || it.type === 'radio' || it.type === 'flare') {
+      if (p.addItem(it.type)) {
+        const nm = ITEMS[it.type] ? ITEMS[it.type].name : it.type;
+        this.hud.toast(`拾取 ${nm} · 已放入背包`, 3);
+      } else {
+        this.hud.toast('背包已满！', 2);
+        it.taken = false; if(it.key) this.taken.delete(it.key); return;
+      }
+      return;
+    }
     /* 文档/笔记拾取 */
     if (it.type === 'note') {
       this.collectedNotes = this.collectedNotes || [];
@@ -22535,12 +22675,59 @@ class Game {
     this.state = 'inventory';
     this.renderInventory();
     ov.style.display = 'flex';
+    if (this.audio && this.audio.ctx) {
+      try {
+        const ctx = this.audio.ctx;
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 440;
+        g.gain.setValueAtTime(0.08, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+        o.start(); o.stop(ctx.currentTime + 0.1);
+      } catch(e) {}
+    }
     this.input.exitLock();
+
+    // 绑定移动端操作按钮
+    const useMain = document.getElementById('inv-use-main');
+    if (useMain) useMain.onclick = () => { if (this.player.mainHand) { this.player.useMainHandItem(this.audio); this.renderInventory(); } };
+    const swapBtn = document.getElementById('inv-swap');
+    if (swapBtn) swapBtn.onclick = () => {
+      const p = this.player;
+      const tmp = p.mainHand;
+      p.mainHand = p.offHand;
+      p.offHand = tmp;
+      if (p.mainHand) p.heldItem = p.mainHand.type;
+      this.renderInventory();
+    };
+    const dropBtn = document.getElementById('inv-drop');
+    if (dropBtn) dropBtn.onclick = () => {
+      const p = this.player;
+      if (p._selectedItem) {
+        const item = p.removeFromInventory(p._selectedItem);
+        if (item) this.hud.toast(`丢弃了 ${item.type}`, 2);
+        p._selectedItem = null;
+        this.renderInventory();
+      }
+    };
   }
 
   closeInventory() {
     const ov = document.getElementById('inv-overlay');
     if (ov) ov.style.display = 'none';
+    if (this.audio && this.audio.ctx) {
+      try {
+        const ctx = this.audio.ctx;
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 330;
+        g.gain.setValueAtTime(0.08, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+        o.start(); o.stop(ctx.currentTime + 0.1);
+      } catch(e) {}
+    }
     this.state = 'playing';
     setTimeout(() => this.input.requestLock(), 50);
   }
@@ -22549,13 +22736,14 @@ class Game {
     const grid = document.getElementById('inv-grid');
     if (!grid) return;
     const p = this.player;
-    const ICONS = { biscuit:'🍪', water:'💧', flashlight:'🔦', navigator:'🧭', canteen:'🥤', keycard:'💳', battery:'🔋', pipe:'🔧', wrench:'🔨', knife:'🔪', extinguisher:'🧯', key:'🗝️' };
-    const NAMES = { biscuit:'压缩饼干', water:'杏仁水', flashlight:'手电筒', navigator:'导航仪', canteen:'水壶', keycard:'钥匙卡', battery:'电池', pipe:'铁管', wrench:'扳手', knife:'刀', extinguisher:'灭火器', key:'钥匙' };
+    const ICONS = { biscuit:'🍪', water:'💧', flashlight:'🔦', navigator:'🧭', canteen:'🥤', keycard:'💳', battery:'🔋', pipe:'🔧', wrench:'🔨', knife:'🔪', extinguisher:'🧯', key:'🗝️', bandage:'🩹', pill:'💊', map:'🗺️', radio:'📻', flare:'🧨' };
+    const NAMES = { biscuit:'压缩饼干', water:'杏仁水', flashlight:'手电筒', navigator:'导航仪', canteen:'水壶', keycard:'钥匙卡', battery:'电池', pipe:'铁管', wrench:'扳手', knife:'刀', extinguisher:'灭火器', key:'钥匙', bandage:'绷带', pill:'镇静剂', map:'地图碎片', radio:'收音机', flare:'信号弹' };
 
     // 渲染主手
     const mainEl = document.getElementById('hand-main');
     if (mainEl) {
       const mh = p.mainHand;
+      mainEl.title = mh ? (NAMES[mh.type]||mh.type) : '主手';
       let iconHtml = '<span style="opacity:0.3">·</span>';
       if (mh) iconHtml = `<span style="cursor:pointer">${ICONS[mh.type]||'?'}</span>`;
       mainEl.innerHTML = '<span style="position:absolute;top:-18px;left:0;font-size:0.65em;color:#8a7a5a;white-space:nowrap">主手</span>' + iconHtml;
@@ -22576,6 +22764,7 @@ class Game {
     const offEl = document.getElementById('hand-off');
     if (offEl) {
       const oh = p.offHand;
+      offEl.title = oh ? (NAMES[oh.type]||oh.type) : '副手';
       let iconHtml = '<span style="opacity:0.3">·</span>';
       if (oh) iconHtml = `<span style="cursor:pointer">${ICONS[oh.type]||'?'}</span>`;
       offEl.innerHTML = '<span style="position:absolute;top:-18px;left:0;font-size:0.65em;color:#6a6a4a;white-space:nowrap">副手</span>' + iconHtml;
@@ -22599,7 +22788,9 @@ class Game {
     for (let i = 0; i < p.invMaxSlots; i++) {
       const item = p.inventory[i];
       if (item) {
-        html += `<div class="inv-slot has" data-uid="${item.uid}" style="cursor:pointer;position:relative">
+        const isSelected = p._selectedItem === item.uid;
+        const selStyle = isSelected ? 'border-color:#ffcc40;box-shadow:0 0 8px rgba(255,204,64,.3);' : '';
+        html += `<div class="inv-slot has" data-uid="${item.uid}" title="${NAMES[item.type]||item.type}" style="cursor:pointer;position:relative;${selStyle}">
           <div class="inv-icon">${ICONS[item.type]||'?'}</div>
           <div class="inv-name" style="font-size:0.6em">${NAMES[item.type]||item.type}</div>
         </div>`;
@@ -22613,7 +22804,13 @@ class Game {
     grid.querySelectorAll('[data-uid]').forEach(el => {
       el.onclick = () => {
         const uid = el.dataset.uid;
-        p.equipToMainHand(uid);
+        // 双击装备到主手
+        if (p._selectedItem === uid) {
+          p.equipToMainHand(uid);
+          p._selectedItem = null;
+        } else {
+          p._selectedItem = uid;
+        }
         this.renderInventory();
       };
       el.oncontextmenu = (e) => {
@@ -22622,7 +22819,22 @@ class Game {
         p.equipToOffHand(uid);
         this.renderInventory();
       };
+      el.onauxclick = (e) => {
+        if (e.button === 1) {
+          e.preventDefault();
+          const uid = el.dataset.uid;
+          const item = p.removeFromInventory(uid);
+          if (item) this.hud.toast(`丢弃了 ${NAMES[item.type]||item.type}`, 2);
+          this.renderInventory();
+        }
+      };
     });
+
+    // 更新背包使用率
+    const foot = grid.parentElement.querySelector('.panel-foot span');
+    if (foot) {
+      foot.textContent = `背包 ${p.inventory.length}/${p.invMaxSlots} | 左键=主手 右键=副手 中键=丢弃 | 点击主手=使用`;
+    }
   }
 
   /* ==================== 创作者模式刷怪器 ==================== */
