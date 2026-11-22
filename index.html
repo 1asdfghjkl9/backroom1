@@ -20727,7 +20727,7 @@ class Game {
             z: spec.z || 0
           };
           /* 确保伙伴位置可通行 */
-          if (w.get(spec2.x, spec2.y) !== 1) {
+          if (cellHeightAt(w, spec2.x, spec2.y) !== 1) {
             let e2 = new Entity(spec2, w, 1234 + Math.floor(spec2.x * 97 + spec2.y * 13));
             e2.speedMul = (this.level.speedMul || 1.0);
             e2.onDeath = e.onDeath;
@@ -20874,7 +20874,7 @@ class Game {
           const dist = 10 + Math.random() * 6;
           const ax = p.x + Math.cos(behindAng + (Math.random() - 0.5) * 0.6) * dist;
           const ay = p.y + Math.sin(behindAng + (Math.random() - 0.5) * 0.6) * dist;
-          if (w.get(ax, ay) !== 1) {
+          if (cellHeightAt(w, ax, ay) !== 1) {
             const eType = this.level.entities[Math.floor(Math.random() * this.level.entities.length)];
             const spec = { key: 'ambush_' + Date.now(), type: eType, x: ax, y: ay, z: 0 };
             const ambEnt = new Entity(spec, w, 9999 + Math.floor(ax * 97 + ay * 13));
