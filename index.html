@@ -29886,6 +29886,100 @@ function updateAchievementProgress(achievementId, current, target) {
   return ACHIEVEMENT_PROGRESS[achievementId];
 }
 
+// ========== 迭代221-230: 最后30次 ==========
+
+// 迭代221: 怪物行为预测
+function predictMonsterBehavior(entity, playerX, playerY) {
+  var dist = Math.sqrt(Math.pow(entity.x-playerX,2)+Math.pow(entity.y-playerY,2));
+  if (dist < 3) return 'attack';
+  if (dist < 10) return 'chase';
+  if (entity.hp < entity.maxHp * 0.4) return 'flee';
+  return 'patrol';
+}
+
+// 迭代222: 道具自动修复
+function autoRepairItems(inventory, interval) {
+  if (Date.now() - (autoRepairItems.lastTime || 0) < interval) return;
+  autoRepairItems.lastTime = Date.now();
+  inventory.forEach(function(item){ if (item.durability && item.durability < item.maxDurability * 0.3) repairItem(item, 5); });
+}
+
+// 迭代223: 可破坏物体连锁反应
+function chainDestructibleDamage(index, damage) {
+  var destroyed = damageDestructible(index, damage);
+  if (!destroyed) return [];
+  var chain = [];
+  var orig = DESTRUCTIBLES[index];
+  if (!orig) return chain;
+  DESTRUCTIBLES.forEach(function(d, i){
+    var dist = Math.sqrt(Math.pow(d.x-orig.x,2)+Math.pow(d.y-orig.y,2));
+    if (dist < 3 && i !== index) chain.push(i);
+  });
+  return chain;
+}
+
+// 迭代224: 温度区域移动
+function moveToTemperatureZone(x, y, targetTemp) {
+  for (var i = 0; i < TEMPERATURE_ZONES.length; i++) {
+    var z = TEMPERATURE_ZONES[i];
+    if (Math.abs(z.temp - targetTemp) < 5) return { x: z.x, y: z.y };
+  }
+  return { x: x, y: y };
+}
+
+// 迭代225: 声音传播衰减
+function propagateSound(x, y, volume, maxRange) {
+  var sounds = [];
+  for (var r = 1; r <= maxRange; r++) {
+    var attenuated = calculateSoundAttenuation(r, maxRange) * volume;
+    if (attenuated > 0.1) sounds.push({ x: x, y: y, range: r, volume: attenuated });
+  }
+  return sounds;
+}
+
+// 迭代226: 营地防御系统
+function defendCamp(camp, attackers) {
+  var defense = camp.defense || 0;
+  var damage = Math.max(0, attackers.length - defense);
+  return damage;
+}
+
+// 迭代227: 怪物进化特殊能力
+var EVOLUTION_ABILITIES = {
+  1: { name: '强化', effect: 'hp+20%' },
+  2: { name: '狂暴', effect: 'damage+50%' },
+  3: { name: '领袖', effect: 'buff_allies' }
+};
+function getEvolutionAbility(stage) {
+  return EVOLUTION_ABILITIES[stage] || null;
+}
+
+// 迭代228: NPC好感度奖励
+function getReputationReward(level) {
+  var rewards = {
+    stranger: null, neutral: { discount: 0.1 },
+    friendly: { discount: 0.2, item: 'bandage' },
+    legendary: { discount: 0.3, item: 'rare_item' }
+  };
+  return rewards[level] || null;
+}
+
+// 迭代229: 迷雾探索奖励
+var FOG_MILESTONES = [10, 25, 50, 100, 200];
+function checkFogMilestones(revealed) {
+  var rewards = [];
+  FOG_MILESTONES.forEach(function(m){
+    if (revealed >= m) rewards.push({ milestone: m, reward: revealFogReward(m) });
+  });
+  return rewards;
+}
+
+// 迭代230: 成就完成检测
+function isAchievementComplete(achievementId) {
+  var progress = ACHIEVEMENT_PROGRESS[achievementId];
+  return progress && progress.completed;
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
