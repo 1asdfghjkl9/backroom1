@@ -20621,9 +20621,8 @@ class Game {
     if (dailyBadge) {
       try {
         var dailyDone = JSON.parse(localStorage.getItem('backrooms_daily_v1') || '{}');
-        var today = new Date();
-        var todaySeed = today.getFullYear() * 10000 + (today.getMonth()+1) * 100 + today.getDate();
-        dailyBadge.style.display = (dailyDone.date === todaySeed && dailyDone.completed) ? 'none' : 'inline';
+        var dayIndex = Math.floor(Date.now() / 86400000);
+        dailyBadge.style.display = (dailyDone.date === dayIndex && dailyDone.completed) ? 'none' : 'inline';
       } catch(e) { dailyBadge.style.display = 'inline'; }
     }
     }
@@ -21938,6 +21937,13 @@ class Game {
     /* === 排行榜：记录通关时间 === */
     this.recordLevelTime(this.levelIndex, this.levelTime);
     if (allCleared) this.recordAllClear();
+    /* 迭代61-64：保存运行记录到本地排行榜 + 每日挑战完成 */
+    try {
+      var _surv = Math.floor((Date.now() - this.runStartTime) / 1000);
+      var _sc = calculateScore({ roomsExplored: this._roomsVisited || this.levelCellsVisited.size, kills: this.levelKills, itemsCollected: this.levelItemsCollected, puzzlesSolved: this.totalPuzzlesSolved || 0, survivalTime: _surv });
+      saveToLeaderboard({ level: this.levelIndex, survival: _surv, kills: this.levelKills || 0, items: this.levelItemsCollected || 0, puzzles: this.totalPuzzlesSolved || 0, rooms: this.levelCellsVisited ? this.levelCellsVisited.size : 0, score: _sc.score, grade: _sc.grade, daily: this.dailyMode });
+    } catch(e) {}
+    if (this._dailyChallenge && typeof completeDailyChallenge === 'function') completeDailyChallenge();
 
     this.state = 'complete';
     this.clearRun();
@@ -27474,16 +27480,25 @@ function startDailyChallenge() {
 // 成就已合并到主ACHIEVEMENTS数组，以下为运行时检测辅助
 function checkIter65Achievements() {
   if (typeof G === 'undefined') return;
-  // explorer_50: 访问50房间
-  if (G.levelCellsVisited && G.levelCellsVisited.size >= 50) G.unlockAchievement('explorer_50');
-  // speedrunner: 10分钟通关
-  if (G.totalPlayTime > 0 && G.totalPlayTime < 600 && G.progress && G.progress.cleared && G.progress.cleared.length >= 10) G.unlockAchievement('speedrunner');
+  /* 迭代65：成就检测 */
+  // boss_slayer: 击败第一个Boss
+  if ((G.totalBossKills || 0) >= 1 || (G._bossKills || 0) >= 1) G.unlockAchievement('boss_slayer');
+  // puzzle_master: 完成10个谜题
+  if ((G.totalPuzzlesSolved || 0) >= 10 || (G._puzzlesCompleted || 0) >= 10) G.unlockAchievement('puzzle_master');
+  // enchanter: 附魔5次
+  if ((G.totalEnchants || 0) >= 5 || (G._enchantCount || 0) >= 5) G.unlockAchievement('enchanter');
+  // explorer_100: 访问100房间
+  if ((G._roomsVisited || 0) >= 100 || (G.levelCellsVisited && G.levelCellsVisited.size >= 100)) G.unlockAchievement('explorer_100');
+  // collector_all: 收集所有道具类型（15种以上）
+  if (G._collectedItemTypes && G._collectedItemTypes.size >= 15) G.unlockAchievement('collector_all');
   // survivor_30: 存活30分钟
   if (G.totalPlayTime >= 1800) G.unlockAchievement('survivor_30');
-  // collector_all: 收集15种道具
-  if (G._collectedItemTypes && G._collectedItemTypes.size >= 15) G.unlockAchievement('collector_all');
-  // deep_diver_10: 到达第10层
-  if (G.levelIndex >= 10) G.unlockAchievement('deep_diver_10');
+  // speedrun_5: 5分钟内通关
+  if (G.totalPlayTime > 0 && G.totalPlayTime < 300 && G.progress && G.progress.cleared && G.progress.cleared.length >= 10) G.unlockAchievement('speedrun_5');
+  // pacifist_run: 不杀怪通关
+  if ((G.totalKills || 0) === 0 && G.progress && G.progress.cleared && G.progress.cleared.length >= 10) G.unlockAchievement('pacifist_run');
+  // minimalist: 只使用基础道具通关
+  if (G.progress && G.progress.cleared && G.progress.cleared.length >= 10 && (G.totalItemsCollected || 0) <= 5) G.unlockAchievement('minimalist');
   // completionist: 所有其他成就
   var allIds = ACHIEVEMENTS.map(function(a){ return a.id; });
   var otherIds = allIds.filter(function(id){ return id !== 'completionist'; });
@@ -28064,6 +28079,143 @@ function getEffectiveVolume(type) {
     case 'music': return base * AUDIO_SETTINGS.musicVolume;
     default: return base;
   }
+}
+
+// ========== 迭代86-90: 自动存档、怪物阵营、随机迷宫、道具耐久、快捷使用 ==========
+
+// --- 迭代86: 自动存档系统 ---
+var AUTO_SAVE_INTERVAL = 60; // 每60秒自动存档
+var AUTO_SAVE_KEY = 'backrooms_autosave_v1';
+var autoSaveTimer = 0;
+function autoSave(gameState) {
+  if (!gameState) return;
+  try {
+    localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify({
+      timestamp: Date.now(),
+      level: gameState.levelIndex || 0,
+      hp: gameState.hp || 100,
+      sanity: gameState.sanity || 100,
+      inventory: gameState.inventory || [],
+      playTime: gameState.playTime || 0
+    }));
+  } catch(e) {}
+}
+function loadAutoSave() {
+  try { return JSON.parse(localStorage.getItem(AUTO_SAVE_KEY) || 'null'); } catch(e) { return null; }
+}
+function deleteAutoSave() {
+  try { localStorage.removeItem(AUTO_SAVE_KEY); } catch(e) {}
+}
+
+// --- 迭代87: 怪物阵营系统 ---
+var MONSTER_FACTIONS = {
+  wild: { name: '野生', color: '#ff4444', hostile: true },
+  swarm: { name: '虫群', color: '#44ff44', hostile: true, packBehavior: true },
+  ancient: { name: '远古', color: '#8844ff', hostile: true, elite: true },
+  neutral: { name: '中立', color: '#aaaaaa', hostile: false }
+};
+function assignFaction(monsterType) {
+  if (['hound', 'crawler', 'rot'].indexOf(monsterType) >= 0) return 'swarm';
+  if (['stalker', 'echo', 'watcher'].indexOf(monsterType) >= 0) return 'ancient';
+  if (['smiler'].indexOf(monsterType) >= 0) return 'neutral';
+  return 'wild';
+}
+function checkFactionRelation(type1, type2) {
+  if (type1 === type2) return 'friendly';
+  var f1 = MONSTER_FACTIONS[type1];
+  var f2 = MONSTER_FACTIONS[type2];
+  if (!f1 || !f2) return 'hostile';
+  if (!f1.hostile || !f2.hostile) return 'neutral';
+  return 'hostile';
+}
+
+// --- 迭代88: 随机迷宫生成 ---
+function generateMaze(width, height) {
+  var grid = [];
+  for (var y = 0; y < height; y++) {
+    grid[y] = [];
+    for (var x = 0; x < width; x++) {
+      grid[y][x] = 1; // 墙
+    }
+  }
+  // 使用递归回溯法
+  function carve(x, y) {
+    grid[y][x] = 0;
+    var dirs = [[0,-2],[0,2],[-2,0],[2,0]].sort(function(){ return Math.random()-0.5; });
+    for (var i = 0; i < dirs.length; i++) {
+      var nx = x + dirs[i][0], ny = y + dirs[i][1];
+      if (nx >= 0 && nx < width && ny >= 0 && ny < height && grid[ny][nx] === 1) {
+        grid[y + dirs[i][1]/2][x + dirs[i][0]/2] = 0;
+        carve(nx, ny);
+      }
+    }
+  }
+  carve(1, 1);
+  // 确保出口
+  grid[height-2][width-2] = 0;
+  grid[height-2][width-1] = 0;
+  return grid;
+}
+
+// --- 迭代89: 道具耐久系统 ---
+var ITEM_DURABILITY = {
+  pipe: 50,
+  wrench: 60,
+  knife: 40,
+  bat: 70,
+  crowbar: 80,
+  machete: 45,
+  flashlight: 100,
+  bandage: 1,
+  pill: 1,
+  biscuit: 1,
+  water: 1
+};
+var DURABILITY_KEY = 'backrooms_durability_v1';
+function getItemMaxDurability(itemType) {
+  return ITEM_DURABILITY[itemType] || 30;
+}
+function loadDurability() {
+  try { return JSON.parse(localStorage.getItem(DURABILITY_KEY) || '{}'); } catch(e) { return {}; }
+}
+function saveDurability(dur) {
+  try { localStorage.setItem(DURABILITY_KEY, JSON.stringify(dur)); } catch(e) {}
+}
+function useDurability(itemId, amount) {
+  var dur = loadDurability();
+  if (!dur[itemId]) dur[itemId] = { current: ITEM_DURABILITY[itemId] || 30 };
+  dur[itemId].current -= (amount || 1);
+  if (dur[itemId].current <= 0) {
+    delete dur[itemId];
+    return true; // 物品损坏
+  }
+  saveDurability(dur);
+  return false;
+}
+
+// --- 迭代90: 快捷使用道具 ---
+function quickUseItem(itemType, player) {
+  if (!player || !player.inventory) return false;
+  var usable = {
+    bandage: function() { player.hp = Math.min(player.maxHp, player.hp + 20); return '🩹 使用绷带 +20HP'; },
+    pill: function() { player.sanity = Math.min(100, player.sanity + 15); return '💊 使用药丸 +15理智'; },
+    biscuit: function() { player.hp = Math.min(player.maxHp, player.hp + 10); return '🍪 吃饼干 +10HP'; },
+    water: function() { player.sanity = Math.min(100, player.sanity + 10); return '💧 喝水 +10理智'; },
+    flare: function() { return '🔥 点燃信号弹 - 照亮周围'; },
+    radio: function() { return '📻 打开收音机 - 吸引附近NPC'; }
+  };
+  if (!usable[itemType]) return false;
+  var idx = -1;
+  for (var i = 0; i < player.inventory.length; i++) {
+    if (player.inventory[i].type === itemType) { idx = i; break; }
+  }
+  if (idx < 0) return false;
+  var msg = usable[itemType]();
+  // 消耗单次道具
+  if (['bandage', 'pill', 'biscuit', 'water'].indexOf(itemType) >= 0) {
+    player.inventory.splice(idx, 1);
+  }
+  return msg;
 }
 
 </script>
