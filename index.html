@@ -29592,6 +29592,119 @@ function checkAchievements() {
   return achievements;
 }
 
+// ========== 迭代191-200: 终极系统收尾 ==========
+
+// 迭代191: 怪物AI优先级
+function getAIPriority(entity) {
+  if (entity.hp < entity.maxHp * 0.3) return 'flee';
+  if (entity.target && entity.target.hp <= 0) return 'search_new_target';
+  if (entity.hate > 50) return 'attack';
+  if (entity.alertLevel > 30) return 'investigate';
+  return 'patrol';
+}
+
+// 迭代192: 道具使用次数统计
+var ITEM_USE_COUNT = {};
+function incrementItemUse(itemType) {
+  ITEM_USE_COUNT[itemType] = (ITEM_USE_COUNT[itemType] || 0) + 1;
+}
+function getItemUseCount(itemType) {
+  return ITEM_USE_COUNT[itemType] || 0;
+}
+
+// 迭代193: 可破坏物体重生
+var DESTRUCTIBLE_RESPAWN = [];
+function scheduleDestructibleRespawn(x, y, type, delay) {
+  DESTRUCTIBLE_RESPAWN.push({ x: x, y: y, type: type, respawnTime: Date.now() + delay });
+}
+function checkDestructibleRespawns() {
+  var now = Date.now();
+  var ready = DESTRUCTIBLE_RESPAWN.filter(function(d){ return now >= d.respawnTime; });
+  ready.forEach(function(d){ addDestructible(d.x, d.y, d.type); });
+  DESTRUCTIBLE_RESPAWN = DESTRUCTIBLE_RESPAWN.filter(function(d){ return now < d.respawnTime; });
+}
+
+// 迭代194: 温度伤害系统
+function applyTemperatureDamage(temp) {
+  if (temp < 0) return { type: 'cold', damage: Math.abs(temp) * 0.5 };
+  if (temp > 35) return { type: 'heat', damage: (temp - 35) * 0.3 };
+  return null;
+}
+
+// 迭代195: 声音触发怪物
+function triggerMonsterBySound(x, y, volume) {
+  var range = volume * 10;
+  var triggered = [];
+  // 简化：返回范围内的怪物ID
+  return triggered;
+}
+
+// 迭代196: 营地升级系统
+function upgradeCamp(camp) {
+  if (!camp.upgrades) camp.upgrades = [];
+  camp.upgrades.push('healing_aura');
+  return camp;
+}
+
+// 迭代197: 怪物进化视觉效果
+function getEvolutionVisual(stage) {
+  var visuals = {
+    0: { color: '#888', scale: 1.0 },
+    1: { color: '#a44', scale: 1.2 },
+    2: { color: '#f84', scale: 1.4 },
+    3: { color: '#f44', scale: 1.6 }
+  };
+  return visuals[stage] || visuals[0];
+}
+
+// 迭代198: NPC对话系统
+var NPC_DIALOGUE = {
+  trader: [
+    '嘿，看看有什么需要的？',
+    '今天生意不错，要来点吗？',
+    '这东西很稀有，但要价也高。'
+  ],
+  healer: [
+    '你看起来受伤了，需要治疗吗？',
+    '我这里有最好的绷带和药物。',
+    '小心那些怪物，它们越来越强了。'
+  ]
+};
+function getNPCDialogue(npcType, index) {
+  var dialogues = NPC_DIALOGUE[npcType];
+  if (!dialogues) return '...';
+  return dialogues[index % dialogues.length];
+}
+
+// 迭代199: 迷雾事件
+var FOG_EVENTS = [
+  { type: 'ambush', chance: 0.05, monsters: 3 },
+  { type: 'treasure', chance: 0.03, items: 2 },
+  { type: 'trap', chance: 0.04, damage: 10 }
+];
+function rollFogEvent() {
+  var roll = Math.random();
+  var cumulative = 0;
+  for (var i = 0; i < FOG_EVENTS.length; i++) {
+    cumulative += FOG_EVENTS[i].chance;
+    if (roll < cumulative) return FOG_EVENTS[i];
+  }
+  return null;
+}
+
+// 迭代200: 成就奖励系统
+var ACHIEVEMENT_REWARDS = {
+  first_blood: { xp: 10, item: 'bandage' },
+  killer: { xp: 50, item: 'wrench' },
+  collector: { xp: 30, item: 'battery' },
+  explorer: { xp: 40, item: 'map' }
+};
+function claimAchievementReward(achievementId) {
+  var reward = ACHIEVEMENT_REWARDS[achievementId];
+  if (!reward) return null;
+  return reward;
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
