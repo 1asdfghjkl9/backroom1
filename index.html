@@ -19437,7 +19437,11 @@ class Game {
     this.achievements[id] = Date.now();
     this.saveAchievements();
     const def = ACHIEVEMENTS.find(a => a.id === id);
-    if (def) this.hud.toast(`成就解锁：${def.icon} ${def.name}`, 4);
+    if (def) {
+      this.hud.toast(`成就解锁：${def.icon} ${def.name}`, 4);
+      /* 迭代65：成就toast通知 */
+      if (typeof this.showAchievementToast === 'function') this.showAchievementToast(def);
+    }
   }
 
   refreshAchievementsScreen() {
@@ -21775,11 +21779,12 @@ class Game {
         if (statLevel) statLevel.textContent = this._deathLevelName || '未知';
       }
 
-      /* 迭代62: 评分系统 */
+      /* 迭代62: 评分系统（升级版） */
       var scoreData = {
-        roomsExplored: this._roomsVisited || 0,
-        kills: this.levelKills || 0,
-        itemsCollected: this.levelItemsCollected || 0,
+        roomsExplored: this._roomsVisited || this.totalRoomsExplored || 0,
+        kills: this.levelKills || this.totalKills || 0,
+        itemsCollected: this.levelItemsCollected || this.totalItemsCollected || 0,
+        puzzlesSolved: this.totalPuzzlesSolved || 0,
         survivalTime: this._deathSurvivalTime || 0,
         levelIndex: this.levelIndex || 0
       };
@@ -21793,26 +21798,42 @@ class Game {
           '<span style="font-size:24px;font-weight:bold;color:#ffd700">' + scoreResult.score + '</span>' +
           ' <span style="font-size:28px;font-weight:bold;color:' + gc + '">' + scoreResult.grade + '</span>';
       }
-      /* 迭代62：评分详情 */
+      /* 迭代62：评分详情（升级条形图） */
       var scoreDetail = document.getElementById('dead-score-detail');
       if (scoreDetail) {
         scoreDetail.style.display = 'block';
-        var explPct = Math.min(scoreData.roomsExplored || 0, 100);
-        var survMins = Math.floor((scoreData.survivalTime||0)/60);
-        scoreDetail.innerHTML = '<div style="font-size:10px;color:rgba(180,140,60,.5);margin-bottom:6px">评分明细</div>' +
-          '<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(207,199,168,.7);line-height:1.8">' +
-          '<span>探索度: ' + explPct + ' × 100 = ' + (explPct*100) + '</span>' +
-          '<span>击杀: ' + (scoreData.kills||0) + ' × 10 = ' + ((scoreData.kills||0)*10) + '</span>' +
-          '<span>道具: ' + (scoreData.itemsCollected||0) + ' × 5 = ' + ((scoreData.itemsCollected||0)*5) + '</span>' +
-          '<span>存活: ' + survMins + '分 × 2 = ' + (survMins*2) + '</span></div>';
+        var bars = [
+          { label: '探索度', val: scoreResult.expl, color: '#7a9db8' },
+          { label: '战斗效率', val: scoreResult.combat, color: '#e06040' },
+          { label: '道具收集', val: scoreResult.collection, color: '#8ee6b0' },
+          { label: '谜题完成', val: scoreResult.puzzle, color: '#c090e0' },
+          { label: '存活时间', val: scoreResult.survival, color: '#e6c87c' }
+        ];
+        var shtml = '<div style="text-align:center;margin-bottom:6px;">';
+        shtml += '<div style="font-size:32px;font-weight:900;color:' + gc + ';text-shadow:0 0 20px ' + gc + ';">' + scoreResult.grade + '</div>';
+        shtml += '<div style="font-size:10px;color:rgba(180,140,60,.5);">总分 ' + scoreResult.score + '</div></div>';
+        for (var bi = 0; bi < bars.length; bi++) {
+          var b = bars[bi];
+          shtml += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:10px;">';
+          shtml += '<span style="min-width:55px;color:var(--tc-sm);">' + b.label + '</span>';
+          shtml += '<div style="flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;">';
+          shtml += '<div style="height:100%;width:' + b.val + '%;background:' + b.color + ';border-radius:3px;"></div></div>';
+          shtml += '<span style="min-width:24px;text-align:right;color:var(--amber-l);font-weight:600;">' + b.val + '</span></div>';
+        }
+        scoreDetail.innerHTML = shtml;
       }
 
-      /* 迭代61: 保存到排行榜 */
+      /* 迭代61: 保存到排行榜（含评分等级） */
       saveToLeaderboard({
         level: this.levelIndex || 0,
         survival: Math.floor(this._deathSurvivalTime || 0),
-        kills: this.levelKills || 0,
-        score: scoreResult.score
+        kills: this.levelKills || this.totalKills || 0,
+        items: this.levelItemsCollected || this.totalItemsCollected || 0,
+        puzzles: this.totalPuzzlesSolved || 0,
+        rooms: this._roomsVisited || this.totalRoomsExplored || 0,
+        score: scoreResult.score,
+        grade: scoreResult.grade,
+        daily: this.dailyMode
       });
 
       /* 迭代19：死亡回放提示 — 最近事件 */
@@ -27876,6 +27897,173 @@ function updateParticles(particles, dt) {
     if (p.life <= 0) particles.splice(i, 1);
   }
   return particles;
+}
+
+// ========== 迭代81-85: 密码锁、怪物巡逻路线、生存模式、道具合成扩展、音效控制 ==========
+
+// --- 迭代81: 密码锁门系统 ---
+var PASSWORD_DOORS = [];
+function generatePasswordDoors(rooms, levelIndex) {
+  PASSWORD_DOORS = [];
+  if (levelIndex < 1) return;
+  var count = Math.min(3, Math.floor(levelIndex / 2) + 1);
+  for (var i = 0; i < count; i++) {
+    var room = rooms[Math.floor(Math.random() * rooms.length)];
+    var len = 3 + Math.floor(Math.random() * 2); // 3-4位密码
+    var code = '';
+    for (var j = 0; j < len; j++) code += Math.floor(Math.random() * 10);
+    PASSWORD_DOORS.push({
+      x: room.x + room.w * 0.5,
+      y: room.y + room.h * 0.5,
+      code: code,
+      unlocked: false,
+      reward: ['key_card', 'pill', 'flare'][Math.floor(Math.random() * 3)]
+    });
+  }
+}
+function tryPasswordDoor(doorIndex, inputCode) {
+  if (doorIndex < 0 || doorIndex >= PASSWORD_DOORS.length) return false;
+  var door = PASSWORD_DOORS[doorIndex];
+  if (door.unlocked) return false;
+  if (inputCode === door.code) {
+    door.unlocked = true;
+    return true;
+  }
+  return false;
+}
+
+// --- 迭代82: 怪物巡逻路线 ---
+function generatePatrolRoute(startX, startY, roomW, roomH) {
+  var points = [];
+  var numPoints = 3 + Math.floor(Math.random() * 3);
+  for (var i = 0; i < numPoints; i++) {
+    points.push({
+      x: startX + Math.random() * roomW,
+      y: startY + Math.random() * roomH
+    });
+  }
+  return points;
+}
+function updatePatrol(entity, dt) {
+  if (!entity.patrolRoute || entity.patrolRoute.length === 0) return;
+  if (!entity.patrolIndex) entity.patrolIndex = 0;
+  var target = entity.patrolRoute[entity.patrolIndex];
+  var dx = target.x - entity.x;
+  var dy = target.y - entity.y;
+  var dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist < 0.5) {
+    entity.patrolIndex = (entity.patrolIndex + 1) % entity.patrolRoute.length;
+  } else {
+    var speed = (entity.speed || 1) * 0.5;
+    entity.x += (dx / dist) * speed * dt;
+    entity.y += (dy / dist) * speed * dt;
+  }
+}
+
+// --- 迭代83: 生存模式 ---
+var SURVIVAL_MODE = {
+  active: false,
+  wave: 0,
+  kills: 0,
+  timeElapsed: 0,
+  highScore: 0
+};
+var SURVIVAL_KEY = 'backrooms_survival_highscore';
+function startSurvivalMode() {
+  SURVIVAL_MODE.active = true;
+  SURVIVAL_MODE.wave = 0;
+  SURVIVAL_MODE.kills = 0;
+  SURVIVAL_MODE.timeElapsed = 0;
+  spawnSurvivalWave();
+}
+function spawnSurvivalWave() {
+  SURVIVAL_MODE.wave++;
+  var count = 2 + SURVIVAL_MODE.wave;
+  // 实际生成怪物由Game类处理
+  return count;
+}
+function endSurvivalMode() {
+  SURVIVAL_MODE.active = false;
+  var score = SURVIVAL_MODE.wave * 100 + SURVIVAL_MODE.kills * 10;
+  try {
+    var hs = parseInt(localStorage.getItem(SURVIVAL_KEY) || '0');
+    if (score > hs) {
+      localStorage.setItem(SURVIVAL_KEY, score.toString());
+      SURVIVAL_MODE.highScore = score;
+    }
+  } catch(e) {}
+  return score;
+}
+
+// --- 迭代84: 道具合成扩展 ---
+var CRAFT_RECIPES = [
+  { inputs: ['bandage', 'bandage'], output: 'medkit', name: '急救包' },
+  { inputs: ['battery', 'battery', 'battery'], output: 'super_battery', name: '超级电池' },
+  { inputs: ['biscuit', 'water'], output: 'meal', name: '营养餐' },
+  { inputs: ['flare', 'flare'], output: 'firebomb', name: '燃烧瓶' },
+  { inputs: ['key', 'key_card'], output: 'master_key', name: '万能钥匙' }
+];
+function canCraft(recipeIndex, inventory) {
+  if (recipeIndex < 0 || recipeIndex >= CRAFT_RECIPES.length) return false;
+  var recipe = CRAFT_RECIPES[recipeIndex];
+  var needed = recipe.inputs.slice();
+  for (var i = 0; i < inventory.length; i++) {
+    var idx = needed.indexOf(inventory[i].type);
+    if (idx >= 0) needed.splice(idx, 1);
+  }
+  return needed.length === 0;
+}
+function executeCraft(recipeIndex, player) {
+  if (!canCraft(recipeIndex, player.inventory)) return false;
+  var recipe = CRAFT_RECIPES[recipeIndex];
+  var needed = recipe.inputs.slice();
+  for (var i = player.inventory.length - 1; i >= 0; i--) {
+    var idx = needed.indexOf(player.inventory[i].type);
+    if (idx >= 0) {
+      player.inventory.splice(i, 1);
+      needed.splice(idx, 1);
+      if (needed.length === 0) break;
+    }
+  }
+  player.addItem(recipe.output);
+  return true;
+}
+
+// --- 迭代85: 音效控制面板 ---
+var AUDIO_SETTINGS = {
+  masterVolume: 1.0,
+  sfxVolume: 0.8,
+  ambientVolume: 0.5,
+  musicVolume: 0.3,
+  muteAll: false
+};
+var AUDIO_KEY = 'backrooms_audio_settings';
+function loadAudioSettings() {
+  try {
+    var saved = JSON.parse(localStorage.getItem(AUDIO_KEY));
+    if (saved) Object.assign(AUDIO_SETTINGS, saved);
+  } catch(e) {}
+}
+function saveAudioSettings() {
+  try { localStorage.setItem(AUDIO_KEY, JSON.stringify(AUDIO_SETTINGS)); } catch(e) {}
+}
+function setMasterVolume(v) {
+  AUDIO_SETTINGS.masterVolume = Math.max(0, Math.min(1, v));
+  saveAudioSettings();
+}
+function toggleMute() {
+  AUDIO_SETTINGS.muteAll = !AUDIO_SETTINGS.muteAll;
+  saveAudioSettings();
+}
+function getEffectiveVolume(type) {
+  if (AUDIO_SETTINGS.muteAll) return 0;
+  var base = AUDIO_SETTINGS.masterVolume;
+  switch(type) {
+    case 'sfx': return base * AUDIO_SETTINGS.sfxVolume;
+    case 'ambient': return base * AUDIO_SETTINGS.ambientVolume;
+    case 'music': return base * AUDIO_SETTINGS.musicVolume;
+    default: return base;
+  }
 }
 
 </script>
