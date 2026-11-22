@@ -19409,6 +19409,9 @@ class Game {
     if (this._whiteNoiseGain) this._whiteNoiseGain.gain.value = v;
   }
 
+  /* 迭代64：每日挑战状态查询 */
+  get isDailyChallenge() { return !!this._dailyChallenge; }
+
   /* 迭代19：记录关键事件用于死亡回放 */
   recordEvent(text) {
     if (!this._recentEvents) this._recentEvents = [];
@@ -19561,6 +19564,255 @@ class Game {
       html += '</div>';
       content.innerHTML = html;
     }
+    /* 迭代61：本地记录Tab */
+    if (tab === 'local') {
+      const tabLocal = document.getElementById('lb-tab-local');
+      if (tabTimes) { tabTimes.classList.add('btn-ghost'); tabTimes.classList.remove('btn-primary'); }
+      if (tabAllClear) { tabAllClear.classList.add('btn-ghost'); tabAllClear.classList.remove('btn-primary'); }
+      if (tabLocal) { tabLocal.classList.add('btn-primary'); tabLocal.classList.remove('btn-ghost'); }
+      this.renderLocalLeaderboard(content, _esc);
+    }
+  }
+
+  /* ============ 迭代61：本地排行榜 ============ */
+  saveRunToLeaderboard() {
+    try {
+      var runs = JSON.parse(localStorage.getItem('backrooms_local_runs') || '[]');
+      var survivalTime = Math.floor((Date.now() - this.runStartTime) / 1000);
+      var score = this.calculateScore(survivalTime);
+      var run = {
+        date: Date.now(),
+        level: this.levelIndex,
+        survivalTime: survivalTime,
+        kills: this.totalKills,
+        items: this.totalItemsCollected,
+        puzzles: this.totalPuzzlesSolved,
+        rooms: this.totalRoomsExplored,
+        score: score.total,
+        grade: score.grade,
+        daily: this.dailyMode
+      };
+      runs.push(run);
+      runs.sort(function(a, b) { return b.score - a.score; });
+      if (runs.length > 50) runs = runs.slice(0, 50);
+      localStorage.setItem('backrooms_local_runs', JSON.stringify(runs));
+    } catch(e) { console.warn('saveRunToLeaderboard:', e); }
+  }
+
+  renderLocalLeaderboard(content, esc) {
+    var runs;
+    try { runs = JSON.parse(localStorage.getItem('backrooms_local_runs') || '[]'); }
+    catch(e) { runs = []; }
+    if (!runs.length) {
+      content.innerHTML = '<div style="text-align:center;padding:30px;color:var(--tc-sm);font-size:12px;">暂无本地记录。完成一次游戏后自动保存。</div>';
+      return;
+    }
+    var html = '<table class="lb-rank-table"><thead><tr><th>#</th><th>层级</th><th>评分</th><th>等级</th><th>存活</th><th>击杀</th><th>道具</th><th>日期</th></tr></thead><tbody>';
+    var top10 = runs.slice(0, 10);
+    for (var i = 0; i < top10.length; i++) {
+      var r = top10[i];
+      var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+      var mins = Math.floor(r.survivalTime / 60);
+      var secs = String(r.survivalTime % 60).padStart(2, '0');
+      var dt = new Date(r.date);
+      var dateStr = (dt.getMonth()+1) + '/' + dt.getDate();
+      var dailyTag = r.daily ? ' <span style="color:#ffd700;font-size:9px;">⚔</span>' : '';
+      html += '<tr><td><span class="lb-rank-medal">' + medal + '</span></td>';
+      html += '<td>Lv.' + r.level + dailyTag + '</td>';
+      html += '<td style="color:var(--amber-l);font-weight:700;">' + Math.round(r.score) + '</td>';
+      html += '<td style="font-weight:900;">' + r.grade + '</td>';
+      html += '<td>' + mins + ':' + secs + '</td>';
+      html += '<td>' + r.kills + '</td>';
+      html += '<td>' + r.items + '</td>';
+      html += '<td style="color:var(--tc-sm);font-size:10px;">' + dateStr + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    content.innerHTML = html;
+  }
+
+  /* ============ 迭代62：评分系统 ============ */
+  calculateScore(survivalTime) {
+    var expl = Math.min(1, this.totalRoomsExplored / 30) * 100;
+    var combat = Math.min(1, this.totalKills / 20) * 100;
+    var collection = Math.min(1, this.totalItemsCollected / 15) * 100;
+    var puzzle = Math.min(1, this.totalPuzzlesSolved / 5) * 100;
+    var survival = Math.min(1, survivalTime / 1800) * 100;
+    var total = expl * 0.3 + combat * 0.2 + collection * 0.2 + puzzle * 0.15 + survival * 0.15;
+    var grade = 'D';
+    if (total >= 90) grade = 'S';
+    else if (total >= 75) grade = 'A';
+    else if (total >= 55) grade = 'B';
+    else if (total >= 35) grade = 'C';
+    return { total: total, grade: grade, expl: expl, combat: combat, collection: collection, puzzle: puzzle, survival: survival };
+  }
+
+  showScoreDetail(score) {
+    var el = document.getElementById('dead-score-detail');
+    if (!el) return;
+    var bars = [
+      { label: '探索度', val: score.expl, color: '#7a9db8' },
+      { label: '战斗效率', val: score.combat, color: '#e06040' },
+      { label: '道具收集', val: score.collection, color: '#8ee6b0' },
+      { label: '谜题完成', val: score.puzzle, color: '#c090e0' },
+      { label: '存活时间', val: score.survival, color: '#e6c87c' }
+    ];
+    var html = '<div class="score-grade grade-' + score.grade.toLowerCase() + '">' + score.grade + '</div>';
+    html += '<div style="text-align:center;font-size:12px;color:var(--tc-mid);margin-bottom:8px;">总分: ' + Math.round(score.total) + '</div>';
+    for (var i = 0; i < bars.length; i++) {
+      var b = bars[i];
+      html += '<div class="score-bar-row"><span class="score-bar-label">' + b.label + '</span>';
+      html += '<div class="score-bar-track"><div class="score-bar-fill" style="width:' + Math.round(b.val) + '%;background:' + b.color + ';"></div></div>';
+      html += '<span class="score-bar-val">' + Math.round(b.val) + '</span></div>';
+    }
+    el.innerHTML = html;
+    el.style.display = 'block';
+  }
+
+  /* ============ 迭代63：教程系统 ============ */
+  checkTutorial() {
+    if (localStorage.getItem('backrooms_tutorial_done')) return;
+    var overlay = document.getElementById('tutorial-overlay');
+    if (!overlay) return;
+    overlay.classList.add('active');
+    this._tutStep = 0;
+    this._tutSteps = [
+      { icon: '🎮', title: '移动', text: '使用 WASD 键移动，鼠标控制视角方向。', keys: ['W', 'A', 'S', 'D'] },
+      { icon: '⚔️', title: '攻击', text: '面对实体时按 V 键或鼠标左键攻击。近战武器需要靠近才能造成伤害。', keys: ['V', '鼠标左键'] },
+      { icon: '🎒', title: '背包与物品', text: '按 Tab 打开背包。数字键 1/2/Q/R 快速切换手持物品，再按一次使用。', keys: ['Tab', '1', '2', 'Q', 'R'] },
+      { icon: '🔦', title: '手持系统', text: '一次只能手持一件物品。手电(Q)照明，导航仪(R)显示地图。', keys: ['Q', 'R'] },
+      { icon: '⚒️', title: '合成', text: '在背包中拖拽材料到合成区域可制作新物品。尝试用基础材料制作强力道具！', keys: ['合成区'] }
+    ];
+    this._renderTutStep();
+    var self = this;
+    var nextBtn = document.getElementById('tut-next-btn');
+    var skipBtn = document.getElementById('tut-skip-btn');
+    if (nextBtn) nextBtn.onclick = function() { self._nextTutStep(); };
+    if (skipBtn) skipBtn.onclick = function() { self._skipTutorial(); };
+  }
+
+  _renderTutStep() {
+    var step = this._tutSteps[this._tutStep];
+    if (!step) return;
+    var indicator = document.getElementById('tut-step-indicator');
+    var title = document.getElementById('tut-title');
+    var icon = document.getElementById('tut-icon');
+    var text = document.getElementById('tut-text');
+    var keys = document.getElementById('tut-keys');
+    var nextBtn = document.getElementById('tut-next-btn');
+    if (indicator) indicator.textContent = '步骤 ' + (this._tutStep + 1) + '/' + this._tutSteps.length;
+    if (title) title.textContent = step.title;
+    if (icon) icon.textContent = step.icon;
+    if (text) text.textContent = step.text;
+    if (keys) {
+      keys.innerHTML = '';
+      for (var i = 0; i < step.keys.length; i++) {
+        var k = document.createElement('span');
+        k.className = 'tut-key' + (i === 0 ? ' highlight' : '');
+        k.textContent = step.keys[i];
+        keys.appendChild(k);
+      }
+    }
+    if (nextBtn) nextBtn.textContent = this._tutStep >= this._tutSteps.length - 1 ? '开始游戏！' : '下一步';
+  }
+
+  _nextTutStep() {
+    this._tutStep++;
+    if (this._tutStep >= this._tutSteps.length) {
+      this._finishTutorial();
+    } else {
+      this._renderTutStep();
+    }
+  }
+
+  _skipTutorial() { this._finishTutorial(); }
+
+  _finishTutorial() {
+    localStorage.setItem('backrooms_tutorial_done', '1');
+    var overlay = document.getElementById('tutorial-overlay');
+    if (overlay) overlay.classList.remove('active');
+  }
+
+  /* ============ 迭代64：每日挑战 ============ */
+  getDailyChallenge() {
+    var dayIndex = Math.floor(Date.now() / 86400000);
+    var seed = dayIndex;
+    var rules = {};
+    var rand = function(n) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+    var rulePool = ['no_items', 'extra_enemies', 'speed_mode', 'low_sanity', 'no_flashlight'];
+    var numRules = 2 + rand(2);
+    var selected = [];
+    for (var i = 0; i < numRules && i < rulePool.length; i++) {
+      var idx = rand(rulePool.length - i);
+      var picked = rulePool.splice(idx, 1)[0];
+      selected.push(picked);
+      rules[picked] = true;
+    }
+    var startLevel = 1 + rand(5);
+    var dt = new Date(dayIndex * 86400000);
+    var dateStr = dt.getFullYear() + '/' + (dt.getMonth()+1) + '/' + dt.getDate();
+    return { dayIndex: dayIndex, seed: dayIndex, rules: rules, ruleNames: selected, startLevel: startLevel, dateStr: dateStr };
+  }
+
+  showDailyChallenge() {
+    showScreen('daily-challenge');
+    var challenge = this.getDailyChallenge();
+    var dateEl = document.getElementById('daily-date');
+    var rulesEl = document.getElementById('daily-rules');
+    var statsEl = document.getElementById('daily-stats');
+    if (dateEl) dateEl.textContent = '📅 ' + challenge.dateStr;
+    var ruleLabels = {
+      'no_items': '🚫 无道具：不能携带任何物品',
+      'extra_enemies': '👹 无限怪物：敌人数量翻倍',
+      'speed_mode': '⚡ 极速模式：体力消耗减半但时间紧迫',
+      'low_sanity': '🧠 低理智：初始理智只有50',
+      'no_flashlight': '🔦 黑暗模式：手电不可用'
+    };
+    if (rulesEl) {
+      var html = '<div style="font-size:11px;color:var(--tc-sm);margin-bottom:6px;">起始层级: <span style="color:var(--amber-l);">Level ' + challenge.startLevel + '</span></div>';
+      html += '<div style="margin:8px 0;">';
+      for (var i = 0; i < challenge.ruleNames.length; i++) {
+        html += '<div class="daily-rule-tag">' + (ruleLabels[challenge.ruleNames[i]] || challenge.ruleNames[i]) + '</div>';
+      }
+      html += '</div>';
+      rulesEl.innerHTML = html;
+    }
+    var completed = localStorage.getItem('backrooms_daily_completed_' + challenge.dayIndex);
+    if (statsEl) {
+      statsEl.innerHTML = completed ? '<span style="color:#8ee6b0;">✅ 今日挑战已完成！</span>' : '<span style="color:var(--tc-sm);">尚未完成</span>';
+    }
+    var self = this;
+    var startBtn = document.getElementById('btn-daily-start');
+    if (startBtn) {
+      startBtn.onclick = function() { self.startDailyChallenge(challenge); };
+    }
+  }
+
+  startDailyChallenge(challenge) {
+    this.dailyMode = true;
+    this.dailySeed = challenge.seed;
+    this.dailyRules = challenge.rules;
+    this.levelIndex = challenge.startLevel;
+    if (challenge.rules.no_items) { this.inventory = { cookie: 0, water: 0 }; this.heldItem = null; }
+    if (challenge.rules.low_sanity) { this.sanity = 50; }
+    showScreen(null);
+    this.fadeIn(0.4);
+    if (this.settings.ambientVol > 0) this.audio.drone.start(this.audio.sfxVol);
+    this.startLevel(this.levelIndex);
+  }
+
+  /* ============ 迭代65：成就toast通知 ============ */
+  showAchievementToast(ach) {
+    var container = document.getElementById('achievement-toast-container');
+    if (!container) return;
+    var toast = document.createElement('div');
+    toast.className = 'ach-toast';
+    toast.innerHTML = '<span class="ach-toast-icon">' + (ach.icon || '🏆') + '</span><div><div class="ach-toast-name">' + ach.name + '</div><div class="ach-toast-text">' + (ach.desc || '') + '</div></div>';
+    container.appendChild(toast);
+    requestAnimationFrame(function() { toast.classList.add('show'); });
+    setTimeout(function() {
+      toast.classList.remove('show');
+      setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 500);
+    }, 3000);
   }
 
   /* ============ 留言板系统 ============ */
@@ -20360,6 +20612,16 @@ class Game {
     if (achCount) {
       const unlocked = Object.keys(this.achievements || {}).length;
       achCount.textContent = `${unlocked}/${ACHIEVEMENTS.length}`;
+    /* 迭代64：每日挑战徽章 */
+    var dailyBadge = document.getElementById('daily-badge');
+    if (dailyBadge) {
+      try {
+        var dailyDone = JSON.parse(localStorage.getItem('backrooms_daily_v1') || '{}');
+        var today = new Date();
+        var todaySeed = today.getFullYear() * 10000 + (today.getMonth()+1) * 100 + today.getDate();
+        dailyBadge.style.display = (dailyDone.date === todaySeed && dailyDone.completed) ? 'none' : 'inline';
+      } catch(e) { dailyBadge.style.display = 'inline'; }
+    }
     }
   }
 
@@ -20422,6 +20684,9 @@ class Game {
         this.refreshLeaderboard('times');
         showScreen('leaderboard');
         break;
+      case 'daily-challenge':
+        this.showDailyChallenge();
+        break;
       case 'help':
         this.helpReturn = this.state === 'paused' ? 'pause' : 'menu';
         showScreen('help');
@@ -20443,6 +20708,9 @@ class Game {
         break;
       case 'custom-levels':
         this.openCustomLevels();
+        break;
+      case 'daily-challenge':
+        if (typeof startDailyChallenge === 'function') startDailyChallenge();
         break;
       case 'menu':
         showScreen(this.helpReturn === 'pause' ? 'pause' : 'menu');
@@ -21519,7 +21787,24 @@ class Game {
       var scoreEl = document.getElementById('dead-score');
       if (scoreEl) {
         scoreEl.style.display = 'block';
-        scoreEl.innerHTML = '评分: <span style="font-size:20px;font-weight:bold">' + scoreResult.score + '</span> 等级: <span style="font-size:18px;font-weight:bold">' + scoreResult.grade + '</span>';
+        var gradeColors = {S:'#ffd700',A:'#ff8c00',B:'#87ceeb',C:'#90ee90',D:'#ccc'};
+        var gc = gradeColors[scoreResult.grade] || '#ccc';
+        scoreEl.innerHTML = '<div style="font-size:10px;color:rgba(180,140,60,.5);letter-spacing:.1em;margin-bottom:4px">SCORE</div>' +
+          '<span style="font-size:24px;font-weight:bold;color:#ffd700">' + scoreResult.score + '</span>' +
+          ' <span style="font-size:28px;font-weight:bold;color:' + gc + '">' + scoreResult.grade + '</span>';
+      }
+      /* 迭代62：评分详情 */
+      var scoreDetail = document.getElementById('dead-score-detail');
+      if (scoreDetail) {
+        scoreDetail.style.display = 'block';
+        var explPct = Math.min(scoreData.roomsExplored || 0, 100);
+        var survMins = Math.floor((scoreData.survivalTime||0)/60);
+        scoreDetail.innerHTML = '<div style="font-size:10px;color:rgba(180,140,60,.5);margin-bottom:6px">评分明细</div>' +
+          '<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(207,199,168,.7);line-height:1.8">' +
+          '<span>探索度: ' + explPct + ' × 100 = ' + (explPct*100) + '</span>' +
+          '<span>击杀: ' + (scoreData.kills||0) + ' × 10 = ' + ((scoreData.kills||0)*10) + '</span>' +
+          '<span>道具: ' + (scoreData.itemsCollected||0) + ' × 5 = ' + ((scoreData.itemsCollected||0)*5) + '</span>' +
+          '<span>存活: ' + survMins + '分 × 2 = ' + (survMins*2) + '</span></div>';
       }
 
       /* 迭代61: 保存到排行榜 */
@@ -21615,10 +21900,15 @@ class Game {
     if (this.levelDamageTaken === 0) this.unlockAchievement('no_damage');
     // 和平主义者（不击杀任何实体通过一关）
     if (this.levelKills === 0) this.unlockAchievement('pacifist');
+    // 迭代65：不杀怪通关成就
+    if (this.levelKills === 0 && this.levelIndex >= 5) this.unlockAchievement('pacifist_run');
     // 坚忍（通过存活方式通关）
     if (this.altClear && this.altClearMet) this.unlockAchievement('survive_120');
     // 探索者（单关走过200格以上）
     if (this.levelCellsVisited.size >= 200) this.unlockAchievement('explorer');
+    // 迭代65：扩展成就检测
+    if (this.levelCellsVisited.size >= 50) this.unlockAchievement('explorer_50');
+    if (typeof checkIter65Achievements === 'function') checkIter65Achievements();
     // 理智边缘
     if (this.player.sanity < 10) this.unlockAchievement('sanity_zero');
     // 手电筒大师
@@ -26970,7 +27260,7 @@ function showEventNotification(evt){
 // ========== 迭代61-65: 排行榜、评分、教程、每日挑战、成就扩展 ==========
 
 // --- 排行榜系统 ---
-const LEADERBOARD_KEY = 'backrooms_leaderboard_v1';
+const LEADERBOARD_KEY = 'backrooms_leaderboard';
 function getLeaderboard() {
   try { return JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]'); } catch(e) { return []; }
 }
@@ -26984,36 +27274,40 @@ function saveToLeaderboard(data) {
 }
 function showLeaderboard() {
   var lb = getLeaderboard();
-  var html = '<div class="puzzle-overlay" id="lb-overlay" style="display:flex"><div class="puzzle-box" style="max-width:500px">';
-  html += '<h3>🏆 排行榜</h3>';
+  var html = '<div class="puzzle-overlay" id="lb-overlay" style="display:flex"><div class="puzzle-box" style="max-width:520px">';
+  html += '<h3 style="color:#ffd700">🏆 游戏排行榜 Top 10</h3>';
   if (lb.length === 0) {
-    html += '<p style="color:#aaa;text-align:center">暂无记录</p>';
+    html += '<p style="color:#aaa;text-align:center;padding:20px 0">暂无记录，开始游戏吧！</p>';
   } else {
-    html += '<table style="width:100%;color:#ddd;font-size:13px;border-collapse:collapse">';
-    html += '<tr style="border-bottom:1px solid #555"><th>#</th><th>日期</th><th>层级</th><th>存活</th><th>击杀</th><th>评分</th></tr>';
+    html += '<table style="width:100%;color:#ddd;font-size:12px;border-collapse:collapse;margin-top:10px">';
+    html += '<tr style="border-bottom:1px solid rgba(180,140,60,.3);color:rgba(180,140,60,.7)"><th style="padding:6px 4px">#</th><th>日期</th><th>层级</th><th>存活</th><th>击杀</th><th>评分</th></tr>';
     lb.forEach(function(r, i) {
-      html += '<tr style="border-bottom:1px solid #333"><td>' + (i+1) + '</td><td>' + r.date + '</td><td>' + r.level + '</td><td>' + r.survival + 's</td><td>' + r.kills + '</td><td style="color:#fc0">' + r.score + '</td></tr>';
+      var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
+      var mins = Math.floor((r.survival||0)/60);
+      var secs = (r.survival||0)%60;
+      html += '<tr style="border-bottom:1px solid rgba(100,80,40,.15)"><td style="padding:5px 4px;text-align:center">' + medal + '</td><td style="text-align:center">' + (r.date||'-') + '</td><td style="text-align:center">Lv.' + (r.level||0) + '</td><td style="text-align:center">' + mins + 'm' + secs + 's</td><td style="text-align:center">' + (r.kills||0) + '</td><td style="text-align:center;color:#ffd700;font-weight:bold">' + (r.score||0) + '</td></tr>';
     });
     html += '</table>';
   }
-  html += '<button onclick="document.getElementById(\'lb-overlay\').remove()" style="margin-top:12px;padding:8px 20px;background:#555;color:#fff;border:none;border-radius:4px;cursor:pointer">关闭</button>';
+  html += '<div style="text-align:center;margin-top:14px"><button onclick="var e=document.getElementById(\'lb-overlay\');if(e)e.remove()" style="padding:8px 24px;background:rgba(180,140,60,.2);color:#e8dcc0;border:1px solid rgba(180,140,60,.3);border-radius:4px;cursor:pointer;font-family:var(--font)">关闭</button></div>';
   html += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
 }
 
-// --- 评分系统 ---
+// --- 迭代62：评分系统（升级版） ---
 function calculateScore(gameData) {
-  var exploration = Math.min(gameData.roomsExplored || 0, 100);
-  var kills = gameData.kills || 0;
-  var items = gameData.itemsCollected || 0;
-  var survival = gameData.survivalTime || 0;
-  var score = Math.floor(exploration * 0.3 + kills * 10 + items * 5 + survival * 0.5);
+  var expl = Math.min((gameData.roomsExplored || 0) / 30, 1) * 100;
+  var combat = Math.min((gameData.kills || 0) / 20, 1) * 100;
+  var collection = Math.min((gameData.itemsCollected || 0) / 15, 1) * 100;
+  var puzzle = Math.min((gameData.puzzlesSolved || 0) / 5, 1) * 100;
+  var survival = Math.min((gameData.survivalTime || 0) / 1800, 1) * 100;
+  var total = expl * 0.3 + combat * 0.2 + collection * 0.2 + puzzle * 0.15 + survival * 0.15;
   var grade = 'D';
-  if (score > 1000) grade = 'S';
-  else if (score > 500) grade = 'A';
-  else if (score > 200) grade = 'B';
-  else if (score > 100) grade = 'C';
-  return { score: score, grade: grade };
+  if (total >= 90) grade = 'S';
+  else if (total >= 75) grade = 'A';
+  else if (total >= 55) grade = 'B';
+  else if (total >= 35) grade = 'C';
+  return { score: Math.round(total), grade: grade, expl: Math.round(expl), combat: Math.round(combat), collection: Math.round(collection), puzzle: Math.round(puzzle), survival: Math.round(survival) };
 }
 
 // --- 教程系统 ---
@@ -27073,29 +27367,48 @@ function completeDailyChallenge() {
 function startDailyChallenge() {
   var daily = getDailyChallenge();
   if (daily.completed) {
-    alert('今日挑战已完成！明天再来');
+    if (typeof G !== 'undefined' && G.hud) G.hud.toast('今日挑战已完成！明天再来', 3);
+    else alert('今日挑战已完成！明天再来');
     return;
   }
-  // 设置每日挑战参数
   window._dailyChallengeActive = true;
   window._dailySeed = daily.seed;
-  // 开始游戏后会应用特殊规则
-  if (typeof startGame === 'function') startGame();
+  if (typeof G !== 'undefined') {
+    G._dailyChallenge = true;
+    G._dailySeed = daily.seed;
+    G.clearRun();
+    G.startLevel(0);
+    /* 应用每日挑战规则 */
+    if (G.player) {
+      G.player.sanity = 60;
+      G.player.maxSanity = 60;
+    }
+    G._entitySpeedMult = 1.3;
+    G._itemSpawnMult = 0.5;
+    if (G.hud) G.hud.toast('⚔️ 每日挑战开始！怪物+30%速度 | 道具-50% | 初始理智60', 5);
+  }
 }
 
-// --- 成就系统扩展 ---
-var EXTRA_ACHIEVEMENTS = [
-  { id: 'boss_slayer', name: '👑 Boss猎人', desc: '击败第一个Boss', check: function(s){ return s.bossKills >= 1; } },
-  { id: 'puzzle_master', name: '🧩 谜题大师', desc: '完成5个谜题', check: function(s){ return s.puzzlesCompleted >= 5; } },
-  { id: 'enchanter', name: '✨ 附魔师', desc: '附魔3次', check: function(s){ return s.enchantCount >= 3; } },
-  { id: 'explorer', name: '🗺️ 探险家', desc: '访问50个房间', check: function(s){ return s.roomsExplored >= 50; } },
-  { id: 'speedrunner', name: '⚡ 速通者', desc: '10分钟内通关', check: function(s){ return s.survivalTime > 0 && s.survivalTime < 600 && s.levelIndex >= 10; } },
-  { id: 'pacifist', name: '🕊️ 和平主义者', desc: '不杀怪通关', check: function(s){ return s.kills === 0 && s.levelIndex >= 5; } },
-  { id: 'survivor_30', name: '🛡️ 幸存者', desc: '存活超过30分钟', check: function(s){ return s.survivalTime >= 1800; } },
-  { id: 'collector_all', name: '📦 收藏家', desc: '收集所有道具类型', check: function(s){ return (s.itemTypes || 0) >= 15; } },
-  { id: 'deep_diver_10', name: '🔦 深渊潜者', desc: '到达第10层', check: function(s){ return s.levelIndex >= 10; } },
-  { id: 'completionist', name: '🏅 完美主义者', desc: '完成所有其他成就', check: function(s){ return s.totalAchievements >= 9; } }
-];
+// --- 迭代65：成就检测回调集成 ---
+// 成就已合并到主ACHIEVEMENTS数组，以下为运行时检测辅助
+function checkIter65Achievements() {
+  if (typeof G === 'undefined') return;
+  // explorer_50: 访问50房间
+  if (G.levelCellsVisited && G.levelCellsVisited.size >= 50) G.unlockAchievement('explorer_50');
+  // speedrunner: 10分钟通关
+  if (G.totalPlayTime > 0 && G.totalPlayTime < 600 && G.progress && G.progress.cleared && G.progress.cleared.length >= 10) G.unlockAchievement('speedrunner');
+  // survivor_30: 存活30分钟
+  if (G.totalPlayTime >= 1800) G.unlockAchievement('survivor_30');
+  // collector_all: 收集15种道具
+  if (G._collectedItemTypes && G._collectedItemTypes.size >= 15) G.unlockAchievement('collector_all');
+  // deep_diver_10: 到达第10层
+  if (G.levelIndex >= 10) G.unlockAchievement('deep_diver_10');
+  // completionist: 所有其他成就
+  var allIds = ACHIEVEMENTS.map(function(a){ return a.id; });
+  var otherIds = allIds.filter(function(id){ return id !== 'completionist'; });
+  var allUnlocked = otherIds.every(function(id){ return !!G.achievements[id]; });
+  if (allUnlocked && otherIds.length > 0) G.unlockAchievement('completionist');
+}
 
 // ========== 迭代66-70: 陷阱改进、怪物增强、环境事件、道具效果、难度曲线 ==========
 
@@ -27212,6 +27525,151 @@ function getDifficultyParams(levelIndex) {
     sanityDrain: 1 + levelIndex * 0.1
   };
   return base;
+}
+
+// ========== 迭代71-75: 技能树、装备系统、地图标记、怪物弱点、天气效果 ==========
+
+// --- 迭代71: 简易技能树 ---
+var SKILL_TREE = {
+  tough: { name: '🛡️ 坚韧', desc: '最大生命+20%', maxLevel: 3, effect: function(lv){ return 1 + lv * 0.2; } },
+  fast: { name: '👟 迅捷', desc: '移动速度+10%', maxLevel: 3, effect: function(lv){ return 1 + lv * 0.1; } },
+  keen: { name: '👁️ 敏锐', desc: '感知范围+15%', maxLevel: 2, effect: function(lv){ return 1 + lv * 0.15; } },
+  lucky: { name: '🍀 幸运', desc: '道具掉落率+20%', maxLevel: 2, effect: function(lv){ return 1 + lv * 0.2; } },
+  focus: { name: '🧠 专注', desc: '理智消耗-10%', maxLevel: 3, effect: function(lv){ return 1 - lv * 0.1; } }
+};
+var SKILL_KEY = 'backrooms_skills_v1';
+function getSkills() {
+  try { return JSON.parse(localStorage.getItem(SKILL_KEY) || '{}'); } catch(e) { return {}; }
+}
+function saveSkills(skills) {
+  try { localStorage.setItem(SKILL_KEY, JSON.stringify(skills)); } catch(e) {}
+}
+function upgradeSkill(skillId) {
+  var skills = getSkills();
+  var def = SKILL_TREE[skillId];
+  if (!def) return false;
+  var current = skills[skillId] || 0;
+  if (current >= def.maxLevel) return false;
+  // 消耗技能点（每层需要递增点数）
+  var cost = current + 1;
+  var available = getSkillPoints();
+  if (available < cost) return false;
+  skills[skillId] = current + 1;
+  saveSkills(skills);
+  return true;
+}
+function getSkillPoints() {
+  var skills = getSkills();
+  var used = 0;
+  for (var k in skills) used += skills[k];
+  var total = 1 + Math.floor((getHighestLevel() || 0) / 2);
+  return Math.max(0, total - used);
+}
+function getHighestLevel() {
+  try {
+    var lb = JSON.parse(localStorage.getItem('backrooms_leaderboard_v1') || '[]');
+    return lb.length > 0 ? lb[0].level : 0;
+  } catch(e) { return 0; }
+}
+function getSkillEffect(skillId) {
+  var def = SKILL_TREE[skillId];
+  var skills = getSkills();
+  var lv = skills[skillId] || 0;
+  return def.effect(lv);
+}
+
+// --- 迭代72: 装备槽位系统 ---
+var EQUIP_SLOTS = {
+  head: { name: '头盔', icon: '🪖', bonus: { defense: 2 } },
+  body: { name: '护甲', icon: '🦺', bonus: { defense: 5 } },
+  feet: { name: '鞋子', icon: '👢', bonus: { speed: 0.1 } },
+  accessory: { name: '饰品', icon: '💍', bonus: { luck: 1 } }
+};
+var EQUIP_KEY = 'backrooms_equipment_v1';
+function getEquipment() {
+  try { return JSON.parse(localStorage.getItem(EQUIP_KEY) || '{}'); } catch(e) { return {}; }
+}
+function saveEquipment(equip) {
+  try { localStorage.setItem(EQUIP_KEY, JSON.stringify(equip)); } catch(e) {}
+}
+function equipItem(slot, item) {
+  var equip = getEquipment();
+  equip[slot] = item;
+  saveEquipment(equip);
+}
+function unequipItem(slot) {
+  var equip = getEquipment();
+  delete equip[slot];
+  saveEquipment(equip);
+}
+function getEquipBonus(stat) {
+  var equip = getEquipment();
+  var total = 0;
+  for (var slot in equip) {
+    var def = EQUIP_SLOTS[slot];
+    if (def && def.bonus && def.bonus[stat]) total += def.bonus[stat];
+  }
+  return total;
+}
+
+// --- 迭代73: 地图标记系统 ---
+var MAP_MARKERS_KEY = 'backrooms_map_markers_v1';
+function getMapMarkers() {
+  try { return JSON.parse(localStorage.getItem(MAP_MARKERS_KEY) || '[]'); } catch(e) { return []; }
+}
+function saveMapMarkers(markers) {
+  try { localStorage.setItem(MAP_MARKERS_KEY, JSON.stringify(markers.slice(-50))); } catch(e) {}
+}
+function addMapMarker(x, y, type, label) {
+  var markers = getMapMarkers();
+  markers.push({ x: x, y: y, type: type, label: label || '', time: Date.now() });
+  saveMapMarkers(markers);
+}
+function removeMapMarker(index) {
+  var markers = getMapMarkers();
+  markers.splice(index, 1);
+  saveMapMarkers(markers);
+}
+
+// --- 迭代74: 怪物弱点系统 ---
+var MONSTER_WEAKNESS = {
+  hound: { weak: 'fire', resist: 'ice' },
+  crawler: { weak: 'ice', resist: 'fire' },
+  stalker: { weak: 'light', resist: 'dark' },
+  smiler: { weak: 'light', resist: 'ice' },
+  rot: { weak: 'fire', resist: 'poison' },
+  echo: { weak: 'silence', resist: 'fire' },
+  boss_default: { weak: 'enchant', resist: 'physical' }
+};
+function getWeaknessMul(monsterType, damageType) {
+  var info = MONSTER_WEAKNESS[monsterType] || MONSTER_WEAKNESS.boss_default;
+  if (info.weak === damageType) return 2.0;
+  if (info.resist === damageType) return 0.5;
+  return 1.0;
+}
+
+// --- 迭代75: 天气系统增强 ---
+var WEATHER_EFFECTS = {
+  clear: { name: '晴朗', fogMul: 1.0, lightMul: 1.0, monsterMul: 1.0, color: '#aa9960' },
+  foggy: { name: '浓雾', fogMul: 2.5, lightMul: 0.7, monsterMul: 1.2, color: '#665533' },
+  stormy: { name: '暴风', fogMul: 1.5, lightMul: 0.4, monsterMul: 1.5, color: '#443322' },
+  bloody: { name: '血色', fogMul: 1.8, lightMul: 0.3, monsterMul: 2.0, color: '#661111' },
+  eclipse: { name: '日蚀', fogMul: 3.0, lightMul: 0.15, monsterMul: 2.5, color: '#110011' },
+  calm: { name: '宁静', fogMul: 0.5, lightMul: 1.3, monsterMul: 0.6, color: '#bbaa77' }
+};
+function getWeatherEffect(weatherName) {
+  return WEATHER_EFFECTS[weatherName] || WEATHER_EFFECTS.clear;
+}
+function getRandomWeather() {
+  var weathers = Object.keys(WEATHER_EFFECTS);
+  var weights = [30, 25, 20, 10, 5, 10]; // clear, foggy, stormy, bloody, eclipse, calm
+  var total = weights.reduce(function(a,b){ return a+b; }, 0);
+  var r = Math.random() * total;
+  for (var i = 0; i < weathers.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return weathers[i];
+  }
+  return 'clear';
 }
 
 </script>
