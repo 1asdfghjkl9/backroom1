@@ -29108,6 +29108,139 @@ function getAdaptiveMultiplier() {
   return 0.8 + ADAPTIVE_DIFFICULTY.playerSkill * 0.4; // 0.8x 到 1.2x
 }
 
+// ========== 迭代151-160: 高级游戏系统 ==========
+
+// 迭代151: 怪物群体行为
+function packBehavior(entities, target) {
+  var pack = entities.filter(function(e){ return e.packId && !e.isDead; });
+  if (pack.length < 3) return null;
+  var avgX = 0, avgY = 0;
+  pack.forEach(function(e){ avgX += e.x; avgY += e.y; });
+  avgX /= pack.length; avgY /= pack.length;
+  return { centerX: avgX, centerY: avgY, size: pack.length };
+}
+
+// 迭代152: 道具使用冷却
+var ITEM_COOLDOWNS = {};
+function setItemCooldown(itemId, duration) {
+  ITEM_COOLDOWNS[itemId] = Date.now() + duration;
+}
+function isItemReady(itemId) {
+  return !ITEM_COOLDOWNS[itemId] || Date.now() > ITEM_COOLDOWNS[itemId];
+}
+
+// 迭代153: 怪物特殊攻击模式
+var SPECIAL_ATTACKS = {
+  stalker: { name: '隐身突袭', cooldown: 15000, damage: 25 },
+  smiler: { name: '精神冲击', cooldown: 20000, sanityDrain: 30 },
+  hound: { name: '撕裂', cooldown: 8000, bleed: true },
+  echo: { name: '回声干扰', cooldown: 25000, confusion: true }
+};
+function useSpecialAttack(monsterType) {
+  var attack = SPECIAL_ATTACKS[monsterType];
+  if (!attack) return null;
+  return attack;
+}
+
+// 迭代154: 环境互动事件
+var ENV_EVENTS = [
+  { type: 'door_slam', effect: 'noise', radius: 5 },
+  { type: 'light_flicker', effect: 'vision', duration: 2000 },
+  { type: 'wall_crack', effect: 'reveal_secret', chance: 0.1 },
+  { type: 'floor_collapse', effect: 'damage', amount: 15 }
+];
+
+// 迭代155: 道具升级树
+var UPGRADE_TREES = {
+  pipe: [
+    { level: 1, name: '铁管', damage: 10 },
+    { level: 2, name: '强化铁管', damage: 15, cost: 3 },
+    { level: 3, name: '精磨铁管', damage: 22, cost: 5 }
+  ],
+  knife: [
+    { level: 1, name: '厨刀', damage: 8 },
+    { level: 2, name: ' sharpened knife', damage: 12, cost: 3 },
+    { level: 3, name: '锯齿刀', damage: 18, cost: 6 }
+  ]
+};
+
+// 迭代156: 怪物弱点显示
+function getMonsterWeakness(monsterType) {
+  var weaknesses = {
+    hound: 'fire', crawler: 'cold', stalker: 'light',
+    smiler: 'silence', echo: 'physical'
+  };
+  return weaknesses[monsterType] || 'none';
+}
+
+// 迭代157: 玩家状态效果
+var STATUS_EFFECTS = {
+  poisoned: { duration: 10000, damagePerSec: 2 },
+  bleeding: { duration: 8000, damagePerSec: 1 },
+  frozen: { duration: 5000, slowPercent: 0.5 },
+  burned: { duration: 6000, damagePerSec: 3 }
+};
+var ACTIVE_STATUS = [];
+function applyStatus(effect) {
+  ACTIVE_STATUS.push({ type: effect, startTime: Date.now() });
+}
+function getActiveStatus() {
+  var now = Date.now();
+  ACTIVE_STATUS = ACTIVE_STATUS.filter(function(s){
+    var def = STATUS_EFFECTS[s.type];
+    return def && now - s.startTime < def.duration;
+  });
+  return ACTIVE_STATUS;
+}
+
+// 迭代158: 地图房间标签
+var ROOM_TAGS = {};
+function tagRoom(roomId, tags) {
+  ROOM_TAGS[roomId] = tags;
+}
+function getRoomTags(roomId) {
+  return ROOM_TAGS[roomId] || [];
+}
+function findRoomsWithTag(tag) {
+  var results = [];
+  for (var id in ROOM_TAGS) {
+    if (ROOM_TAGS[id].indexOf(tag) >= 0) results.push(id);
+  }
+  return results;
+}
+
+// 迭代159: 怪物仇恨列表
+var HATE_LIST = {};
+function addHate(monsterId, playerId, amount) {
+  if (!HATE_LIST[monsterId]) HATE_LIST[monsterId] = {};
+  HATE_LIST[monsterId][playerId] = (HATE_LIST[monsterId][playerId] || 0) + amount;
+}
+function getHateTarget(monsterId) {
+  var hate = HATE_LIST[monsterId] || {};
+  var target = null, maxHate = 0;
+  for (var pid in hate) {
+    if (hate[pid] > maxHate) { maxHate = hate[pid]; target = pid; }
+  }
+  return target;
+}
+
+// 迭代160: 游戏统计面板
+var GAME_STATS = {
+  totalPlayTime: 0,
+  totalKills: 0,
+  totalDeaths: 0,
+  totalItemsCollected: 0,
+  maxLevel: 0,
+  longestSurvival: 0
+};
+function updateGameStats(stats) {
+  for (var key in stats) {
+    if (key === 'maxLevel') GAME_STATS.maxLevel = Math.max(GAME_STATS.maxLevel, stats[key]);
+    else if (key === 'longestSurvival') GAME_STATS.longestSurvival = Math.max(GAME_STATS.longestSurvival, stats[key]);
+    else GAME_STATS[key] = (GAME_STATS[key] || 0) + stats[key];
+  }
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
