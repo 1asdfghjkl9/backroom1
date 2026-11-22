@@ -30067,6 +30067,100 @@ function integrateAchievements() {
   return completed;
 }
 
+// ========== 迭代241-250: 最终10次迭代 ==========
+
+// 迭代241: 怪物行为状态机
+var BEHAVIOR_STATES = { idle: 0, patrol: 1, chase: 2, attack: 3, flee: 4 };
+function transitionBehavior(entity, newState) {
+  entity.behaviorState = BEHAVIOR_STATES[newState] || 0;
+}
+
+// 迭代242: 道具最终升级
+function finalUpgradeItem(item) {
+  if (!item.upgradePath || item.upgradeLevel >= 3) return false;
+  item.upgradeLevel = (item.upgradeLevel || 0) + 1;
+  item.name = getAdvancedUpgradePath(item.type, item.upgradeLevel) || item.name;
+  return true;
+}
+
+// 迭代243: 可破坏物体特殊掉落
+var SPECIAL_DROPS = { chest: { rare: 0.1, item: 'gem' }, barrel: { explosive: 0.2 } };
+function rollSpecialDrop(type) {
+  var special = SPECIAL_DROPS[type];
+  if (!special) return null;
+  for (var key in special) {
+    if (key !== 'item' && Math.random() < special[key]) return key;
+  }
+  return null;
+}
+
+// 迭代244: 温度极端效果
+function extremeTemperatureEffect(temp) {
+  if (temp < -20) return 'frostbite';
+  if (temp > 50) return 'heatstroke';
+  return null;
+}
+
+// 迭代245: 声音记忆系统
+function recallSounds(type, maxAge) {
+  var now = Date.now();
+  return SOUND_HISTORY.filter(function(s){
+    return s.type === type && now - s.time < (maxAge || 10000);
+  });
+}
+
+// 迭代246: 营地最终升级
+function ultimateCampUpgrade(camp) {
+  if (!camp.upgrades) camp.upgrades = [];
+  camp.upgrades.push('ultimate_fortress');
+  camp.defense = (camp.defense || 0) + 50;
+  return camp;
+}
+
+// 迭代247: 怪物终极进化
+function ultimateEvolution(entity) {
+  if (!EVOLUTION_DATA[entity.id]) return false;
+  if (EVOLUTION_DATA[entity.id].stage >= 3) return false;
+  EVOLUTION_DATA[entity.id].stage = 3;
+  entity.name = '终极' + entity.type;
+  return true;
+}
+
+// 迭代248: NPC最终任务
+var ULTIMATE_QUESTS = [
+  { id: 'boss_hunt', desc: '击败所有Boss', reward: 'legendary_weapon' },
+  { id: 'full_explore', desc: '探索100%地图', reward: 'master_map' }
+];
+function getUltimateQuest(index) {
+  return ULTIMATE_QUESTS[index] || null;
+}
+
+// 迭代249: 迷雾完全揭示
+function revealAllFog() {
+  for (var x = -50; x <= 50; x++) {
+    for (var y = -50; y <= 50; y++) {
+      FOG_OF_WAR[x + ',' + y] = true;
+      FOG_PERMANENT[x + ',' + y] = true;
+    }
+  }
+}
+
+// 迭代250: 最终成就 - 游戏完成
+var FINAL_ACHIEVEMENT = {
+  id: 'game_complete',
+  name: '后室征服者',
+  description: '完成所有目标，探索所有区域，击败所有敌人',
+  reward: { title: '后室之主', xp: 1000 }
+};
+function checkGameCompletion() {
+  var stats = getFogExplorationStats();
+  var achievements = integrateAchievements();
+  if (stats.percentage >= 100 && achievements.length >= 10) {
+    return FINAL_ACHIEVEMENT;
+  }
+  return null;
+}
+
 </script>
 
     <!-- Supabase 聊天面板 -->
