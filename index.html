@@ -7236,9 +7236,9 @@ function generateWorld(level, seed) {
         else if (r < objP + supply + 0.085 + deep * 0.05 + navP) t = 'navigator';
         else if (r < objP + supply + 0.085 + deep * 0.05 + navP + 0.015) t = 'vending';
         else if (r < objP + supply + 0.085 + deep * 0.05 + navP + 0.015 + 0.02) {
-          /* 武器掉落：铁管(50%)/扳手(30%)/厨刀(20%) */
+          /* 武器掉落：铁管(35%)/扳手(25%)/厨刀(15%)/棒球棍(10%)/撬棍(10%)/砍刀(5%) */
           const wr = hash3(seed + 0x401, rx, ry);
-          t = wr < 0.5 ? 'pipe' : wr < 0.8 ? 'wrench' : 'knife';
+          t = wr < 0.35 ? 'pipe' : wr < 0.60 ? 'wrench' : wr < 0.75 ? 'knife' : wr < 0.85 ? 'bat' : wr < 0.95 ? 'crowbar' : 'machete';
         }
         else if (r < objP + supply + 0.085 + deep * 0.05 + navP + 0.015 + 0.02 + 0.008) t = 'extinguisher';
         else if (r < objP + supply + 0.085 + deep * 0.05 + navP + 0.015 + 0.02 + 0.008 + 0.015) t = 'canteen';
@@ -7314,6 +7314,37 @@ function generateWorld(level, seed) {
       }
     }
     return { items, ents };
+  }
+
+  /* 迭代43：可破坏物体生成 */
+  function generateDestructibles(px, py, radius) {
+    const destructibles = [];
+    const rx0 = Math.floor((px - radius) / RS), rx1 = Math.floor((px + radius) / RS);
+    const ry0 = Math.floor((py - radius) / RS), ry1 = Math.floor((py + radius) / RS);
+    for (let ry = ry0; ry <= ry1; ry++) {
+      for (let rx = rx0; rx <= ry1; ry++) {
+        const key = rx + ',' + ry;
+        /* 每5个房间生成1-2个可破坏物体 */
+        if (hash3(seed + 0x501, rx, ry) < 0.2) {
+          const startX = rx * RS;
+          const startY = ry * RS;
+          const count = 1 + (hash3(seed + 0x502, rx, ry) < 0.5 ? 1 : 0);
+          for (let i = 0; i < count; i++) {
+            const ox = 2 + hash3(seed + 0x503 + i, rx, ry) * (RS - 4);
+            const oy = 2 + hash3(seed + 0x504 + i, rx, ry) * (RS - 4);
+            destructibles.push({
+              x: startX + ox,
+              y: startY + oy,
+              type: hash3(seed + 0x505 + i, rx, ry) < 0.5 ? 'crate' : 'jar',
+              hp: 3,
+              active: true,
+              droppedItem: null
+            });
+          }
+        }
+      }
+    }
+    return destructibles;
   }
 
   /* ---- 最近的未收集目标物（罗盘引导用）----
@@ -7549,6 +7580,9 @@ function generateWorld(level, seed) {
     },
     content,
     nearestObjective,
+    generateDestructibles,
+    /* 迭代43：初始可破坏物体 */
+    destructibles: [],
     /* 某个世界坐标的「深度」0~1：0 是出生点附近，1 是远离出生点 70 格以外 */
     depthAt(px, py) {
       return depthBonus(Math.floor(px / RS), Math.floor(py / RS));
@@ -9426,6 +9460,11 @@ class Player {
     this.attackDir = this.angle;
     if (audio) audio.clank();
     let hitAny = false;
+
+    /* 迭代41：不同武器类型有不同伤害倍率和耐久消耗 */
+    const weaponDmgMul = isFist ? 1.0 : (w.durability <= 15 ? 1.2 : w.durability <= 20 ? 1.0 : 0.9);
+    const weaponDurCost = isFist ? 0 : (w.durability <= 15 ? 2 : 1);
+
     for (const e of entities) {
       if (e.isDead) continue;
       const dx = e.x - this.x;
@@ -9435,14 +9474,46 @@ class Player {
       const angTo = Math.atan2(dy, dx);
       let da = Math.abs(((angTo - this.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
       if (da < w.arc / 2) {
-        const dmg = w.damage * (1 - d / (w.range + 0.5) * 0.3);  /* 距离衰减 */
+        const dmg = w.damage * weaponDmgMul * (1 - d / (w.range + 0.5) * 0.3);  /* 距离衰减 */
         e.takeDamage(dmg, this.x, this.y, w);
         hitAny = true;
       }
     }
-    /* 拳头不消耗耐久 */
-    if (hitAny && !isFist) {
-      this.weaponDurability--;
+
+    /* 迭代43：攻击可破坏物体 */
+    const _gameRef = window.game;
+    if (_gameRef && _gameRef._destructibles) {
+      for (const dec of _gameRef._destructibles) {
+        if (!dec.active) continue;
+        const ddx = dec.x - this.x;
+        const ddy = dec.y - this.y;
+        const dd = Math.hypot(ddx, ddy);
+        if (dd > w.range + 1.0) continue;
+        const angToDec = Math.atan2(ddy, ddx);
+        let daDec = Math.abs(((angToDec - this.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        if (daDec < w.arc / 2) {
+          dec.hp--;
+          hitAny = true;
+          if (dec.hp <= 0) {
+            dec.active = false;
+            /* 迭代45：击碎音效 */
+            if (_gameRef && _gameRef.playSound) {
+              _gameRef.playSound('crate_break');
+            }
+            /* 击破后掉落道具 */
+            if (Math.random() < 0.4) {
+              const drops = ['battery', 'almond', 'biscuit', 'bandage'];
+              const drop = drops[Math.floor(Math.random() * drops.length)];
+              dec.droppedItem = drop;
+            }
+          }
+        }
+      }
+    }
+
+    /* 耐久消耗 — 不同武器有不同消耗速率 */
+    if (hitAny && !isFist && weaponDurCost > 0) {
+      this.weaponDurability -= weaponDurCost;
       if (this.weaponDurability <= 0) {
         // 武器损坏，从背包和主手移除
         if (this.mainHand && this.mainHand.type === this.weapon) {
@@ -9885,7 +9956,11 @@ const WEAPONS = {
   pipe:    { name: '铁管',   damage: 34, range: 1.6, arc: 1.2, durability: 25, swingTime: 0.35 },
   wrench:  { name: '扳手',   damage: 42, range: 1.5, arc: 1.0, durability: 20, swingTime: 0.42 },
   knife:   { name: '厨刀',   damage: 28, range: 1.3, arc: 0.7, durability: 15, swingTime: 0.22 },
-  extinguisher: { name: '灭火器', damage: 15, range: 2.2, arc: 1.6, durability: 8, swingTime: 0.5, special: 'blinded' }
+  extinguisher: { name: '灭火器', damage: 15, range: 2.2, arc: 1.6, durability: 8, swingTime: 0.5, special: 'blinded' },
+  /* 迭代41：多武器系统 */
+  bat:     { name: '棒球棍', damage: 25, range: 1.8, arc: 1.4, durability: 30, swingTime: 0.38 },
+  crowbar: { name: '撬棍',   damage: 35, range: 1.5, arc: 1.0, durability: 20, swingTime: 0.35 },
+  machete: { name: '砍刀',   damage: 50, range: 1.4, arc: 0.9, durability: 15, swingTime: 0.28 }
 };
 
 const ITEMS = {
@@ -9895,6 +9970,10 @@ const ITEMS = {
   map: { name: '地图碎片', icon: '🗺️', desc: '揭示部分地图' },
   radio: { name: '收音机', icon: '📻', desc: '吸引或驱散怪物' },
   flare: { name: '信号弹', icon: '🧨', desc: '一次性照明，驱散附近怪物' },
+  /* 迭代41：多武器系统 */
+  bat: { name: '棒球棍', icon: '🏏', damage: 25, durability: 30, desc: '坚固的木制球棍\n耐久: 30' },
+  crowbar: { name: '撬棍', icon: '🔧', damage: 35, durability: 20, desc: '金属撬棍\n耐久: 20' },
+  machete: { name: '砍刀', icon: '🔪', damage: 50, durability: 15, desc: '锋利的砍刀\n耐久: 15' },
 };
 
 const ENTITY_DEF = {
@@ -12376,6 +12455,33 @@ class ThreeJSRendererBridge {
           const mesh = new THREE.Mesh(geo, mat);
           mesh.position.set(wx, 0.12, wz);
           mesh.rotation.set(Math.PI / 2, 0, item.rot);
+          this.worldGroup.add(mesh);
+          this.chunkList.push(mesh);
+        }
+      }
+    }
+
+    /* 迭代43：可破坏物体渲染 */
+    const _gameForDecs = window.game || this._game;
+    if (_gameForDecs && _gameForDecs._destructibles) {
+      const px = _vpx + ox, py = _vpy + oy;
+      for (const dec of _gameForDecs._destructibles) {
+        if (!dec.active) continue;
+        const dx = dec.x - px, dy = dec.y - py;
+        if (Math.abs(dx) > VIEW_R || Math.abs(dy) > VIEW_R) continue;
+        const wx = dec.x * CELL, wz = dec.y * CELL;
+        if (dec.type === 'crate') {
+          const geo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+          const mat = new THREE.MeshStandardMaterial({ color: 0x8b6d3a, roughness: 0.85, metalness: 0.05 });
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(wx, 0.25, wz);
+          this.worldGroup.add(mesh);
+          this.chunkList.push(mesh);
+        } else if (dec.type === 'jar') {
+          const geo = new THREE.CylinderGeometry(0.15, 0.12, 0.4, 8);
+          const mat = new THREE.MeshStandardMaterial({ color: 0x5a7a6a, roughness: 0.6, metalness: 0.1, transparent: true, opacity: 0.8 });
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(wx, 0.2, wz);
           this.worldGroup.add(mesh);
           this.chunkList.push(mesh);
         }
@@ -18594,6 +18700,18 @@ class Game {
     this._jsShadowFigureTime = 0;
     this._jsFootstepTimer = 0;
 
+    /* 迭代42：敌人AI包围战术 */
+    this._enemyTacticsTimer = 0;
+
+    /* 迭代44：天气系统 */
+    this.weather = {
+      current: 'clear',
+      timer: 60 + Math.random() * 30,
+      types: ['clear', 'foggy', 'stormy', 'bloody']
+    };
+    this._fogBase = 0.055;
+    this._ambientBase = 0.55;
+
     this.cmpTimer = 0;
     this.cmpTarget = null;
     this.cmpMode = 'exit';
@@ -20575,6 +20693,56 @@ class Game {
       g.gain.setValueAtTime(0.3, now);
       g.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
       o.start(now); o.stop(now + 0.3);
+    } else if (type === 'footstep') {
+      /* 迭代45：脚步声 */
+      const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.1), ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * 0.1 * Math.exp(-i / (data.length * 0.3));
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.2;
+      src.connect(gain).connect(this.audio.sfxGroup || ctx.destination);
+      src.start();
+    } else if (type === 'breathing') {
+      /* 迭代45：呼吸声（低理智时） */
+      const osc = ctx.createOscillator();
+      osc.frequency.value = 80 + Math.random() * 20;
+      osc.type = 'sine';
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.1, now + 0.2);
+      gain.gain.linearRampToValueAtTime(0, now + 0.8);
+      osc.connect(gain).connect(this.audio.sfxGroup || ctx.destination);
+      osc.start();
+      osc.stop(now + 0.8);
+    } else if (type === 'whisper') {
+      /* 迭代45：低语声 */
+      const osc = ctx.createOscillator();
+      osc.frequency.value = 200 + Math.random() * 100;
+      osc.type = 'sawtooth';
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.05, now + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+      osc.connect(gain).connect(this.audio.sfxGroup || ctx.destination);
+      osc.start();
+      osc.stop(now + 1.5);
+    } else if (type === 'crate_break') {
+      /* 迭代45：木箱击碎声 */
+      const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.2), ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * 0.3 * Math.exp(-i / (data.length * 0.15));
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.35;
+      src.connect(gain).connect(this.audio.sfxGroup || ctx.destination);
+      src.start();
     }
   }
 
@@ -21315,6 +21483,20 @@ class Game {
     }
     if (this._jsFootstepTimer > 0) this._jsFootstepTimer -= dt;
 
+    /* 迭代45：低理智时播放呼吸声和低语声 */
+    if (!this._breathingTimer) this._breathingTimer = 0;
+    if (!this._whisperTimer) this._whisperTimer = 0;
+    this._breathingTimer -= dt;
+    this._whisperTimer -= dt;
+    if (p.sanity < 30 && this._breathingTimer <= 0) {
+      this.playSound('breathing');
+      this._breathingTimer = 3 + Math.random() * 4;
+    }
+    if (p.sanity < 20 && this._whisperTimer <= 0 && Math.random() < 0.3) {
+      this.playSound('whisper');
+      this._whisperTimer = 8 + Math.random() * 12;
+    }
+
     /* 3. sanity<15时每30秒20%概率幻听幻视 */
     this._jsHallucinationTimer -= dt;
     if (p.sanity < 15 && this._jsHallucinationTimer <= 0) {
@@ -21445,6 +21627,34 @@ class Game {
     this.updateInteraction();
     this.updatePuzzleInteraction();
     this.updateSwitchInteraction();
+    /* 迭代43：可破坏物体掉落物拾取 */
+    if (this._destructibles) {
+      for (const dec of this._destructibles) {
+        if (!dec.active && dec.droppedItem) {
+          const ddist = Math.hypot(p.x - dec.x, p.y - dec.y);
+          if (ddist < 1.2) {
+            const dropType = dec.droppedItem;
+            dec.droppedItem = null;
+            /* 根据类型处理掉落 */
+            if (dropType === 'battery') {
+              p.battery = Math.min(1, p.battery + 0.5);
+              this.hud.toast('拾取电池 +50%电量', 1.5);
+            } else if (dropType === 'almond') {
+              p.sanity = Math.min(100, p.sanity + 25);
+              this.hud.toast('拾取杏仁水 +25理智', 1.5);
+            } else if (dropType === 'biscuit') {
+              p.hp = Math.min(100, p.hp + 10);
+              this.hud.toast('拾取饼干 +10%生命', 1.5);
+            } else if (dropType === 'bandage') {
+              p.hp = Math.min(100, p.hp + 20);
+              this.hud.toast('拾取绷带 +20%生命', 1.5);
+            }
+            if (this.audio) this.audio.pickup && this.audio.pickup();
+          }
+        }
+      }
+    }
+
     /* 迭代16：储物柜躲藏 — 按E键面对储物柜可躲藏/退出 */
     if (inp.hit('KeyE') && !p.grabbing) {
       if (p.hiding) {
@@ -21696,6 +21906,11 @@ class Game {
     const res = w.content(p.x, p.y, 26, this.taken, _maxEntAdj);
 
     this.items = res.items;
+
+    /* 迭代43：可破坏物体刷新 */
+    if (w.generateDestructibles) {
+      this._destructibles = w.generateDestructibles(p.x, p.y, 26);
+    }
     /* 彩蛋关卡：签名物不被 refreshContent 覆盖 */
     if (this.extraItems && this.extraItems.length) {
       for (const ei of this.extraItems) {
@@ -21811,6 +22026,37 @@ class Game {
     this.hud.setFlood(this.ev.floodCfg ? fl : -1);
   }
 
+  /* 迭代44：天气系统 */
+  updateWeather(dt) {
+    if (!this.weather || !this.renderer || !this.renderer.scene) return;
+    this.weather.timer -= dt;
+    if (this.weather.timer <= 0) {
+      const newWeather = this.weather.types[Math.floor(Math.random() * this.weather.types.length)];
+      this.weather.current = newWeather;
+      this.weather.timer = 30 + Math.random() * 60;
+
+      const scene = this.renderer.scene;
+      if (scene.fog) {
+        if (newWeather === 'foggy') {
+          scene.fog.density = 0.12;
+        } else if (newWeather === 'stormy') {
+          scene.fog.density = 0.09;
+          if (this.renderer.ambient) this.renderer.ambient.intensity = 0.3;
+        } else if (newWeather === 'bloody') {
+          scene.fog.color.setHex(0x330000);
+          scene.fog.density = 0.10;
+        } else {
+          scene.fog.density = this._fogBase || 0.055;
+          if (this.renderer.ambient) this.renderer.ambient.intensity = this._ambientBase || 0.55;
+          scene.fog.color.setHex(0x14110b);
+        }
+      }
+
+      const weatherNames = { foggy: '浓雾', stormy: '暴风雨', bloody: '血色', clear: '晴朗' };
+      this.hud.toast(`天气变化: ${weatherNames[newWeather] || newWeather}`, 3);
+    }
+  }
+
   updateLightFlicker(dt) {
     const level = this.level;
     let mul = 1;
@@ -21832,6 +22078,45 @@ class Game {
       this.field = buildField(w, p.x, p.y);
       this.fieldTimer = 0.32;
     }
+
+    /* 迭代42：敌人包围战术 */
+    this._enemyTacticsTimer -= dt;
+    if (this._enemyTacticsTimer <= 0) {
+      this._enemyTacticsTimer = 0.5; // 每0.5秒更新一次包围计算
+      if (this.entities && this.player) {
+        const playerX = this.player.x;
+        const playerY = this.player.y;
+        const chasingEnemies = this.entities.filter(e => !e.isDead && e.state === 'chase');
+        if (chasingEnemies.length >= 2) {
+          const angleStep = (Math.PI * 2) / chasingEnemies.length;
+          chasingEnemies.forEach((enemy, i) => {
+            const targetAngle = angleStep * i;
+            const dx = playerX - enemy.x;
+            const dy = playerY - enemy.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > 5) {
+              enemy._flankX = playerX - Math.cos(targetAngle) * 3;
+              enemy._flankY = playerY - Math.sin(targetAngle) * 3;
+              enemy._flanking = true;
+            } else {
+              enemy._flankX = undefined;
+              enemy._flankY = undefined;
+              enemy._flanking = false;
+            }
+          });
+        } else {
+          // 只有一个敌人时清除侧翼目标
+          chasingEnemies.forEach(e => {
+            e._flankX = undefined;
+            e._flankY = undefined;
+            e._flanking = false;
+          });
+        }
+      }
+    }
+
+    /* 迭代44：天气系统更新 */
+    this.updateWeather(dt);
 
     let anyNear = false;
     if (p.purifyAura > 0) p.purifyAura -= dt;
