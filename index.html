@@ -10867,6 +10867,54 @@ const ENTITY_DEF = {
     sprite: 'rot',
     damage: 15,  /* 迭代44: damage 20→15 减少减速效果带来的挫败感 */
     hp: 100
+  },
+  /* 迭代111：模仿者 — 伪装成队友声音吸引玩家 */
+  mimic: {
+    name: '模仿者',
+    speed: 1.9,
+    sight: 11,
+    hear: 16,
+    worldH: 0.7,
+    worldW: 0.5,
+    sprite: 'stalker',
+    damage: 35,
+    hp: 45
+  },
+  /* 迭代112：跟踪者 — 保持距离跟随制造压力 */
+  follower: {
+    name: '跟踪者',
+    speed: 2.1,
+    sight: 20,
+    hear: 10,
+    worldH: 0.8,
+    worldW: 0.45,
+    sprite: 'smiler',
+    damage: 0,
+    hp: 80
+  },
+  /* 迭代113：守巢者 — 特定区域巡逻 */
+  nest_guardian: {
+    name: '守巢者',
+    speed: 1.8,
+    sight: 10,
+    hear: 8,
+    worldH: 1.1,
+    worldW: 0.9,
+    sprite: 'hound',
+    damage: 40,
+    hp: 120
+  },
+  /* 迭代115：伏击者 — 蹲在天花板 */
+  ceiling_lurker: {
+    name: '伏击者',
+    speed: 3.5,
+    sight: 8,
+    hear: 5,
+    worldH: 0.3,
+    worldW: 0.6,
+    sprite: 'crawler',
+    damage: 45,
+    hp: 35
   }
 };
 
@@ -11023,6 +11071,90 @@ class Entity {
     this.bossChargeDir = 0;      /* 冲锋方向 */
     this.bossCharging = false;   /* 正在冲锋 */
     this.bossSummonCooldown = 0; /* 召唤小怪冷却 */
+    /* === 迭代101-125：怪物AI深度系统 === */
+    /* 迭代101：视觉感知锥 */
+    this.visionAngle = Math.PI * 0.6;   /* 视野锥角度(约108度) */
+    this.visionRange = def.sight || 12;  /* 视野距离 */
+    this.peripheralAngle = Math.PI * 0.9;/* 周边视觉(弱感知) */
+    this.facingAngle = this.heading;     /* 当前朝向 */
+    /* 迭代102：听觉感知增强 */
+    this._soundEvents = [];              /* 当前感知到的声音事件 */
+    this._hearingSensitivity = 1.0;      /* 听觉灵敏度 */
+    /* 迭代103：嗅觉追踪 */
+    this._scentTrail = [];               /* 玩家留下的气味路径 */
+    this._scentMemory = [];              /* 怪物记忆的气味点 */
+    this._hasScentAbility = (this.type === 'hound' || this.type === 'rot' || this.type === 'mimic');
+    /* 迭代104：感知疲劳 */
+    this._chaseStamina = 100;            /* 追击耐力值 */
+    this._fatigueLevel = 0;              /* 疲劳等级 0-1 */
+    this._lostInterestTimer = 0;         /* 失去兴趣计时 */
+    /* 迭代105：感知欺骗 */
+    this._deceivedBy = null;             /* 被什么欺骗了 */
+    this._deceptionTimer = 0;            /* 欺骗持续时间 */
+    /* 迭代106-110：行为模式扩展 */
+    this._behaviorMode = 'patrol';       /* 当前行为模式 */
+    this._wanderAngle = Math.random() * Math.PI * 2;
+    this._wanderTimer = 3 + Math.random() * 5;
+    this._ambushSpot = null;             /* 埋伏位置 */
+    this._ambushWait = 0;                /* 埋伏等待时间 */
+    this._retreatTarget = null;          /* 撤退目标位置 */
+    this._retreatTimer = 0;
+    this._lastKnownPlayerX = 0;          /* 最后知道玩家位置 */
+    this._lastKnownPlayerY = 0;
+    /* 迭代111：模仿者 */
+    this._mimicVoiceTimer = 8 + Math.random() * 12;
+    this._mimicTargetDist = 6 + Math.random() * 4;
+    /* 迭代112：跟踪者 */
+    this._followDistance = 8 + Math.random() * 4; /* 保持距离 */
+    this._followPressure = 0;            /* 压力值 */
+    /* 迭代113：守巢者 */
+    this._nestCenterX = this.homeX;
+    this._nestCenterY = this.homeY;
+    this._nestRadius = 8 + Math.random() * 6;
+    this._nestEnraged = false;
+    /* 迭代114：群体猎杀 */
+    this._packRole = 'flank';            /* flank/block/pressure */
+    this._packTargetX = 0;
+    this._packTargetY = 0;
+    this._packCommTimer = 0;
+    /* 迭代115：伏击者 */
+    this._ceilingMode = true;            /* 在天花板上 */
+    this._dropTriggered = false;
+    this._dropTarget = null;
+    /* 迭代116：怪物开门 */
+    this._canOpenDoors = (this.type === 'hound' || this.type === 'partygoer' || this.type === 'nest_guardian');
+    this._doorOpenCooldown = 0;
+    /* 迭代117：破坏障碍物 */
+    this._canDestroy = (this.type === 'rot' || this.type === 'nest_guardian' || this.type === 'duller');
+    this._destroyTarget = null;
+    this._destroyProgress = 0;
+    /* 迭代118：自适应巡逻 */
+    this._patrolMemory = [];             /* 记忆玩家常出现的位置 */
+    this._patrolAdaptTimer = 0;
+    /* 迭代119：道具守卫 */
+    this._guardItemPos = null;           /* 守卫的道具位置 */
+    this._guardTimer = 0;
+    /* 迭代120：切断退路 */
+    this._cutRetreatMode = false;
+    this._cutTarget = null;
+    /* 迭代121：恐怖音效 */
+    this._proximitySoundTimer = 0;
+    this._breathIntensity = 0;
+    /* 迭代122：影子系统 */
+    this._shadowCast = true;
+    this._shadowLength = 2.0;
+    /* 迭代123：手电消失 */
+    this._flashDismissTimer = 0;
+    this._dismissed = false;
+    this._reappearPos = null;
+    /* 迭代124：变形效果 */
+    this._deformPhase = 0;
+    this._deformIntensity = 0;
+    this._stretchFactor = 1.0;
+    /* 迭代125：凝视效果 */
+    this._gazeTarget = null;
+    this._gazeIntensity = 0;
+    this._gazeSanityDrain = 0;
   }
 
   /* 受到攻击 */
@@ -11315,50 +11447,190 @@ class Entity {
       }
     }
 
-    /* 迭代19-21：增强状态机 — chase/investigate/search/patrol */
-    if (los) {
-      if (this.state !== 'chase' && dist < 16) {
-        this.rage = Math.min(1, this.rage + 0.25);
+    /* 迭代101-105：高级感知系统 — 视觉锥/听觉/嗅觉/疲劳/欺骗 */
+    /* 处理声音事件 */
+    const _playerNoise = this._processSoundEvents(dt, world, player, audio);
+    /* 处理气味追踪 */
+    this._processScentTrail(dt, world, player);
+    /* 感知欺骗检查 */
+    const _deception = this._checkDeception(world);
+    /* 视觉感知锥 */
+    const _visionResult = this._checkVisionCone(player, world, dist);
+    /* 综合感知判断 */
+    let _perceptionDetected = false;
+    let _perceptionStrength = 0;
+    /* 视觉锥检测 */
+    if (_visionResult.detected && los && !_deception.deceived) {
+      _perceptionDetected = true;
+      _perceptionStrength = Math.max(_perceptionStrength, _visionResult.strength);
+    }
+    /* 听觉检测(增强) */
+    if (heard && !_deception.deceived) {
+      _perceptionDetected = true;
+      _perceptionStrength = Math.max(_perceptionStrength, 0.6);
+    }
+    /* 声音事件吸引 */
+    for (const se of this._soundEvents) {
+      if (se.vol > 0.3 && se.type !== 'footstep_fake') {
+        _perceptionDetected = true;
+        _perceptionStrength = Math.max(_perceptionStrength, se.vol * 0.5);
       }
-      this.state = 'chase';
-      this.alert = 4;
-      this.lastSeenX = player.x;
-      this.lastSeenY = player.y;
-    } else if (heard) {
-      this.lastHeardX = player.x;
-      this.lastHeardY = player.y;
-      if (this.state !== 'chase') {
-        this.state = 'investigate';
-        this._investigateTimer = 0;
+    }
+    /* 嗅觉追踪(当视觉/听觉缺失时) */
+    if (this._hasScentAbility && this._scentConfidence > 0.3 && !_perceptionDetected) {
+      _perceptionStrength = Math.max(_perceptionStrength, this._scentConfidence * 0.3);
+    }
+    /* 噪音制造器欺骗(迭代105) */
+    for (const se of this._soundEvents) {
+      if (se.type === 'noise_maker' && se.vol > 0.5) {
+        this._deceivedBy = 'noise_maker';
+        this._deceptionTimer = 4;
+      }
+    }
+
+    /* 迭代104：感知疲劳 — 影响追击决策 */
+    const _fatigued = this._updatePerceptionFatigue(dt, player);
+    if (_fatigued) {
+      /* 疲劳导致放弃追击 */
+    }
+
+    /* 迭代106-125：行为状态机(整合新系统) */
+    /* === 特殊类型优先处理 === */
+    let _skipMainStateMachine = false;
+
+    /* 迭代111：模仿者行为 */
+    if (this.type === 'mimic' && !los) {
+      this._doMimicBehavior(dt, world, player, audio);
+      _skipMainStateMachine = true;
+    }
+    /* 迭代112：跟踪者行为(不攻击，只跟踪) */
+    if (this.type === 'follower') {
+      const _fSpeed = def.speed * this.speedMul;
+      this._doFollowerBehavior(dt, world, player, _fSpeed);
+      /* 跟踪者给玩家压力 */
+      if (player.sanity > 0) player.sanity = Math.max(0, player.sanity - this._followPressure * 0.5 * dt);
+      _skipMainStateMachine = true;
+    }
+    /* 迭代113：守巢者行为 */
+    if (this.type === 'nest_guardian') {
+      const _ngSpeed = def.speed * this.speedMul;
+      this._doNestGuardianBehavior(dt, world, player, _ngSpeed);
+      if (this._nestEnraged) {
+        /* 狂暴时正常追击逻辑继续 */
+      } else {
+        _skipMainStateMachine = true;
+      }
+    }
+    /* 迭代115：伏击者(天花板)行为 */
+    if (this.type === 'ceiling_lurker') {
+      const _clSpeed = def.speed * this.speedMul;
+      this._doCeilingLurker(dt, world, player, _clSpeed, audio);
+      if (this._ceilingMode) _skipMainStateMachine = true;
+    }
+
+    /* === 主状态机(非特殊类型或特殊类型激怒时) === */
+    if (!_skipMainStateMachine) {
+    if (_perceptionDetected && !_deception.deceived && !_fatigued) {
+      /* 迭代101：视觉锥正面检测 → 直接追击 */
+      if (_visionResult.detected && _visionResult.strength > 0.5 && los && dist < 16) {
+        if (this.state !== 'chase') {
+          this.rage = Math.min(1, this.rage + 0.25);
+        }
+        this.state = 'chase';
+        this.alert = 4;
+        this.lastSeenX = player.x;
+        this.lastSeenY = player.y;
+        this._lastKnownPlayerX = player.x;
+        this._lastKnownPlayerY = player.y;
+      } else if (heard || _perceptionStrength > 0.3) {
+        /* 迭代102：听到声音 → 调查 */
+        this.lastHeardX = player.x;
+        this.lastHeardY = player.y;
+        /* 检查声音事件(可能被噪音制造器欺骗) */
+        const loudestEvent = this._soundEvents.reduce((a, b) => (b.vol > (a ? a.vol : 0) ? b : a), null);
+        if (loudestEvent && loudestEvent.vol > _perceptionStrength) {
+          this.lastHeardX = loudestEvent.x;
+          this.lastHeardY = loudestEvent.y;
+        }
+        if (this.state !== 'chase') {
+          this.state = 'investigate';
+          this._investigateTimer = 0;
+        }
+      }
+    } else if (_deception.deceived) {
+      /* 迭代105：被欺骗 — 朝错误方向移动 */
+      for (const se of this._soundEvents) {
+        if (se.type === 'noise_maker' && se.vol > 0.5) {
+          this.lastHeardX = se.x;
+          this.lastHeardY = se.y;
+          this.state = 'investigate';
+          this._investigateTimer = 0;
+        }
       }
     } else {
       if (this.state === 'chase') {
-        /* 迭代21：丢失玩家 → 进入搜寻模式 */
+        /* 迭代104：疲劳影响丢失速度 */
+        const _alertDecay = dt * (1 + this._fatigueLevel * 2);
         if (this.alert > 0) {
-          this.alert -= dt;
+          this.alert -= _alertDecay;
         } else {
+          /* 迭代108：增强搜索模式 */
           this.state = 'search';
           this._searchTimer = 15 + this.rng() * 5;
           this._searchPoints = null;
           this._searchIdx = 0;
+          this._lastKnownPlayerX = this.lastSeenX;
+          this._lastKnownPlayerY = this.lastSeenY;
         }
       } else if (this.state === 'investigate') {
-        /* 迭代19：调查到达后四处张望然后回patrol */
-        const id = Math.hypot(this.x - this.lastHeardX, this.y - this.lastHeardY);
-        if (id < 1.5) {
-          this._investigateTimer += dt;
-          if (this._investigateTimer > 3 + this.rng() * 2) {
-            this.state = 'patrol';
+        /* 迭代107：增强调查模式 */
+        this._doInvestigateEnhanced(dt, world, player, def.speed * this.speedMul);
+      } else if (this.state === 'search') {
+        /* 迭代108：增强搜索模式 */
+        this._doSearchEnhanced(dt, world, player, def.speed * this.speedMul);
+      } else {
+        /* 迭代106：游荡模式(替代简单patrol) */
+        if (this._behaviorMode === 'wander' || this.state === 'patrol') {
+          this._doWander(dt, world, def.speed * this.speedMul);
+        }
+        /* 迭代109：埋伏模式(特定类型进入埋伏) */
+        if (this.type === 'skin_stealer' || this.type === 'stalker' || this.type === 'ceiling_lurker') {
+          if (Math.random() < 0.001 && !this._ambushSpot) {
+            this._behaviorMode = 'ambush';
           }
         }
-      } else if (this.state === 'search') {
-        this._searchTimer -= dt;
-        if (this._searchTimer <= 0) {
-          this.state = 'patrol';
-          this._searchPoints = null;
+        if (this._behaviorMode === 'ambush') {
+          this._doAmbush(dt, world, player, def.speed * this.speedMul);
         }
-      } else {
-        this.state = 'patrol';
+        /* 迭代110：HP低于30%时撤退 */
+        if (this.hp < this.maxHp * 0.3 && this.state === 'patrol') {
+          this.state = 'retreat';
+          this._retreatTarget = null;
+        }
+        /* 迭代118：自适应巡逻 */
+        this._updateAdaptivePatrol(dt, player);
+        /* 迭代119：道具守卫 */
+        this._updateItemGuard(dt, world, def.speed * this.speedMul);
+      }
+    }
+    } /* end if !_skipMainStateMachine */
+
+    /* 迭代110：撤退状态处理 */
+    if (this.state === 'retreat') {
+      this._doRetreat(dt, world, def.speed * this.speedMul);
+    }
+
+    /* 迭代114：群体猎杀协调 */
+    if (this.state === 'chase' && this._gameRef && this._gameRef.entities) {
+      this._doPackHunting(dt, world, player, this._gameRef);
+    }
+
+    /* 迭代120：切断退路(仅当有多个怪物追击时) */
+    if (this._gameRef && this._gameRef.entities) {
+      const chasingCount = this._gameRef.entities.filter(e => !e.isDead && e.state === 'chase').length;
+      if (chasingCount >= 2 && this._packRole === 'block') {
+        this._cutRetreatMode = true;
+        this._doCutRetreat(dt, world, player, def.speed * this.speedMul);
       }
     }
     /* 迭代17：怪物追击时播放音效 */
@@ -11457,15 +11729,20 @@ class Entity {
         const tx = best[0] + ox + 0.5, ty = best[1] + oy + 0.5;
         const ang = Math.atan2(ty - this.y, tx - this.x);
         this._tryMove(world, Math.cos(ang) * speed * dt, Math.sin(ang) * speed * dt);
-        /* 迭代18：检查前方是否被关闭的门阻挡 */
+        /* 迭代18/116：检查前方是否被关闭的门阻挡 — 能开门的怪物直接开门 */
         const checkI = idx(world, this.x + Math.cos(ang) * 0.4, this.y + Math.sin(ang) * 0.4);
         if (checkI >= 0 && world.type[checkI] === TILE.EXIT && world.doorStates &&
             world.doorStates[Math.floor(this.x + Math.cos(ang) * 0.4) + ',' + Math.floor(this.y + Math.sin(ang) * 0.4)]) {
-          if (this._doorKnockTimer <= 0) {
+          /* 迭代116：怪物开门 */
+          if (this._canOpenDoors) {
+            this._tryOpenDoor(world, this.x + Math.cos(ang) * 0.4, this.y + Math.sin(ang) * 0.4, audio);
+          } else if (this._doorKnockTimer <= 0) {
             this._doorKnockTimer = 5;
             if (audio) audio.door();
           }
         }
+        /* 迭代117：破坏障碍物 */
+        this._tryDestroyObstacle(dt, world, audio);
       } else {
         // 直线逼近
         const ang = Math.atan2(dyp, dxp);
@@ -11712,9 +11989,722 @@ class Entity {
       }
     }
 
+    /* === 迭代121-125：恐怖表现系统 === */
+    /* 迭代121：接近时恐怖音效 */
+    this._updateHorrorAudio(dt, player, audio, dist);
+    /* 迭代122：影子系统 */
+    this._updateShadow(player);
+    /* 迭代123：手电照射消失 */
+    this._updateFlashlightDismiss(dt, player, world);
+    /* 迭代124：变形效果 */
+    this._updateDeformation(dt);
+    /* 迭代125：凝视效果 */
+    this._updateGazeEffect(dt, player, audio);
+    /* 迭代116：开门冷却 */
+    if (this._doorOpenCooldown > 0) this._doorOpenCooldown -= dt;
+
     // 步态起伏
     this.stepPhase += dt * (this.state === 'chase' ? 12 : 5);
     this.bobY = Math.sin(this.stepPhase) * 0.02;
+  }
+
+  /* ============================================================
+     迭代101-125：怪物AI深度系统 — 感知/行为/恐怖方法
+     ============================================================ */
+
+  /* 迭代101：视觉感知锥检测 */
+  _checkVisionCone(player, world, dist) {
+    const dxp = player.x - this.x, dyp = player.y - this.y;
+    const angleToPlayer = Math.atan2(dyp, dxp);
+    /* 更新朝向 */
+    if (this.state === 'chase' || this.state === 'investigate') {
+      this.facingAngle = angleToPlayer;
+    }
+    let angleDiff = Math.abs(((angleToPlayer - this.facingAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    /* 正面视野锥 — 强感知 */
+    if (angleDiff < this.visionAngle * 0.5 && dist < this.visionRange) {
+      return { detected: true, strength: 1.0 - (dist / this.visionRange) * 0.5 };
+    }
+    /* 周边视觉 — 弱感知(只能检测运动) */
+    if (angleDiff < this.peripheralAngle * 0.5 && dist < this.visionRange * 0.6) {
+      const moving = player.sprinting || (!player.crouch && Math.abs(player.vx || 0) > 0.1);
+      if (moving) return { detected: true, strength: 0.3 };
+    }
+    /* 背面几乎无法看到静止玩家 */
+    if (angleDiff > Math.PI * 0.7 && dist < 2.5 && !player.crouch) {
+      return { detected: true, strength: 0.15 };
+    }
+    return { detected: false, strength: 0 };
+  }
+
+  /* 迭代102：声音事件传播 */
+  _processSoundEvents(dt, world, player, audio) {
+    if (!world._soundEvents) world._soundEvents = [];
+    const hearingRange = this.def.hear * this._hearingSensitivity;
+    /* 玩家产生的声音 */
+    let playerNoise = 0;
+    if (player.sprinting) playerNoise = 3.0;
+    else if (!player.crouch) playerNoise = 1.0;
+    if (player.noise > 0) playerNoise = Math.max(playerNoise, player.noise);
+    /* 门被打开的声音 */
+    if (world._doorSoundEvents) {
+      for (const ds of world._doorSoundEvents) {
+        const dd = Math.hypot(this.x - ds.x, this.y - ds.y);
+        if (dd < hearingRange * 1.5) {
+          this._soundEvents.push({ x: ds.x, y: ds.y, vol: ds.vol * (1 - dd / (hearingRange * 1.5)), type: 'door', age: 0 });
+        }
+      }
+    }
+    /* 噪音制造器 */
+    if (world._noiseMakerEvents) {
+      for (const nm of world._noiseMakerEvents) {
+        const nd = Math.hypot(this.x - nm.x, this.y - nm.y);
+        if (nd < hearingRange * 2) {
+          this._soundEvents.push({ x: nm.x, y: nm.y, vol: nm.vol * (1 - nd / (hearingRange * 2)), type: 'noise_maker', age: 0 });
+        }
+      }
+    }
+    /* 处理自身感知到的声音事件 */
+    for (let i = this._soundEvents.length - 1; i >= 0; i--) {
+      this._soundEvents[i].age += dt;
+      if (this._soundEvents[i].age > 5 || this._soundEvents[i].vol < 0.05) {
+        this._soundEvents.splice(i, 1);
+      }
+    }
+    return playerNoise;
+  }
+
+  /* 迭代103：气味追踪系统 */
+  _processScentTrail(dt, world, player) {
+    if (!this._hasScentAbility) return;
+    /* 玩家经过时留下气味 */
+    if (!world._scentMap) world._scentMap = [];
+    if (player.sprinting || (!player.crouch && (Math.abs(player.vx || 0) > 0.5 || Math.abs(player.vy || 0) > 0.5))) {
+      if (!this._lastScentDrop || this._lastScentDrop <= 0) {
+        world._scentMap.push({ x: player.x, y: player.y, age: 0, strength: player.sprinting ? 1.0 : 0.5 });
+        if (world._scentMap.length > 80) world._scentMap.shift();
+        this._lastScentDrop = 0.3;
+      }
+    }
+    if (this._lastScentDrop > 0) this._lastScentDrop -= dt;
+    /* 老化气味 */
+    for (let i = world._scentMap.length - 1; i >= 0; i--) {
+      world._scentMap[i].age += dt;
+      world._scentMap[i].strength *= (1 - dt * 0.02);
+      if (world._scentMap[i].age > 30 || world._scentMap[i].strength < 0.05) {
+        world._scentMap.splice(i, 1);
+      }
+    }
+    /* 嗅觉怪物检测最近气味 */
+    if (this._hasScentAbility && this.state !== 'chase') {
+      let bestScent = null, bestStr = 0;
+      for (const s of world._scentMap) {
+        const sd = Math.hypot(this.x - s.x, this.y - s.y);
+        if (sd < 6 && s.strength > bestStr) {
+          bestStr = s.strength;
+          bestScent = s;
+        }
+      }
+      if (bestScent && bestStr > 0.2) {
+        this._scentTargetX = bestScent.x;
+        this._scentTargetY = bestScent.y;
+        this._scentConfidence = bestStr;
+      }
+    }
+  }
+
+  /* 迭代104：感知疲劳系统 */
+  _updatePerceptionFatigue(dt, player) {
+    const dist = Math.hypot(player.x - this.x, player.y - this.y);
+    if (this.state === 'chase') {
+      this._chaseStamina -= dt * 6;
+      if (this._chaseStamina <= 0) {
+        this._chaseStamina = 0;
+        this._fatigueLevel = Math.min(1, this._fatigueLevel + dt * 0.3);
+      }
+    } else {
+      this._chaseStamina = Math.min(100, this._chaseStamina + dt * 12);
+      this._fatigueLevel = Math.max(0, this._fatigueLevel - dt * 0.2);
+    }
+    /* 疲劳降低感知能力 */
+    if (this._fatigueLevel > 0.5 && dist > 8) {
+      this._lostInterestTimer += dt;
+      if (this._lostInterestTimer > 8 + this._fatigueLevel * 5) {
+        /* 失去兴趣，回patrol */
+        this.state = 'patrol';
+        this.alert = 0;
+        this._fatigueLevel = 0.3;
+        this._lostInterestTimer = 0;
+        this._chaseStamina = 40;
+        return true;
+      }
+    } else {
+      this._lostInterestTimer = Math.max(0, this._lostInterestTimer - dt * 0.5);
+    }
+    return false;
+  }
+
+  /* 迭代105：感知欺骗检测 */
+  _checkDeception(world) {
+    /* 气味掩盖道具 */
+    if (world._scentMaskers) {
+      for (const sm of world._scentMaskers) {
+        const d = Math.hypot(this.x - sm.x, this.y - sm.y);
+        if (d < sm.radius && this._hasScentAbility) {
+          this._deceivedBy = 'scent_mask';
+          this._deceptionTimer = 3;
+          this._scentConfidence = 0;
+          return { deceived: true, type: 'scent_mask' };
+        }
+      }
+    }
+    /* 噪音制造器 */
+    if (this._deceptionTimer > 0) {
+      this._deceptionTimer -= 1/60;
+      if (this._deceptionTimer <= 0) {
+        this._deceivedBy = null;
+      }
+    }
+    return { deceived: false };
+  }
+
+  /* 迭代106：游荡模式 */
+  _doWander(dt, world, speed) {
+    this._wanderTimer -= dt;
+    if (this._wanderTimer <= 0) {
+      this._wanderAngle += (Math.random() - 0.5) * Math.PI * 0.8;
+      this._wanderTimer = 2 + Math.random() * 4;
+    }
+    const wx = this.x + Math.cos(this._wanderAngle) * speed * 0.35 * dt;
+    const wy = this.y + Math.sin(this._wanderAngle) * speed * 0.35 * dt;
+    if (!this._blocked(world, wx, wy)) {
+      this._tryMove(world, Math.cos(this._wanderAngle) * speed * 0.35 * dt, Math.sin(this._wanderAngle) * speed * 0.35 * dt);
+      this.heading = this._wanderAngle;
+    } else {
+      this._wanderAngle += Math.PI * 0.5 * (Math.random() > 0.5 ? 1 : -1);
+    }
+  }
+
+  /* 迭代107：调查模式增强 */
+  _doInvestigateEnhanced(dt, world, player, speed) {
+    /* 朝声源移动，但到达后不会立刻回patrol */
+    const tx = this.lastHeardX, ty = this.lastHeardY;
+    const d = Math.hypot(this.x - tx, this.y - ty);
+    if (d > 1.0) {
+      const ang = Math.atan2(ty - this.y, tx - this.x);
+      this.heading = ang;
+      this._tryMove(world, Math.cos(ang) * speed * 0.6 * dt, Math.sin(ang) * speed * 0.6 * dt);
+    } else {
+      /* 到达声源 — 四处张望(转向) */
+      this._investigateLookTimer = (this._investigateLookTimer || 0) + dt;
+      this.heading += Math.sin(this._investigateLookTimer * 2) * 0.03;
+      if (this._investigateLookTimer > 4) {
+        /* 检查声音事件 */
+        const loudest = this._soundEvents.reduce((a, b) => (b.vol > (a ? a.vol : 0) ? b : a), null);
+        if (loudest) {
+          this.lastHeardX = loudest.x;
+          this.lastHeardY = loudest.y;
+          this._investigateLookTimer = 0;
+        } else {
+          this.state = 'patrol';
+          this._investigateLookTimer = 0;
+        }
+      }
+    }
+  }
+
+  /* 迭代108：搜索模式增强 */
+  _doSearchEnhanced(dt, world, player, speed) {
+    this._searchTimer -= dt;
+    if (!this._searchPoints || this._searchIdx >= this._searchPoints.length) {
+      /* 生成更智能的搜索点 — 考虑玩家可能的逃跑方向 */
+      this._searchPoints = [];
+      const lastX = this._lastKnownPlayerX || this.lastSeenX;
+      const lastY = this._lastKnownPlayerY || this.lastSeenY;
+      /* 根据走廊方向生成搜索点 */
+      for (let s = 0; s < 6; s++) {
+        const ang = (s / 6) * Math.PI * 2 + (this.rng() - 0.5) * 0.5;
+        const dist = 2 + this.rng() * 5;
+        const px = lastX + Math.cos(ang) * dist;
+        const py = lastY + Math.sin(ang) * dist;
+        const pi = idx(world, px, py);
+        if (pi >= 0 && world.height[pi] <= 0.3) {
+          this._searchPoints.push([px, py]);
+        }
+      }
+      this._searchIdx = 0;
+      this._searchWait = 0;
+    }
+    if (this._searchIdx < this._searchPoints.length) {
+      if (this._searchWait > 0) {
+        this._searchWait -= dt;
+        /* 等待时四处看 */
+        this.heading += Math.sin(this._searchWait * 3) * 0.02;
+      } else {
+        const sp = this._searchPoints[this._searchIdx];
+        const sd = Math.hypot(this.x - sp[0], this.y - sp[1]);
+        if (sd > 0.8) {
+          const ang = Math.atan2(sp[1] - this.y, sp[0] - this.x);
+          this.heading = ang;
+          this._tryMove(world, Math.cos(ang) * speed * 0.5 * dt, Math.sin(ang) * speed * 0.5 * dt);
+        } else {
+          this._searchIdx++;
+          this._searchWait = 1.5 + this.rng() * 2;
+        }
+      }
+    }
+    if (this._searchTimer <= 0) {
+      this.state = 'patrol';
+      this._searchPoints = null;
+    }
+  }
+
+  /* 迭代109：埋伏模式 */
+  _doAmbush(dt, world, player, speed) {
+    const dist = Math.hypot(player.x - this.x, player.y - this.y);
+    if (!this._ambushSpot) {
+      /* 寻找合适的埋伏点 — 门后/角落/拐角 */
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const ang = Math.random() * Math.PI * 2;
+        const d = 3 + Math.random() * 6;
+        const ax = player.x + Math.cos(ang) * d;
+        const ay = player.y + Math.sin(ang) * d;
+        const ai = idx(world, ax, ay);
+        if (ai >= 0 && world.height[ai] <= 0.3) {
+          /* 检查是否在墙角附近 */
+          let nearWall = false;
+          for (const [ddx, ddy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+            const wi = idx(world, ax + ddx * 0.5, ay + ddy * 0.5);
+            if (wi >= 0 && world.height[wi] > 0.3) { nearWall = true; break; }
+          }
+          if (nearWall) {
+            this._ambushSpot = { x: ax, y: ay };
+            break;
+          }
+        }
+      }
+      if (!this._ambushSpot) {
+        this._ambushSpot = { x: this.x, y: this.y };
+      }
+    }
+    /* 移动到埋伏点 */
+    const ad = Math.hypot(this.x - this._ambushSpot.x, this.y - this._ambushSpot.y);
+    if (ad > 0.5) {
+      const ang = Math.atan2(this._ambushSpot.y - this.y, this._ambushSpot.x - this.x);
+      this.heading = ang;
+      this._tryMove(world, Math.cos(ang) * speed * 0.3 * dt, Math.sin(ang) * speed * 0.3 * dt);
+    } else {
+      /* 等待玩家经过 */
+      this._ambushWait += dt;
+      if (dist < 3 && !this._dropTriggered) {
+        /* 扑击！ */
+        this.state = 'chase';
+        this.alert = 5;
+        this._ambushSpot = null;
+        this._dropTriggered = true;
+      }
+    }
+  }
+
+  /* 迭代110：撤退模式 */
+  _doRetreat(dt, world, speed) {
+    if (!this._retreatTarget) {
+      /* 找回家方向或出生点 */
+      this._retreatTarget = { x: this.homeX, y: this.homeY };
+      this._retreatTimer = 8 + Math.random() * 5;
+    }
+    const rd = Math.hypot(this.x - this._retreatTarget.x, this.y - this._retreatTarget.y);
+    if (rd > 1.0 && this._retreatTimer > 0) {
+      const ang = Math.atan2(this._retreatTarget.y - this.y, this._retreatTarget.x - this.x);
+      this.heading = ang;
+      this._tryMove(world, Math.cos(ang) * speed * 0.9 * dt, Math.sin(ang) * speed * 0.9 * dt);
+      this._retreatTimer -= dt;
+    } else {
+      /* 到达巢穴，恢复HP */
+      this.hp = Math.min(this.maxHp, this.hp + dt * 5);
+      if (this.hp >= this.maxHp * 0.7 || this._retreatTimer <= 0) {
+        this.state = 'patrol';
+        this._retreatTarget = null;
+      }
+    }
+  }
+
+  /* 迭代111：模仿者行为 */
+  _doMimicBehavior(dt, world, player, audio) {
+    const dist = Math.hypot(player.x - this.x, player.y - this.y);
+    /* 保持安全距离，用声音引诱玩家 */
+    this._mimicVoiceTimer -= dt;
+    if (this._mimicVoiceTimer <= 0 && dist < 15 && dist > 3) {
+      this._mimicVoiceTimer = 6 + Math.random() * 8;
+      if (audio && audio.mimicVoice) {
+        audio.mimicVoice(this.x, this.y, dist);
+      }
+      /* 产生脚步声假象 */
+      if (!world._soundEvents) world._soundEvents = [];
+      const fakeAng = Math.random() * Math.PI * 2;
+      const fakeDist = 4 + Math.random() * 3;
+      world._soundEvents.push({
+        x: this.x + Math.cos(fakeAng) * fakeDist,
+        y: this.y + Math.sin(fakeAng) * fakeDist,
+        vol: 0.8, type: 'footstep_fake', age: 0
+      });
+    }
+    /* 如果玩家太近，切换为攻击模式 */
+    if (dist < 2.5) {
+      this.state = 'chase';
+      this.alert = 5;
+    }
+  }
+
+  /* 迭代112：跟踪者行为 */
+  _doFollowerBehavior(dt, world, player, speed) {
+    const dist = Math.hypot(player.x - this.x, player.y - this.y);
+    /* 保持固定距离跟随 */
+    const targetDist = this._followDistance;
+    const dxp = player.x - this.x, dyp = player.y - this.y;
+    const ang = Math.atan2(dyp, dxp);
+    this.facingAngle = ang;
+    if (dist > targetDist + 2) {
+      /* 太远了，靠近 */
+      this._tryMove(world, Math.cos(ang) * speed * 0.7 * dt, Math.sin(ang) * speed * 0.7 * dt);
+    } else if (dist < targetDist - 2) {
+      /* 太近了，后退 */
+      this._tryMove(world, -Math.cos(ang) * speed * 0.5 * dt, -Math.sin(ang) * speed * 0.5 * dt);
+    } else {
+      /* 保持距离，侧向移动 */
+      const sideAng = ang + Math.PI * 0.5;
+      this._tryMove(world, Math.cos(sideAng) * speed * 0.3 * dt, Math.sin(sideAng) * speed * 0.3 * dt);
+    }
+    this.heading = ang;
+    /* 增加玩家压力 */
+    this._followPressure = Math.min(1, this._followPressure + dt * 0.05);
+  }
+
+  /* 迭代113：守巢者行为 */
+  _doNestGuardianBehavior(dt, world, player, speed) {
+    const nestDist = Math.hypot(this.x - this._nestCenterX, this.y - this._nestCenterY);
+    const playerNestDist = Math.hypot(player.x - this._nestCenterX, player.y - this._nestCenterY);
+    /* 在巢穴范围内巡逻 */
+    if (nestDist > this._nestRadius) {
+      /* 离开区域太远，回巢 */
+      const ang = Math.atan2(this._nestCenterY - this.y, this._nestCenterX - this.x);
+      this.heading = ang;
+      this._tryMove(world, Math.cos(ang) * speed * dt, Math.sin(ang) * speed * dt);
+    } else if (playerNestDist < this._nestRadius * 0.6) {
+      /* 玩家侵入巢穴 */
+      if (!this._nestEnraged) {
+        this._nestEnraged = true;
+        this.speedMul *= 1.4;
+      }
+      this.state = 'chase';
+      this.alert = 5;
+    } else {
+      /* 正常巡逻 */
+      if (this._nestEnraged) {
+        this._nestEnraged = false;
+        this.speedMul /= 1.4;
+      }
+    }
+  }
+
+  /* 迭代114：群体猎杀协调 */
+  _doPackHunting(dt, world, player, game) {
+    if (!game || !game.entities) return;
+    this._packCommTimer -= dt;
+    if (this._packCommTimer <= 0) {
+      this._packCommTimer = 2 + Math.random() * 2;
+      /* 分配角色 */
+      const packMembers = game.entities.filter(e => !e.isDead && e.state === 'chase' && e !== this);
+      const playerAng = Math.atan2(player.y - this.y, player.x - this.x);
+      if (packMembers.length >= 2) {
+        /* 分配侧翼/包围角色 */
+        const myIdx = game.entities.indexOf(this);
+        const roleIdx = myIdx % 3;
+        if (roleIdx === 0) {
+          this._packRole = 'direct';
+          this._packTargetX = player.x;
+          this._packTargetY = player.y;
+        } else if (roleIdx === 1) {
+          this._packRole = 'flank';
+          const flankAng = playerAng + Math.PI * 0.4;
+          this._packTargetX = player.x - Math.cos(flankAng) * 4;
+          this._packTargetY = player.y - Math.sin(flankAng) * 4;
+        } else {
+          this._packRole = 'block';
+          const blockAng = playerAng - Math.PI * 0.4;
+          this._packTargetX = player.x - Math.cos(blockAng) * 3;
+          this._packTargetY = player.y - Math.sin(blockAng) * 3;
+        }
+      }
+    }
+  }
+
+  /* 迭代115：伏击者(天花板)行为 */
+  _doCeilingLurker(dt, world, player, speed, audio) {
+    const dist = Math.hypot(player.x - this.x, player.y - this.y);
+    if (this._ceilingMode) {
+      /* 在天花板上游荡，等待玩家经过 */
+      const wanderAng = this._wanderAngle;
+      this._tryMove(world, Math.cos(wanderAng) * speed * 0.4 * dt, Math.sin(wanderAng) * speed * 0.4 * dt);
+      this._wanderTimer -= dt;
+      if (this._wanderTimer <= 0) {
+        this._wanderAngle += (Math.random() - 0.5) * Math.PI;
+        this._wanderTimer = 2 + Math.random() * 3;
+      }
+      /* 检测正下方是否有玩家 */
+      if (dist < 2.5 && !this._dropTriggered) {
+        this._ceilingMode = false;
+        this._dropTriggered = true;
+        this.state = 'chase';
+        this.alert = 5;
+        /* 扑击音效 */
+        if (audio && audio.growl) audio.growl(dist);
+      }
+    } else {
+      /* 已落下，正常追击 */
+      if (dist > 15) {
+        /* 尝试回到天花板 */
+        this._ceilingMode = true;
+        this._dropTriggered = false;
+        this.state = 'patrol';
+      }
+    }
+  }
+
+  /* 迭代116：怪物开门 */
+  _tryOpenDoor(world, x, y, audio) {
+    if (!this._canOpenDoors) return false;
+    if (this._doorOpenCooldown > 0) return false;
+    const key = Math.floor(x) + ',' + Math.floor(y);
+    if (world.doorStates && world.doorStates[key]) {
+      world.doorStates[key] = false; /* 打开门 */
+      this._doorOpenCooldown = 3;
+      /* 门吱嘎声 */
+      if (audio && audio.door) audio.door();
+      /* 记录声音事件 */
+      if (!world._doorSoundEvents) world._doorSoundEvents = [];
+      world._doorSoundEvents.push({ x: x, y: y, vol: 1.0, age: 0 });
+      return true;
+    }
+    return false;
+  }
+
+  /* 迭代117：怪物破坏障碍物 */
+  _tryDestroyObstacle(dt, world, audio) {
+    if (!this._canDestroy) return;
+    const checkDist = 1.2;
+    const fx = this.x + Math.cos(this.heading) * checkDist;
+    const fy = this.y + Math.sin(this.heading) * checkDist;
+    const ci = idx(world, fx, fy);
+    if (ci >= 0 && world.height[ci] > 0.3 && world.height[ci] <= 0.8) {
+      /* 可破坏的矮墙/箱子 */
+      this._destroyProgress += dt * 0.5;
+      if (this._destroyProgress >= 2.0) {
+        world.height[ci] = 0;
+        world.type[ci] = 0;
+        this._destroyProgress = 0;
+        /* 破坏音效 */
+        if (audio && audio.destroy) audio.destroy();
+        /* 产生噪音 */
+        if (!world._soundEvents) world._soundEvents = [];
+        world._soundEvents.push({ x: this.x, y: this.y, vol: 1.5, type: 'destruction', age: 0 });
+      }
+    }
+  }
+
+  /* 迭代118：自适应巡逻路线 */
+  _updateAdaptivePatrol(dt, player) {
+    this._patrolAdaptTimer -= dt;
+    if (this._patrolAdaptTimer <= 0) {
+      this._patrolAdaptTimer = 15 + Math.random() * 10;
+      /* 记忆玩家最近出现的位置 */
+      if (this.state === 'chase' || this.state === 'search') {
+        this._patrolMemory.push({ x: this._lastKnownPlayerX || this.lastSeenX, y: this._lastKnownPlayerY || this.lastSeenY });
+        if (this._patrolMemory.length > 5) this._patrolMemory.shift();
+      }
+      /* 根据记忆调整巡逻路线 */
+      if (this._patrolMemory.length > 0 && this._patrolPoints) {
+        for (let i = 0; i < this._patrolPoints.length && i < this._patrolMemory.length; i++) {
+          const mem = this._patrolMemory[this._patrolMemory.length - 1 - i];
+          this._patrolPoints[i] = [mem.x + (this.rng() - 0.5) * 4, mem.y + (this.rng() - 0.5) * 4];
+        }
+      }
+    }
+  }
+
+  /* 迭代119：道具守卫 */
+  _updateItemGuard(dt, world, speed) {
+    if (!this._guardItemPos) return;
+    const gd = Math.hypot(this.x - this._guardItemPos.x, this.y - this._guardItemPos.y);
+    if (gd > 2.0) {
+      const ang = Math.atan2(this._guardItemPos.y - this.y, this._guardItemPos.x - this.x);
+      this.heading = ang;
+      this._tryMove(world, Math.cos(ang) * speed * 0.5 * dt, Math.sin(ang) * speed * 0.5 * dt);
+    } else {
+      /* 在道具附近巡逻 */
+      this._guardTimer -= dt;
+      if (this._guardTimer <= 0) {
+        this._guardTimer = 3 + Math.random() * 3;
+        this._wanderAngle = Math.random() * Math.PI * 2;
+      }
+      this._tryMove(world, Math.cos(this._wanderAngle) * speed * 0.3 * dt, Math.sin(this._wanderAngle) * speed * 0.3 * dt);
+    }
+  }
+
+  /* 迭代120：切断退路 */
+  _doCutRetreat(dt, world, player, speed) {
+    if (!this._cutRetreatMode) return;
+    if (!this._cutTarget) {
+      /* 预测玩家逃跑方向，提前封堵 */
+      const playerAng = Math.atan2(player.vy || 0, player.vx || 0);
+      const predictDist = 4;
+      this._cutTarget = {
+        x: player.x + Math.cos(playerAng) * predictDist,
+        y: player.y + Math.sin(playerAng) * predictDist
+      };
+    }
+    const cd = Math.hypot(this.x - this._cutTarget.x, this.y - this._cutTarget.y);
+    if (cd > 1.0) {
+      const ang = Math.atan2(this._cutTarget.y - this.y, this._cutTarget.x - this.x);
+      this.heading = ang;
+      this._tryMove(world, Math.cos(ang) * speed * 0.8 * dt, Math.sin(ang) * speed * 0.8 * dt);
+    }
+  }
+
+  /* 迭代121：接近时恐怖音效 */
+  _updateHorrorAudio(dt, player, audio, dist) {
+    if (!audio || !audio.ctx) return;
+    this._proximitySoundTimer -= dt;
+    const intensity = Math.max(0, 1 - dist / 12);
+    this._breathIntensity = intensity;
+    if (intensity > 0.2 && this._proximitySoundTimer <= 0) {
+      this._proximitySoundTimer = 0.5 + (1 - intensity) * 1.5;
+      try {
+        const ctx = audio.ctx;
+        /* 低频嗡鸣 */
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'sine';
+        o.frequency.setValueAtTime(30 + intensity * 40, ctx.currentTime);
+        g.gain.setValueAtTime(intensity * 0.08, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+        o.start(); o.stop(ctx.currentTime + 0.8);
+        /* 呼吸声(噪音) */
+        if (intensity > 0.5) {
+          const buf = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < data.length; i++) {
+            data[i] = (Math.random() * 2 - 1) * 0.03 * intensity;
+          }
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          const filt = ctx.createBiquadFilter();
+          filt.type = 'lowpass';
+          filt.frequency.value = 200;
+          src.connect(filt); filt.connect(ctx.destination);
+          src.start();
+        }
+      } catch(e) {}
+    }
+  }
+
+  /* 迭代122：影子计算 */
+  _updateShadow(player) {
+    if (!player.flashlight || !player._flashOn) {
+      this._shadowCast = false;
+      return;
+    }
+    const dx = this.x - player.x, dy = this.y - player.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 15 && dist > 1) {
+      this._shadowCast = true;
+      this._shadowLength = Math.min(4, 8 / dist);
+      this._shadowAngle = Math.atan2(dy, dx);
+    } else {
+      this._shadowCast = false;
+    }
+  }
+
+  /* 迭代123：手电照射消失 */
+  _updateFlashlightDismiss(dt, player, world) {
+    if (this.type === 'smiler' || this.type === 'stalker') {
+      if (player.flashlight && player._flashOn) {
+        const dxp = player.x - this.x, dyp = player.y - this.y;
+        const dist = Math.hypot(dxp, dyp);
+        const angTo = Math.atan2(this.y - player.y, this.x - player.x);
+        let da = Math.abs(((angTo - player.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        if (da < 0.3 && dist < 10) {
+          this._flashDismissTimer += dt;
+          if (this._flashDismissTimer > 2.5 && !this._dismissed) {
+            this._dismissed = true;
+            /* 消失到随机位置 */
+            const rAng = Math.random() * Math.PI * 2;
+            const rDist = 8 + Math.random() * 6;
+            this._reappearPos = { x: this.x + Math.cos(rAng) * rDist, y: this.y + Math.sin(rAng) * rDist };
+            const ri = idx(world, this._reappearPos.x, this._reappearPos.y);
+            if (ri >= 0 && world.height[ri] <= 0.3) {
+              this.x = this._reappearPos.x;
+              this.y = this._reappearPos.y;
+            }
+            this._flashDismissTimer = 0;
+            /* 5秒后可再次出现 */
+            setTimeout(() => { this._dismissed = false; }, 5000);
+          }
+        } else {
+          this._flashDismissTimer = Math.max(0, this._flashDismissTimer - dt * 0.5);
+        }
+      }
+    }
+  }
+
+  /* 迭代124：变形效果更新 */
+  _updateDeformation(dt) {
+    if (this.state === 'chase') {
+      this._deformPhase += dt * 3;
+      this._deformIntensity = Math.min(1, this._deformIntensity + dt * 0.3);
+      this._stretchFactor = 1.0 + Math.sin(this._deformPhase) * 0.15 * this._deformIntensity;
+    } else {
+      this._deformIntensity = Math.max(0, this._deformIntensity - dt * 0.5);
+      this._stretchFactor = 1.0 + Math.sin(this._deformPhase) * 0.05 * this._deformIntensity;
+    }
+  }
+
+  /* 迭代125：凝视效果 */
+  _updateGazeEffect(dt, player, audio) {
+    if (this.type !== 'watcher' && this.type !== 'smiler') return;
+    const dxp = player.x - this.x, dyp = player.y - this.y;
+    const dist = Math.hypot(dxp, dyp);
+    const angTo = Math.atan2(this.y - player.y, this.x - player.x);
+    let da = Math.abs(((angTo - player.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    /* 怪物看着玩家 & 玩家看着怪物 */
+    const monsterLooking = da < 0.6 && dist < 12;
+    let playerLooking = false;
+    const angFrom = Math.atan2(this.y - player.y, this.x - player.x);
+    let pda = Math.abs(((angFrom - player.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    if (pda < 0.5) playerLooking = true;
+    if (monsterLooking && playerLooking) {
+      this._gazeIntensity = Math.min(1, this._gazeIntensity + dt * 0.4);
+      /* 理智流失 */
+      this._gazeSanityDrain = this._gazeIntensity * 8;
+      player.sanity = Math.max(0, player.sanity - this._gazeSanityDrain * dt);
+      /* 凝视时的恐怖低频音 */
+      if (this._gazeIntensity > 0.5 && audio && audio.ctx) {
+        try {
+          const ctx = audio.ctx;
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.type = 'sine';
+          o.frequency.value = 25 + this._gazeIntensity * 15;
+          g.gain.value = this._gazeIntensity * 0.04;
+          o.start(); o.stop(ctx.currentTime + 0.15);
+        } catch(e) {}
+      }
+    } else {
+      this._gazeIntensity = Math.max(0, this._gazeIntensity - dt * 0.3);
+      this._gazeSanityDrain = 0;
+    }
   }
 
   /* 迭代59：Boss特殊更新逻辑 */
@@ -28792,7 +29782,1232 @@ function getRandomWeather() {
   return 'clear';
 }
 
-// ========== 迭代76-80: 交易系统、隐藏房间、怪物掉落、时间系统、特效 ==========
+// ========== 迭代76-100: 关卡变异与恐怖地图体验 ==========
+
+// --- 迭代76: 黑暗关卡变体 ---
+var DARK_LEVELS = {};
+function initDarkLevelSystem() {
+  DARK_LEVELS = {
+    active: false,
+    darknessLevel: 0,
+    flickerLights: [],
+    darkZones: [],
+    lastFlicker: 0,
+    flickerInterval: 3000
+  };
+}
+function isDarkLevel(levelIndex) {
+  var darkIndices = [3, 6, 9, 13, 17];
+  return darkIndices.indexOf(levelIndex % 20) >= 0;
+}
+function applyDarknessOverlay(game) {
+  if (!DARK_LEVELS.active) return;
+  var darkness = DARK_LEVELS.darknessLevel;
+  var overlay = document.getElementById('darkness-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'darkness-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:4;background:rgba(0,0,0,0);transition:background 0.5s;';
+    document.body.appendChild(overlay);
+  }
+  overlay.style.background = 'rgba(0,0,0,' + Math.min(0.92, darkness * 0.15) + ')';
+}
+function updateDarkness(dt, levelIndex, playerPos) {
+  if (!isDarkLevel(levelIndex)) { DARK_LEVELS.active = false; return; }
+  DARK_LEVELS.active = true;
+  DARK_LEVELS.darknessLevel = 5;
+  var now = Date.now();
+  if (now - DARK_LEVELS.lastFlicker > DARK_LEVELS.flickerInterval) {
+    DARK_LEVELS.lastFlicker = now;
+    DARK_LEVELS.flickerInterval = 2000 + Math.random() * 6000;
+    triggerLightFlicker(playerPos);
+  }
+}
+function triggerLightFlicker(playerPos) {
+  if (!playerPos) return;
+  var flickerDuration = 200 + Math.random() * 800;
+  DARK_LEVELS.darknessLevel = 2;
+  setTimeout(function() { DARK_LEVELS.darknessLevel = 5; }, flickerDuration);
+  if (typeof playSound === 'function') playSound('flicker');
+}
+function getPlayerLightRadius(player) {
+  var base = 1.5;
+  if (player && player.heldItem) {
+    if (player.heldItem.type === 'flashlight') base = 6;
+    else if (player.heldItem.type === 'flare') base = 8;
+  }
+  if (DARK_LEVELS.active && !player._inLightZone) {
+    base = Math.max(1, base - DARK_LEVELS.darknessLevel * 0.3);
+  }
+  return base;
+}
+
+// --- 迭代77: 动态黑暗区域 ---
+var DARK_ZONES = [];
+function generateDarkZones(rooms, levelIndex) {
+  DARK_ZONES = [];
+  if (!isDarkLevel(levelIndex) && Math.random() > 0.3) return;
+  var count = 1 + Math.floor(Math.random() * 3);
+  for (var i = 0; i < count && i < rooms.length; i++) {
+    var room = rooms[Math.floor(Math.random() * rooms.length)];
+    DARK_ZONES.push({
+      x: room.x + room.w * 0.5,
+      y: room.y + room.h * 0.5,
+      radius: Math.max(room.w, room.h) * 0.6 + Math.random() * 2,
+      permanent: Math.random() < 0.4,
+      intensity: 0.7 + Math.random() * 0.3,
+      _pulsePhase: Math.random() * Math.PI * 2
+    });
+  }
+}
+function isInDarkZone(x, y) {
+  for (var i = 0; i < DARK_ZONES.length; i++) {
+    var z = DARK_ZONES[i];
+    var dx = x - z.x, dy = y - z.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var r = z.radius;
+    if (!z.permanent) {
+      r *= 1 + Math.sin(Date.now() * 0.001 + z._pulsePhase) * 0.15;
+    }
+    if (dist < r) return { zone: z, dist: dist, ratio: dist / r };
+  }
+  return null;
+}
+function updateDarkZones(dt) {
+  for (var i = 0; i < DARK_ZONES.length; i++) {
+    if (!DARK_ZONES[i].permanent) {
+      DARK_ZONES[i]._pulsePhase += dt * 0.5;
+    }
+  }
+}
+function renderDarkZones(ctx, camX, camY) {
+  if (DARK_ZONES.length === 0) return;
+  for (var i = 0; i < DARK_ZONES.length; i++) {
+    var z = DARK_ZONES[i];
+    var sx = z.x - camX, sy = z.y - camY;
+    var r = z.radius;
+    if (!z.permanent) {
+      r *= 1 + Math.sin(Date.now() * 0.001 + z._pulsePhase) * 0.15;
+    }
+    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+    grad.addColorStop(0, 'rgba(0,0,0,' + z.intensity * 0.8 + ')');
+    grad.addColorStop(0.6, 'rgba(0,0,0,' + z.intensity * 0.4 + ')');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
+  }
+}
+
+// --- 迭代78: 黑暗中怪物增强 ---
+var DARK_MONSTER_BOOST = { speedMult: 1.3, perceptionMult: 1.5, aggroRange: 1.4 };
+function getDarkMonsterBoost(entity, playerPos) {
+  var boost = { speed: 1, perception: 1, aggroRange: 1 };
+  if (!DARK_LEVELS.active && !isInDarkZone(entity.x, entity.y)) return boost;
+  var inDark = isInDarkZone(entity.x, entity.y);
+  var playerInDark = isInDarkZone(playerPos.x, playerPos.y);
+  if (inDark || playerInDark || DARK_LEVELS.active) {
+    var darkFactor = inDark ? 1 : 0.5;
+    boost.speed = DARK_MONSTER_BOOST.speedMult * darkFactor + (1 - darkFactor);
+    boost.perception = DARK_MONSTER_BOOST.perceptionMult * darkFactor + (1 - darkFactor);
+    boost.aggroRange = DARK_MONSTER_BOOST.aggroRange * darkFactor + (1 - darkFactor);
+  }
+  if (playerInDark && !inDark) {
+    boost.perception *= 1.2;
+    boost.aggroRange *= 1.3;
+  }
+  return boost;
+}
+function applyDarkBoostToEntity(entity, playerPos, dt) {
+  var boost = getDarkMonsterBoost(entity, playerPos);
+  entity._darkSpeedMult = boost.speed;
+  entity._darkPerceptionMult = boost.perception;
+  entity._darkAggroMult = boost.aggroRange;
+  if (boost.speed > 1.1) {
+    entity._darkGlow = Math.min(1, (boost.speed - 1) * 2);
+  } else {
+    entity._darkGlow = Math.max(0, (entity._darkGlow || 0) - dt * 2);
+  }
+}
+
+// --- 迭代79: 光源道具 ---
+var LIGHT_SOURCES = [];
+var LIGHT_ITEM_TYPES = {
+  emergency_lamp: { name: '应急灯', duration: 30, radius: 5, color: '#ffcc44', placeable: true },
+  glowstick: { name: '荧光棒', duration: 45, radius: 3, color: '#44ff88', placeable: false },
+  flare_deployed: { name: '照明弹', duration: 25, radius: 7, color: '#ff4422', placeable: true },
+  candle: { name: '蜡烛', duration: 60, radius: 2.5, color: '#ffaa33', placeable: true }
+};
+function placeLightSource(x, y, type) {
+  var item = LIGHT_ITEM_TYPES[type];
+  if (!item) return null;
+  var source = {
+    x: x, y: y, type: type,
+    radius: item.radius,
+    color: item.color,
+    remaining: item.duration,
+    maxDuration: item.duration,
+    flickering: Math.random() < 0.3,
+    _flickerTimer: 0
+  };
+  LIGHT_SOURCES.push(source);
+  return source;
+}
+function updateLightSources(dt) {
+  for (var i = LIGHT_SOURCES.length - 1; i >= 0; i--) {
+    var src = LIGHT_SOURCES[i];
+    src.remaining -= dt;
+    if (src.remaining <= 0) { LIGHT_SOURCES.splice(i, 1); continue; }
+    if (src.remaining < 5 && src.flickering) {
+      src._flickerTimer += dt;
+      if (src._flickerTimer > 0.3) {
+        src._flickerTimer = 0;
+        src.radius = LIGHT_ITEM_TYPES[src.type].radius * (0.5 + Math.random() * 0.5);
+      }
+    }
+    if (src.remaining < 3) {
+      src.radius *= 0.99;
+    }
+  }
+}
+function isPlayerNearLight(x, y) {
+  for (var i = 0; i < LIGHT_SOURCES.length; i++) {
+    var src = LIGHT_SOURCES[i];
+    var dx = x - src.x, dy = y - src.y;
+    if (dx * dx + dy * dy < src.radius * src.radius) return true;
+  }
+  return false;
+}
+function renderLightSources(ctx, camX, camY) {
+  for (var i = 0; i < LIGHT_SOURCES.length; i++) {
+    var src = LIGHT_SOURCES[i];
+    var sx = src.x - camX, sy = src.y - camY;
+    var r = src.radius;
+    var alpha = Math.min(1, src.remaining / 5);
+    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+    grad.addColorStop(0, src.color.replace(')', ',' + alpha * 0.4 + ')').replace('rgb', 'rgba').replace('#', ''));
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+function getLightIntensityAt(x, y) {
+  var intensity = 0;
+  for (var i = 0; i < LIGHT_SOURCES.length; i++) {
+    var src = LIGHT_SOURCES[i];
+    var dx = x - src.x, dy = y - src.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < src.radius) {
+      intensity += (1 - dist / src.radius) * (src.remaining / src.maxDuration);
+    }
+  }
+  return Math.min(1, intensity);
+}
+
+// --- 迭代80: 黑暗恐惧效果 ---
+var DARK_FEAR = {
+  inDarkness: 0,
+  sanityDrainRate: 3,
+  hallucinationThreshold: 30,
+  lastHallucination: 0,
+  hallucinationCooldown: 15
+};
+function updateDarkFear(dt, player, levelIndex) {
+  if (!player) return;
+  var inDark = DARK_LEVELS.active || isInDarkZone(player.x, player.y);
+  var nearLight = isPlayerNearLight(player.x, player.y);
+  var hasFlashlight = player.heldItem && (player.heldItem.type === 'flashlight' || player.heldItem.type === 'flare');
+  if (inDark && !nearLight && !hasFlashlight) {
+    DARK_FEAR.inDarkness += dt;
+    var drainMult = 1 + DARK_FEAR.inDarkness * 0.1;
+    if (player.sanity !== undefined) {
+      player.sanity -= DARK_FEAR.sanityDrainRate * drainMult * dt;
+      player.sanity = Math.max(0, player.sanity);
+    }
+    if (DARK_FEAR.inDarkness > DARK_FEAR.hallucinationThreshold) {
+      triggerDarknessHallucination(player);
+    }
+  } else {
+    DARK_FEAR.inDarkness = Math.max(0, DARK_FEAR.inDarkness - dt * 2);
+  }
+}
+function triggerDarknessHallucination(player) {
+  var now = Date.now();
+  if (now - DARK_FEAR.lastHallucination < DARK_FEAR.hallucinationCooldown * 1000) return;
+  DARK_FEAR.lastHallination = now;
+  var types = ['shadow', 'whisper', 'apparition', 'text'];
+  var type = types[Math.floor(Math.random() * types.length)];
+  if (typeof toast === 'function') {
+    var msgs = {
+      shadow: '你看到黑暗中有什么在移动...',
+      whisper: '耳边传来低沉的呢喃声...',
+      apparition: '角落里闪过一个影子...',
+      text: '墙上似乎有字...但转瞬即逝'
+    };
+    toast(msgs[type] || '黑暗中似乎有什么...', 3);
+  }
+  if (player.sanity !== undefined) {
+    player.sanity -= 2;
+  }
+}
+function getDarknessFearLevel() {
+  return Math.min(1, DARK_FEAR.inDarkness / 60);
+}
+
+// --- 迭代81: 浓雾关卡变体 ---
+var FOG_SYSTEM = {
+  active: false,
+  density: 0,
+  maxDensity: 0.85,
+  visibilityRange: 10,
+  minVisibility: 2,
+  color: 'rgba(180,180,170,'
+};
+function isFogLevel(levelIndex) {
+  var fogIndices = [4, 8, 12, 16, 19];
+  return fogIndices.indexOf(levelIndex % 20) >= 0;
+}
+function initFogSystem() {
+  FOG_SYSTEM.active = false;
+  FOG_SYSTEM.density = 0;
+  FOG_SYSTEM.visibilityRange = 10;
+}
+function updateFogLevel(dt, levelIndex) {
+  if (!isFogLevel(levelIndex)) { FOG_SYSTEM.active = false; return; }
+  FOG_SYSTEM.active = true;
+  FOG_SYSTEM.density = FOG_SYSTEM.maxDensity;
+  FOG_SYSTEM.visibilityRange = FOG_SYSTEM.minVisibility;
+}
+function applyFogOverlay(game) {
+  if (!FOG_SYSTEM.active) return;
+  var overlay = document.getElementById('fog-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'fog-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:3;transition:opacity 0.5s;';
+    document.body.appendChild(overlay);
+  }
+  var d = FOG_SYSTEM.density;
+  overlay.style.background = 'radial-gradient(circle at 50% 50%, rgba(160,160,150,' + d * 0.1 + ') 0%, rgba(140,140,130,' + d * 0.6 + ') 60%, rgba(120,120,110,' + d * 0.9 + ') 100%)';
+  overlay.style.opacity = '1';
+}
+function getFogVisibilityAt(x, y, playerX, playerY) {
+  if (!FOG_SYSTEM.active) return 1;
+  var dx = x - playerX, dy = y - playerY;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+  var vis = Math.max(0, 1 - dist / FOG_SYSTEM.visibilityRange);
+  return vis * (1 - FOG_SYSTEM.density * 0.5);
+}
+
+// --- 迭代82: 动态迷雾 ---
+var DYNAMIC_FOG = {
+  waves: [],
+  lastWave: 0,
+  waveInterval: 10
+};
+function updateDynamicFog(dt) {
+  if (!FOG_SYSTEM.active) return;
+  var now = Date.now() * 0.001;
+  DYNAMIC_FOG.densityOscillation = 0.3 + Math.sin(now * 0.2) * 0.2 + Math.sin(now * 0.07) * 0.1;
+  FOG_SYSTEM.density = FOG_SYSTEM.maxDensity * (0.5 + DYNAMIC_FOG.densityOscillation);
+  FOG_SYSTEM.visibilityRange = FOG_SYSTEM.minVisibility + (10 - FOG_SYSTEM.minVisibility) * (1 - FOG_SYSTEM.density);
+  for (var i = DYNAMIC_FOG.waves.length - 1; i >= 0; i--) {
+    var w = DYNAMIC_FOG.waves[i];
+    w.age += dt;
+    w.radius += dt * 1.5;
+    w.alpha = Math.max(0, 1 - w.age / w.duration);
+    if (w.alpha <= 0) DYNAMIC_FOG.waves.splice(i, 1);
+  }
+  if (now - DYNAMIC_FOG.lastWave > DYNAMIC_FOG.waveInterval) {
+    DYNAMIC_FOG.lastWave = now;
+    DYNAMIC_FOG.waveInterval = 8 + Math.random() * 15;
+    DYNAMIC_FOG.waves.push({
+      x: Math.random() * 40 - 20, y: Math.random() * 40 - 20,
+      radius: 0, maxRadius: 15 + Math.random() * 10,
+      age: 0, duration: 8 + Math.random() * 5, alpha: 1
+    });
+  }
+}
+function getLocalFogDensity(x, y) {
+  var base = FOG_SYSTEM.density || 0;
+  for (var i = 0; i < DYNAMIC_FOG.waves.length; i++) {
+    var w = DYNAMIC_FOG.waves[i];
+    var dx = x - w.x, dy = y - w.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < w.radius && dist > w.radius - 3) {
+      base += w.alpha * 0.3 * (1 - Math.abs(dist - w.radius + 1.5) / 1.5);
+    }
+  }
+  return Math.min(1, base);
+}
+
+// --- 迭代83: 迷雾中怪物隐匿 ---
+var FOG_MONSTER_STEALTH = { detectionReduction: 0.7, soundOnlyRange: 5 };
+function getFogMonsterVisibility(entity, playerPos) {
+  if (!FOG_SYSTEM.active) return 1;
+  var dx = entity.x - playerPos.x, dy = entity.y - playerPos.y;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+  var fogDensity = getLocalFogDensity(entity.x, entity.y);
+  var visReduction = fogDensity * FOG_MONSTER_STEALTH.detectionReduction;
+  var visibility = Math.max(0.05, 1 - visReduction);
+  if (dist < FOG_MONSTER_STEALTH.soundOnlyRange) {
+    visibility = Math.max(visibility, 0.3);
+  }
+  return visibility;
+}
+function shouldShowMonsterInFog(entity, playerPos) {
+  var vis = getFogMonsterVisibility(entity, playerPos);
+  return vis > 0.2;
+}
+function getFogSoundCue(entity, playerPos) {
+  var dx = entity.x - playerPos.x, dy = entity.y - playerPos.y;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist > FOG_MONSTER_STEALTH.soundOnlyRange) return null;
+  if (shouldShowMonsterInFog(entity, playerPos)) return null;
+  var angle = Math.atan2(dy, dx);
+  return { angle: angle, dist: dist, urgency: 1 - dist / FOG_MONSTER_STEALTH.soundOnlyRange };
+}
+
+// --- 迭代84: 驱雾道具 ---
+var FOG_CLEARERS = [];
+var FOG_CLEARER_TYPES = {
+  fan: { name: '便携风扇', duration: 20, radius: 4, type: 'push' },
+  vent_activator: { name: '通风激活器', duration: 35, radius: 6, type: 'area' },
+  chemical_fog_clear: { name: '消雾剂', duration: 15, radius: 5, type: 'burst' }
+};
+function deployFogClearer(x, y, type) {
+  var item = FOG_CLEARER_TYPES[type];
+  if (!item) return null;
+  var clearer = {
+    x: x, y: y, type: type,
+    radius: item.radius,
+    remaining: item.duration,
+    maxDuration: item.duration,
+    clearType: item.type,
+    _pulsePhase: 0
+  };
+  FOG_CLEARERS.push(clearer);
+  return clearer;
+}
+function updateFogClearers(dt) {
+  for (var i = FOG_CLEARERS.length - 1; i >= 0; i--) {
+    var c = FOG_CLEARERS[i];
+    c.remaining -= dt;
+    if (c.remaining <= 0) { FOG_CLEARERS.splice(i, 1); continue; }
+    c._pulsePhase += dt * 2;
+    if (c.clearType === 'push') {
+      c.radius = FOG_CLEARER_TYPES[c.type].radius * (0.8 + Math.sin(c._pulsePhase) * 0.2);
+    }
+  }
+}
+function getFogClearanceAt(x, y) {
+  var clearance = 0;
+  for (var i = 0; i < FOG_CLEARERS.length; i++) {
+    var c = FOG_CLEARERS[i];
+    var dx = x - c.x, dy = y - c.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < c.radius) {
+      var lifeRatio = c.remaining / c.maxDuration;
+      clearance += (1 - dist / c.radius) * lifeRatio;
+    }
+  }
+  return Math.min(1, clearance);
+}
+function renderFogClearers(ctx, camX, camY) {
+  for (var i = 0; i < FOG_CLEARERS.length; i++) {
+    var c = FOG_CLEARERS[i];
+    var sx = c.x - camX, sy = c.y - camY;
+    var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, c.radius);
+    grad.addColorStop(0, 'rgba(100,180,220,0.05)');
+    grad.addColorStop(0.7, 'rgba(80,160,200,0.02)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(sx - c.radius, sy - c.radius, c.radius * 2, c.radius * 2);
+  }
+}
+
+// --- 迭代85: 迷雾方向暗示 ---
+var FOG_FLOW = { angle: 0, speed: 0.5, exitHint: true };
+function updateFogFlow(dt, exitPos, playerPos) {
+  if (!FOG_SYSTEM.active || !exitPos) return;
+  var dx = exitPos.x - playerPos.x, dy = exitPos.y - playerPos.y;
+  FOG_FLOW.angle = Math.atan2(dy, dx);
+  FOG_FLOW.speed = 0.3 + Math.sin(Date.now() * 0.0005) * 0.2;
+}
+function getFogFlowHint(playerPos, playerAngle) {
+  if (!FOG_SYSTEM.active || !FOG_FLOW.exitHint) return null;
+  var angleDiff = FOG_FLOW.angle - playerAngle;
+  while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+  while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+  var strength = Math.cos(angleDiff * 0.5);
+  if (strength > 0.3) {
+    return { direction: FOG_FLOW.angle, strength: strength, hint: '雾气似乎向那个方向流动...' };
+  }
+  return null;
+}
+function renderFogFlowParticles(ctx, camX, camY, playerX, playerY) {
+  if (!FOG_SYSTEM.active) return;
+  var t = Date.now() * 0.001;
+  for (var i = 0; i < 8; i++) {
+    var px = playerX + Math.cos(t * 0.3 + i * 0.8) * 5;
+    var py = playerY + Math.sin(t * 0.2 + i * 1.1) * 5;
+    var sx = px - camX, sy = py - camY;
+    var ex = sx + Math.cos(FOG_FLOW.angle) * 1.5;
+    var ey = sy + Math.sin(FOG_FLOW.angle) * 1.5;
+    ctx.strokeStyle = 'rgba(180,180,170,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+  }
+}
+
+// --- 迭代86: 洪水层机制（水位上涨） ---
+var FLOOD_SYSTEM = {
+  waterLevel: 0,
+  maxLevel: 8,
+  riseRate: 0.02,
+  rising: false,
+  lowAreas: [],
+  submergedRooms: []
+};
+function initFloodSystem(rooms, levelIndex) {
+  FLOOD_SYSTEM.waterLevel = 0;
+  FLOOD_SYSTEM.rising = false;
+  FLOOD_SYSTEM.lowAreas = [];
+  FLOOD_SYSTEM.submergedRooms = [];
+  if (!isFloodLevel(levelIndex)) return;
+  FLOOD_SYSTEM.rising = true;
+  rooms.forEach(function(r, idx) {
+    if (Math.random() < 0.3) {
+      FLOOD_SYSTEM.lowAreas.push({ x: r.x, y: r.y, w: r.w, h: r.h, depth: 0.5 + Math.random() * 1.5 });
+    }
+  });
+}
+function isFloodLevel(levelIndex) {
+  var floodIndices = [5, 10, 15, 18];
+  return floodIndices.indexOf(levelIndex % 20) >= 0;
+}
+function updateFloodLevel(dt) {
+  if (!FLOOD_SYSTEM.rising) return;
+  FLOOD_SYSTEM.waterLevel += FLOOD_SYSTEM.riseRate * dt;
+  if (FLOOD_SYSTEM.waterLevel > FLOOD_SYSTEM.maxLevel) {
+    FLOOD_SYSTEM.waterLevel = FLOOD_SYSTEM.maxLevel;
+    FLOOD_SYSTEM.rising = false;
+  }
+  FLOOD_SYSTEM.submergedRooms = [];
+  FLOOD_SYSTEM.lowAreas.forEach(function(area) {
+    if (FLOOD_SYSTEM.waterLevel >= area.depth) {
+      FLOOD_SYSTEM.submergedRooms.push(area);
+    }
+  });
+}
+function isAreaSubmerged(x, y) {
+  for (var i = 0; i < FLOOD_SYSTEM.submergedRooms.length; i++) {
+    var a = FLOOD_SYSTEM.submergedRooms[i];
+    if (x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h) return true;
+  }
+  return false;
+}
+function getWaterDepthAt(x, y) {
+  if (!isAreaSubmerged(x, y)) return 0;
+  return FLOOD_SYSTEM.waterLevel;
+}
+function applyFloodVisual() {
+  var flood = document.querySelector('.flood');
+  if (flood) {
+    var pct = Math.min(100, (FLOOD_SYSTEM.waterLevel / FLOOD_SYSTEM.maxLevel) * 60);
+    flood.style.height = pct + '%';
+  }
+}
+
+// --- 迭代87: 水下探索 ---
+var UNDERWATER_SYSTEM = {
+  underwaterPassages: [],
+  breathTimer: 0,
+  maxBreath: 20,
+  isUnderwater: false
+};
+function generateUnderwaterPassages(rooms, floodLevel) {
+  UNDERWATER_SYSTEM.underwaterPassages = [];
+  if (!floodLevel) return;
+  rooms.forEach(function(r, idx) {
+    if (Math.random() < 0.15) {
+      UNDERWATER_SYSTEM.underwaterPassages.push({
+        x: r.x + r.w * 0.5, y: r.y + r.h * 0.5,
+        w: 2 + Math.random() * 3, h: 2 + Math.random() * 2,
+        depth: 1.5 + Math.random(),
+        hasLoot: Math.random() < 0.4,
+        lootType: ['key', 'battery', 'pill'][Math.floor(Math.random() * 3)]
+      });
+    }
+  });
+}
+function updateUnderwater(dt, playerPos) {
+  var wasUnderwater = UNDERWATER_SYSTEM.isUnderwater;
+  UNDERWATER_SYSTEM.isUnderwater = isAreaSubmerged(playerPos.x, playerPos.y) && FLOOD_SYSTEM.waterLevel > 1;
+  if (UNDERWATER_SYSTEM.isUnderwater) {
+    UNDERWATER_SYSTEM.breathTimer += dt;
+    if (UNDERWATER_SYSTEM.breathTimer > UNDERWATER_SYSTEM.maxBreath) {
+      return { drowning: true, damage: 5 * dt };
+    }
+  } else {
+    UNDERWATER_SYSTEM.breathTimer = Math.max(0, UNDERWATER_SYSTEM.breathTimer - dt * 3);
+  }
+  if (wasUnderwater && !UNDERWATER_SYSTEM.isUnderwater && UNDERWATER_SYSTEM.breathTimer > 5) {
+    checkUnderwaterLoot(playerPos);
+  }
+  return { drowning: false, damage: 0 };
+}
+function getBreathPercentage() {
+  return Math.max(0, 1 - UNDERWATER_SYSTEM.breathTimer / UNDERWATER_SYSTEM.maxBreath);
+}
+function checkUnderwaterLoot(playerPos) {
+  for (var i = 0; i < UNDERWATER_SYSTEM.underwaterPassages.length; i++) {
+    var p = UNDERWATER_SYSTEM.underwaterPassages[i];
+    var dx = playerPos.x - p.x, dy = playerPos.y - p.y;
+    if (dx * dx + dy * dy < p.w * p.w && p.hasLoot) {
+      p.hasLoot = false;
+      return p.lootType;
+    }
+  }
+  return null;
+}
+
+// --- 迭代88: 漂浮物 ---
+var FLOATING_ITEMS = [];
+function spawnFloatingItems(rooms) {
+  FLOATING_ITEMS = [];
+  if (!FLOOD_SYSTEM.rising && FLOOD_SYSTEM.waterLevel < 1) return;
+  rooms.forEach(function(r) {
+    if (Math.random() < 0.1) {
+      FLOATING_ITEMS.push({
+        x: r.x + Math.random() * r.w,
+        y: r.y + Math.random() * r.h,
+        type: ['battery', 'bandage', 'biscuit', 'flare'][Math.floor(Math.random() * 4)],
+        driftX: (Math.random() - 0.5) * 0.3,
+        driftY: (Math.random() - 0.5) * 0.3,
+        bobPhase: Math.random() * Math.PI * 2,
+        collected: false
+      });
+    }
+  });
+}
+function updateFloatingItems(dt) {
+  FLOATING_ITEMS.forEach(function(item) {
+    if (item.collected) return;
+    item.x += item.driftX * dt;
+    item.y += item.driftY * dt;
+    item.bobPhase += dt * 2;
+    if (Math.random() < 0.01) {
+      item.driftX = (Math.random() - 0.5) * 0.3;
+      item.driftY = (Math.random() - 0.5) * 0.3;
+    }
+  });
+}
+function tryCollectFloatingItem(playerX, playerY, range) {
+  for (var i = 0; i < FLOATING_ITEMS.length; i++) {
+    var item = FLOATING_ITEMS[i];
+    if (item.collected) continue;
+    var dx = playerX - item.x, dy = playerY - item.y;
+    if (dx * dx + dy * dy < range * range) {
+      item.collected = true;
+      return item.type;
+    }
+  }
+  return null;
+}
+
+// --- 迭代89: 排水机制 ---
+var DRAIN_VALVES = [];
+function generateDrainValves(rooms) {
+  DRAIN_VALVES = [];
+  if (!isFloodLevel(0)) return;
+  var count = 1 + Math.floor(Math.random() * 2);
+  for (var i = 0; i < count; i++) {
+    var room = rooms[Math.floor(Math.random() * rooms.length)];
+    DRAIN_VALVES.push({
+      x: room.x + room.w * 0.5,
+      y: room.y + room.h * 0.5,
+      active: true,
+      drainRate: 0.5 + Math.random() * 0.5,
+      revealsMonster: Math.random() < 0.4,
+      monsterType: 'crawler'
+    });
+  }
+}
+function activateDrainValve(valveIndex) {
+  if (valveIndex < 0 || valveIndex >= DRAIN_VALVES.length) return null;
+  var valve = DRAIN_VALVES[valveIndex];
+  if (!valve.active) return null;
+  valve.active = false;
+  FLOOD_SYSTEM.waterLevel = Math.max(0, FLOOD_SYSTEM.waterLevel - valve.drainRate * 3);
+  FLOOD_SYSTEM.riseRate = Math.max(0, FLOOD_SYSTEM.riseRate - 0.005);
+  var result = { drained: valve.drainRate * 3, monsterRevealed: false };
+  if (valve.revealsMonster) {
+    result.monsterRevealed = true;
+    result.monsterType = valve.monsterType;
+    result.monsterPos = { x: valve.x + (Math.random() - 0.5) * 4, y: valve.y + (Math.random() - 0.5) * 4 };
+  }
+  return result;
+}
+
+// --- 迭代90: 溺水系统 ---
+var DROWNING_SYSTEM = {
+  state: 'normal',
+  oxygenPercent: 100,
+  drainRate: 5,
+  recoverRate: 15,
+  damageRate: 8,
+  warningShown: false,
+  gaspCooldown: 0
+};
+function updateDrowning(dt, player) {
+  if (!player) return;
+  if (UNDERWATER_SYSTEM.isUnderwater) {
+    DROWNING_SYSTEM.oxygenPercent -= DROWNING_SYSTEM.drainRate * dt;
+    if (DROWNING_SYSTEM.oxygenPercent <= 0) {
+      DROWNING_SYSTEM.oxygenPercent = 0;
+      DROWNING_SYSTEM.state = 'drowning';
+      if (player.hp !== undefined) {
+        player.hp -= DROWNING_SYSTEM.damageRate * dt;
+      }
+      if (player.sanity !== undefined) {
+        player.sanity -= 3 * dt;
+      }
+    } else if (DROWNING_SYSTEM.oxygenPercent < 30) {
+      DROWNING_SYSTEM.state = 'critical';
+    } else {
+      DROWNING_SYSTEM.state = 'underwater';
+    }
+  } else {
+    DROWNING_SYSTEM.oxygenPercent = Math.min(100, DROWNING_SYSTEM.oxygenPercent + DROWNING_SYSTEM.recoverRate * dt);
+    DROWNING_SYSTEM.state = 'normal';
+  }
+  DROWNING_SYSTEM.gaspCooldown = Math.max(0, DROWNING_SYSTEM.gaspCooldown - dt);
+}
+function getDrowningVisualEffect() {
+  if (DROWNING_SYSTEM.state === 'normal') return { vignette: 0, blur: 0 };
+  if (DROWNING_SYSTEM.state === 'underwater') {
+    return { vignette: 0.1, blur: 0 };
+  }
+  if (DROWNING_SYSTEM.state === 'critical') {
+    return { vignette: 0.3 + (1 - DROWNING_SYSTEM.oxygenPercent / 30) * 0.3, blur: 1 };
+  }
+  return { vignette: 0.6, blur: 2 };
+}
+
+// --- 迭代91: 移动墙壁 ---
+var MOVING_WALLS = [];
+function generateMovingWalls(rooms, levelIndex) {
+  MOVING_WALLS = [];
+  if (levelIndex < 7) return;
+  var count = Math.floor(levelIndex / 5);
+  rooms.forEach(function(r, idx) {
+    if (Math.random() < 0.08 + levelIndex * 0.005) {
+      var axis = Math.random() < 0.5 ? 'x' : 'y';
+      var wallLen = Math.min(r.w, r.h) * 0.6;
+      MOVING_WALLS.push({
+        x: r.x + r.w * 0.5, y: r.y + r.h * 0.5,
+        axis: axis, length: wallLen,
+        range: Math.max(r.w, r.h) * 0.3,
+        speed: 0.5 + Math.random() * 0.5,
+        phase: Math.random() * Math.PI * 2,
+        cycleTime: 4 + Math.random() * 4,
+        _warning: false, _moving: false
+      });
+    }
+  });
+}
+function updateMovingWalls(dt) {
+  MOVING_WALLS.forEach(function(w) {
+    w.phase += dt * (Math.PI * 2 / w.cycleTime);
+    var prevPos = w._currentPos || 0;
+    w._currentPos = Math.sin(w.phase) * w.range;
+    var velocity = Math.abs(w._currentPos - prevPos) / dt;
+    w._moving = velocity > 0.1;
+    w._warning = !w._moving && Math.abs(Math.cos(w.phase)) > 0.8;
+  });
+}
+function getMovingWallCollision(playerX, playerY, playerRadius) {
+  for (var i = 0; i < MOVING_WALLS.length; i++) {
+    var w = MOVING_WALLS[i];
+    var wx = w.x, wy = w.y;
+    if (w.axis === 'x') { wx += w._currentPos || 0; }
+    else { wy += w._currentPos || 0; }
+    var halfLen = w.length * 0.5;
+    var wallLeft, wallRight, wallTop, wallBottom;
+    if (w.axis === 'x') {
+      wallLeft = wx - 0.3; wallRight = wx + 0.3;
+      wallTop = wy - halfLen; wallBottom = wy + halfLen;
+    } else {
+      wallLeft = wx - halfLen; wallRight = wx + halfLen;
+      wallTop = wy - 0.3; wallBottom = wy + 0.3;
+    }
+    var closestX = Math.max(wallLeft, Math.min(playerX, wallRight));
+    var closestY = Math.max(wallTop, Math.min(playerY, wallBottom));
+    var dx = playerX - closestX, dy = playerY - closestY;
+    if (dx * dx + dy * dy < playerRadius * playerRadius) {
+      return { wall: w, pushX: dx, pushY: dy, moving: w._moving };
+    }
+  }
+  return null;
+}
+
+// --- 迭代92: 墙壁挤压 ---
+var WALL_CRUSH_ZONES = [];
+function generateCrushZones(rooms, levelIndex) {
+  WALL_CRUSH_ZONES = [];
+  if (levelIndex < 10) return;
+  rooms.forEach(function(r) {
+    if (Math.random() < 0.04 + levelIndex * 0.003) {
+      WALL_CRUSH_ZONES.push({
+        x: r.x, y: r.y, w: r.w, h: r.h,
+        closeSpeed: 0.1 + Math.random() * 0.15,
+        currentGap: r.w,
+        originalGap: r.w,
+        active: false,
+        triggerDistance: 3,
+        warningGiven: false,
+        safeSide: Math.random() < 0.5 ? 'left' : 'right'
+      });
+    }
+  });
+}
+function updateCrushZones(dt, playerX, playerY) {
+  WALL_CRUSH_ZONES.forEach(function(z) {
+    var inZone = playerX >= z.x && playerX <= z.x + z.w && playerY >= z.y && playerY <= z.y + z.h;
+    var centerX = z.x + z.w * 0.5;
+    var distToCenter = Math.abs(playerX - centerX);
+    if (inZone && !z.active && distToCenter < z.triggerDistance) {
+      z.active = true;
+    }
+    if (z.active) {
+      z.currentGap = Math.max(1, z.currentGap - z.closeSpeed * dt);
+    }
+    if (!inZone && z.active) {
+      z.currentGap = Math.min(z.originalGap, z.currentGap + z.closeSpeed * 0.5 * dt);
+      if (z.currentGap >= z.originalGap * 0.9) z.active = false;
+    }
+  });
+}
+function isInCrushDanger(playerX, playerY) {
+  for (var i = 0; i < WALL_CRUSH_ZONES.length; i++) {
+    var z = WALL_CRUSH_ZONES[i];
+    if (!z.active) continue;
+    if (playerX >= z.x && playerX <= z.x + z.w && playerY >= z.y && playerY <= z.y + z.h) {
+      var gapRatio = z.currentGap / z.originalGap;
+      if (gapRatio < 0.5) return { zone: z, danger: 1 - gapRatio };
+    }
+  }
+  return null;
+}
+
+// --- 迭代93: 安全区 ---
+var SAFE_ZONES = [];
+function generateSafeZones(rooms, crushZones) {
+  SAFE_ZONES = [];
+  crushZones.forEach(function(z) {
+    var safeX = z.safeSide === 'left' ? z.x + z.w * 0.15 : z.x + z.w * 0.85;
+    SAFE_ZONES.push({
+      x: safeX, y: z.y + z.h * 0.5,
+      radius: 1.5,
+      parentZone: z
+    });
+  });
+  rooms.forEach(function(r) {
+    if (Math.random() < 0.05) {
+      SAFE_ZONES.push({
+        x: r.x + r.w * (0.2 + Math.random() * 0.6),
+        y: r.y + r.h * (0.2 + Math.random() * 0.6),
+        radius: 1 + Math.random(),
+        parentZone: null
+      });
+    }
+  });
+}
+function isInSafeZone(x, y) {
+  for (var i = 0; i < SAFE_ZONES.length; i++) {
+    var sz = SAFE_ZONES[i];
+    var dx = x - sz.x, dy = y - sz.y;
+    if (dx * dx + dy * dy < sz.radius * sz.radius) return sz;
+  }
+  return null;
+}
+function renderSafeZones(ctx, camX, camY) {
+  SAFE_ZONES.forEach(function(sz) {
+    var sx = sz.x - camX, sy = sz.y - camY;
+    ctx.strokeStyle = 'rgba(100,200,100,0.2)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.arc(sx, sy, sz.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+}
+
+// --- 迭代94: 墙壁声音预警 ---
+var WALL_SOUNDS = { grindFrequency: 0.5, warningDuration: 2 };
+function getWallSoundIntensity(wall) {
+  if (wall._warning) return 0.8;
+  if (wall._moving) return 0.4;
+  return 0;
+}
+function updateWallSounds(dt) {
+  var maxIntensity = 0;
+  MOVING_WALLS.forEach(function(w) {
+    var intensity = getWallSoundIntensity(w);
+    if (intensity > maxIntensity) maxIntensity = intensity;
+  });
+  WALL_CRUSH_ZONES.forEach(function(z) {
+    if (z.active && z.currentGap / z.originalGap < 0.7) {
+      var intensity = 0.6 * (1 - z.currentGap / z.originalGap);
+      if (intensity > maxIntensity) maxIntensity = intensity;
+    }
+  });
+  return maxIntensity;
+}
+function playWallSound(intensity) {
+  if (intensity < 0.1) return;
+  if (typeof playSound === 'function') {
+    if (intensity > 0.6) playSound('grind_loud');
+    else if (intensity > 0.3) playSound('grind');
+  }
+}
+
+// --- 迭代95: 墙壁夹击 ---
+var WALL_PINCER_ATTACKS = [];
+function generatePincerAttacks(rooms, levelIndex) {
+  WALL_PINCER_ATTACKS = [];
+  if (levelIndex < 12) return;
+  rooms.forEach(function(r) {
+    if (Math.random() < 0.03 + levelIndex * 0.002) {
+      WALL_PINCER_ATTACKS.push({
+        x: r.x + r.w * 0.5, y: r.y + r.h * 0.5,
+        w: r.w, h: r.h,
+        axis: Math.random() < 0.5 ? 'x' : 'y',
+        closeSpeed: 0.15 + Math.random() * 0.1,
+        gap: Math.max(r.w, r.h),
+        maxGap: Math.max(r.w, r.h),
+        triggered: false,
+        escapeDir: null,
+        sidePassages: []
+      });
+    }
+  });
+}
+function triggerPincerAttack(attack, playerX, playerY) {
+  if (attack.triggered) return;
+  attack.triggered = true;
+  var dx = playerX - attack.x;
+  var dy = playerY - attack.y;
+  if (attack.axis === 'x') {
+    attack.escapeDir = dy > 0 ? 'south' : 'north';
+  } else {
+    attack.escapeDir = dx > 0 ? 'east' : 'west';
+  }
+}
+function updatePincerAttacks(dt, playerX, playerY) {
+  WALL_PINCER_ATTACKS.forEach(function(atk) {
+    if (!atk.triggered) return;
+    atk.gap = Math.max(1.5, atk.gap - atk.closeSpeed * dt);
+    var px = playerX, py = playerY;
+    var inRange = Math.abs(px - atk.x) < atk.w * 0.5 && Math.abs(py - atk.y) < atk.h * 0.5;
+    if (inRange && atk.gap < 2) {
+      return { damage: 10 * dt, trapped: true };
+    }
+    if (atk.gap <= 1.5) {
+      atk.triggered = false;
+      atk.gap = atk.maxGap;
+    }
+  });
+  return null;
+}
+
+// --- 迭代96: 恐怖随机事件生成器 ---
+var HORROR_EVENTS = {
+  active: [],
+  lastEvent: 0,
+  minInterval: 30,
+  maxInterval: 120,
+  nextEventTime: 0,
+  log: []
+};
+var HORROR_EVENT_TYPES = [
+  { id: 'lights_out', name: '灯光熄灭', duration: 10, sanityDrain: 5, weight: 3 },
+  { id: 'whispers', name: '低语声', duration: 8, sanityDrain: 3, weight: 4 },
+  { id: 'shadow_pass', name: '影子掠过', duration: 3, sanityDrain: 2, weight: 5 },
+  { id: 'wall_blood', name: '墙壁渗血', duration: 12, sanityDrain: 8, weight: 2 },
+  { id: 'floor_quake', name: '地面震动', duration: 5, sanityDrain: 4, weight: 3 },
+  { id: 'entity_rush', name: '实体冲锋', duration: 6, sanityDrain: 10, weight: 1 },
+  { id: 'static_burst', name: '静电爆发', duration: 4, sanityDrain: 6, weight: 2 },
+  { id: 'mimic_voice', name: '模仿人声', duration: 7, sanityDrain: 7, weight: 2 },
+  { id: 'door_slam', name: '门猛然关闭', duration: 2, sanityDrain: 3, weight: 4 },
+  { id: 'darkness_pulse', name: '黑暗脉冲', duration: 8, sanityDrain: 9, weight: 1 }
+];
+function initHorrorEvents() {
+  HORROR_EVENTS.active = [];
+  HORROR_EVENTS.lastEvent = Date.now();
+  HORROR_EVENTS.nextEventTime = Date.now() + (HORROR_EVENTS.minInterval + Math.random() * (HORROR_EVENTS.maxInterval - HORROR_EVENTS.minInterval)) * 1000;
+  HORROR_EVENTS.log = [];
+}
+function updateHorrorEvents(dt, levelIndex, player) {
+  var now = Date.now();
+  if (now >= HORROR_EVENTS.nextEventTime) {
+    triggerRandomHorrorEvent(levelIndex, player);
+    var interval = HORROR_EVENTS.minInterval + Math.random() * (HORROR_EVENTS.maxInterval - HORROR_EVENTS.minInterval);
+    interval *= Math.max(0.3, 1 - levelIndex * 0.03);
+    HORROR_EVENTS.nextEventTime = now + interval * 1000;
+  }
+  for (var i = HORROR_EVENTS.active.length - 1; i >= 0; i--) {
+    var ev = HORROR_EVENTS.active[i];
+    ev.remaining -= dt;
+    if (ev.remaining <= 0) {
+      endHorrorEvent(ev, player);
+      HORROR_EVENTS.active.splice(i, 1);
+    } else {
+      applyHorrorEventEffect(ev, dt, player);
+    }
+  }
+}
+function triggerRandomHorrorEvent(levelIndex, player) {
+  var totalWeight = 0;
+  HORROR_EVENT_TYPES.forEach(function(t) { totalWeight += t.weight; });
+  var roll = Math.random() * totalWeight;
+  var cumulative = 0;
+  var selected = HORROR_EVENT_TYPES[0];
+  for (var i = 0; i < HORROR_EVENT_TYPES.length; i++) {
+    cumulative += HORROR_EVENT_TYPES[i].weight;
+    if (roll <= cumulative) { selected = HORROR_EVENT_TYPES[i]; break; }
+  }
+  var ev = {
+    id: selected.id, name: selected.name,
+    remaining: selected.duration,
+    maxDuration: selected.duration,
+    sanityDrain: selected.sanityDrain,
+    startTime: Date.now()
+  };
+  HORROR_EVENTS.active.push(ev);
+  HORROR_EVENTS.log.push({ id: ev.id, name: ev.name, time: Date.now(), level: levelIndex });
+  if (typeof toast === 'function') {
+    toast('⚠ ' + ev.name, 3);
+  }
+  return ev;
+}
+function applyHorrorEventEffect(ev, dt, player) {
+  if (!player) return;
+  if (player.sanity !== undefined) {
+    player.sanity -= ev.sanityDrain * 0.3 * dt;
+  }
+  if (ev.id === 'entity_rush' && player.hp !== undefined) {
+    player.hp -= 2 * dt;
+  }
+}
+function endHorrorEvent(ev, player) {
+  HORROR_EVENTS.log.push({ id: ev.id + '_end', time: Date.now() });
+}
+
+// --- 迭代97: 事件组合 ---
+var EVENT_COMBOS = [
+  { events: ['lights_out', 'entity_rush'], name: '黑暗猎杀', bonus: 1.5 },
+  { events: ['whispers', 'mimic_voice'], name: '精神侵蚀', bonus: 1.3 },
+  { events: ['wall_blood', 'darkness_pulse'], name: '血色黑暗', bonus: 1.4 },
+  { events: ['floor_quake', 'door_slam'], name: '建筑崩塌', bonus: 1.2 },
+  { events: ['static_burst', 'shadow_pass'], name: '现实扭曲', bonus: 1.6 }
+];
+function checkEventCombo() {
+  var activeIds = HORROR_EVENTS.active.map(function(e) { return e.id; });
+  for (var i = 0; i < EVENT_COMBOS.length; i++) {
+    var combo = EVENT_COMBOS[i];
+    var allPresent = combo.events.every(function(eid) { return activeIds.indexOf(eid) >= 0; });
+    if (allPresent) return combo;
+  }
+  return null;
+}
+function triggerEventCombo(combo, levelIndex) {
+  combo.events.forEach(function(eid) {
+    var alreadyActive = HORROR_EVENTS.active.some(function(e) { return e.id === eid; });
+    if (!alreadyActive) {
+      var evt = HORROR_EVENT_TYPES.find(function(t) { return t.id === eid; });
+      if (evt) {
+        HORROR_EVENTS.active.push({
+          id: evt.id, name: evt.name, remaining: evt.duration,
+          maxDuration: evt.duration, sanityDrain: evt.sanityDrain * combo.bonus,
+          startTime: Date.now()
+        });
+      }
+    }
+  });
+  if (typeof toast === 'function') {
+    toast('💀 ' + combo.name + '！', 4);
+  }
+}
+function maybeTriggerCombo(levelIndex) {
+  if (Math.random() > 0.1 + levelIndex * 0.02) return;
+  var combo = EVENT_COMBOS[Math.floor(Math.random() * EVENT_COMBOS.length)];
+  triggerEventCombo(combo, levelIndex);
+}
+
+// --- 迭代98: 事件难度递增 ---
+function getEventDifficultyScale(levelIndex) {
+  var base = 1;
+  var scale = base + levelIndex * 0.08;
+  scale = Math.min(3, scale);
+  return scale;
+}
+function applyDifficultyToEvent(ev, levelIndex) {
+  var scale = getEventDifficultyScale(levelIndex);
+  ev.sanityDrain *= scale;
+  ev.remaining *= Math.max(0.5, 1 - levelIndex * 0.02);
+  if (levelIndex > 15) {
+    ev.extraEffect = 'monster_boost';
+  }
+  if (levelIndex > 20) {
+    ev.extraEffect = 'items_hidden';
+  }
+  return ev;
+}
+function getScaledEventInterval(levelIndex) {
+  var base = HORROR_EVENTS.maxInterval - HORROR_EVENTS.minInterval;
+  var interval = HORROR_EVENTS.minInterval + base * Math.max(0.2, 1 - levelIndex * 0.04);
+  return interval;
+}
+
+// --- 迭代99: 事件奖励 ---
+var EVENT_REWARDS = {
+  survived: [],
+  rewardChance: 0.3,
+  rewards: [
+    { type: 'sanity_restore', amount: 10, weight: 4 },
+    { type: 'item_drop', item: 'battery', weight: 3 },
+    { type: 'item_drop', item: 'bandage', weight: 3 },
+    { type: 'item_drop', item: 'pill', weight: 1 },
+    { type: 'stamina_restore', amount: 20, weight: 2 },
+    { type: 'brief_invulnerability', duration: 3, weight: 1 }
+  ]
+};
+function checkEventReward(ev) {
+  if (Math.random() > EVENT_REWARDS.rewardChance) return null;
+  var totalWeight = 0;
+  EVENT_REWARDS.rewards.forEach(function(r) { totalWeight += r.weight; });
+  var roll = Math.random() * totalWeight;
+  var cumulative = 0;
+  for (var i = 0; i < EVENT_REWARDS.rewards.length; i++) {
+    cumulative += EVENT_REWARDS.rewards[i].weight;
+    if (roll <= cumulative) return EVENT_REWARDS.rewards[i];
+  }
+  return EVENT_REWARDS.rewards[0];
+}
+function applyEventReward(reward, player) {
+  if (!reward || !player) return;
+  if (reward.type === 'sanity_restore' && player.sanity !== undefined) {
+    player.sanity = Math.min(100, player.sanity + reward.amount);
+    if (typeof toast === 'function') toast('理智恢复 +' + reward.amount, 2);
+  } else if (reward.type === 'item_drop') {
+    if (typeof G !== 'undefined' && G.inventory) {
+      G.inventory[reward.item] = (G.inventory[reward.item] || 0) + 1;
+    }
+    if (typeof toast === 'function') toast('获得: ' + reward.item, 2);
+  } else if (reward.type === 'stamina_restore' && player.stamina !== undefined) {
+    player.stamina = Math.min(100, player.stamina + reward.amount);
+  } else if (reward.type === 'brief_invulnerability') {
+    player._invulnerable = reward.duration;
+    if (typeof toast === 'function') toast('短暂无敌！', 2);
+  }
+  EVENT_REWARDS.survived.push({ reward: reward, time: Date.now() });
+}
+
+// --- 迭代100: 事件日志 ---
+var EVENT_LOG = {
+  entries: [],
+  maxEntries: 100,
+  stats: { totalEvents: 0, combosTriggered: 0, rewardsEarned: 0, totalSanityLost: 0 }
+};
+function logEvent(entry) {
+  EVENT_LOG.entries.push(entry);
+  if (EVENT_LOG.entries.length > EVENT_LOG.maxEntries) {
+    EVENT_LOG.entries.shift();
+  }
+  EVENT_LOG.stats.totalEvents++;
+}
+function logCombo(combo) {
+  EVENT_LOG.stats.combosTriggered++;
+  logEvent({ type: 'combo', name: combo.name, time: Date.now() });
+}
+function logReward(reward) {
+  EVENT_LOG.stats.rewardsEarned++;
+  logEvent({ type: 'reward', reward: reward.type, time: Date.now() });
+}
+function getEventLogSummary() {
+  return {
+    total: EVENT_LOG.stats.totalEvents,
+    combos: EVENT_LOG.stats.combosTriggered,
+    rewards: EVENT_LOG.stats.rewardsEarned,
+    recentEvents: EVENT_LOG.entries.slice(-10).map(function(e) { return e.name || e.type; })
+  };
+}
+function showEventLog() {
+  var summary = getEventLogSummary();
+  var html = '<div class="puzzle-overlay" id="elog-overlay" style="display:flex"><div class="puzzle-box" style="max-width:480px">';
+  html += '<h3 style="color:#c44">📜 恐怖事件日志</h3>';
+  html += '<div style="color:#aaa;font-size:11px;margin:10px 0">';
+  html += '<p>已触发事件: ' + summary.total + '</p>';
+  html += '<p>组合事件: ' + summary.combos + '</p>';
+  html += '<p>获得奖励: ' + summary.rewards + '</p>';
+  html += '</div>';
+  html += '<div style="max-height:200px;overflow-y:auto;font-size:10px;color:#888">';
+  summary.recentEvents.forEach(function(name) {
+    html += '<p style="margin:2px 0;border-bottom:1px solid rgba(100,80,40,.1);padding:2px 0">⚠ ' + name + '</p>';
+  });
+  html += '</div>';
+  html += '<div style="text-align:center;margin-top:12px"><button onclick="var e=document.getElementById(\'elog-overlay\');if(e)e.remove()" style="padding:6px 20px;background:rgba(180,140,60,.2);color:#e8dcc0;border:1px solid rgba(180,140,60,.3);border-radius:4px;cursor:pointer">关闭</button></div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// --- 迭代76-100 综合更新函数 ---
+function updateHorrorMapSystems(dt, game) {
+  if (!game || !game.player) return;
+  var levelIndex = game.levelIndex || 0;
+  var playerPos = { x: game.player.x, y: game.player.y };
+  // 黑暗系统
+  updateDarkness(dt, levelIndex, playerPos);
+  updateDarkZones(dt);
+  applyDarknessOverlay(game);
+  updateDarkFear(dt, game.player, levelIndex);
+  updateLightSources(dt);
+  // 迷雾系统
+  updateFogLevel(dt, levelIndex);
+  updateDynamicFog(dt);
+  applyFogOverlay(game);
+  updateFogFlow(dt, game.exitPos, playerPos);
+  updateFogClearers(dt);
+  // 洪水系统
+  updateFloodLevel(dt);
+  applyFloodVisual();
+  var underwater = updateUnderwater(dt, playerPos);
+  updateDrowning(dt, game.player);
+  updateFloatingItems(dt);
+  // 墙壁系统
+  updateMovingWalls(dt);
+  updateCrushZones(dt, playerPos.x, playerPos.y);
+  var pincerDmg = updatePincerAttacks(dt, playerPos.x, playerPos.y);
+  if (pincerDmg && pincerDmg.damage && game.player.hp !== undefined) {
+    game.player.hp -= pincerDmg.damage;
+  }
+  // 恐怖事件
+  updateHorrorEvents(dt, levelIndex, game.player);
+  if (Math.random() < 0.001) maybeTriggerCombo(levelIndex);
+}
+initDarkLevelSystem();
+initFogSystem();
+initHorrorEvents();
+console.log('[iter76-100] 关卡变异与恐怖地图体验系统已加载');
+
+// ========== 迭代76-80(补充): 交易系统、隐藏房间、怪物掉落、时间系统、特效 ==========
 
 // --- 迭代76: NPC交易系统 ---
 var NPC_TRADES = [
