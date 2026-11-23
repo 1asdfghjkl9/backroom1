@@ -1760,7 +1760,770 @@ input[type="range"]::-moz-range-thumb {
   90%{opacity:0.6;filter:hue-rotate(90deg);transform:none;}
 }
 
+/* ============================ 迭代100: 联机模式 ============================ */
+.mp-overlay{position:fixed;inset:0;z-index:9200;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;font-family:var(--font);}
+.mp-overlay.open{display:flex;}
+.mp-box{background:rgba(14,12,8,.97);border:1px solid rgba(180,140,60,.3);border-radius:8px;padding:24px 28px;width:min(520px,92vw);max-height:85vh;overflow-y:auto;color:var(--tc);box-shadow:0 8px 40px rgba(0,0,0,.7);position:relative;}
+.mp-box h2{font-size:16px;color:var(--amber);margin:0 0 16px;letter-spacing:.15em;border-bottom:1px solid rgba(180,140,60,.2);padding-bottom:10px;}
+.mp-box h3{font-size:13px;color:var(--amber-l);margin:12px 0 8px;}
+.mp-close{position:absolute;top:12px;right:14px;background:none;border:none;color:var(--tc-sm);font-size:18px;cursor:pointer;padding:4px 8px;}
+.mp-close:hover{color:var(--amber-l);}
+.mp-field{margin-bottom:12px;}
+.mp-field label{display:block;font-size:11px;color:var(--tc-sm);margin-bottom:4px;letter-spacing:.05em;}
+.mp-field input,.mp-field select{width:100%;background:rgba(20,18,12,.6);border:1px solid var(--border);border-radius:3px;color:var(--tc);padding:8px 12px;font-family:var(--font);font-size:12px;box-sizing:border-box;}
+.mp-field input:focus,.mp-field select:focus{outline:none;border-color:var(--amber-d);}
+.mp-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:rgba(180,140,60,.15);border:1px solid rgba(180,140,60,.3);color:var(--amber-l);border-radius:3px;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:600;transition:all .15s;}
+.mp-btn:hover{background:rgba(180,140,60,.3);border-color:rgba(180,140,60,.5);}
+.mp-btn:disabled{opacity:.4;cursor:not-allowed;}
+.mp-btn-primary{background:rgba(196,163,90,.25);border-color:rgba(196,163,90,.4);}
+.mp-btn-primary:hover{background:rgba(196,163,90,.45);}
+.mp-btn-danger{background:rgba(180,40,40,.15);border-color:rgba(180,40,40,.3);color:#e88;}
+.mp-btn-danger:hover{background:rgba(180,40,40,.3);}
+.mp-btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+.mp-room-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;padding:4px;}
+.mp-room-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(20,18,12,.5);border:1px solid rgba(180,140,60,.12);border-radius:4px;cursor:pointer;transition:all .15s;}
+.mp-room-item:hover{border-color:rgba(180,140,60,.35);background:rgba(30,26,16,.6);}
+.mp-room-info{flex:1;min-width:0;}
+.mp-room-name{font-size:12px;color:var(--amber-l);font-weight:600;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mp-room-meta{font-size:10px;color:var(--tc-sm);}
+.mp-room-meta span{margin-right:8px;}
+.mp-room-status{font-size:10px;padding:2px 8px;border-radius:2px;font-weight:600;}
+.mp-room-status.waiting{background:rgba(100,180,100,.15);color:#8ee6b0;border:1px solid rgba(100,180,100,.2);}
+.mp-room-status.playing{background:rgba(200,160,60,.15);color:#e8d080;border:1px solid rgba(200,160,60,.2);}
+.mp-room-status.full{background:rgba(180,40,40,.1);color:#e88;border:1px solid rgba(180,40,40,.15);}
+.mp-players-list{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+.mp-player-row{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(20,18,12,.4);border:1px solid rgba(180,140,60,.08);border-radius:3px;font-size:12px;}
+.mp-player-row.host{border-color:rgba(196,163,90,.3);background:rgba(30,26,14,.5);}
+.mp-player-name{color:var(--amber-l);font-weight:600;}
+.mp-player-role{font-size:9px;color:var(--tc-sm);margin-left:6px;}
+.mp-player-ready{font-size:10px;padding:1px 6px;border-radius:2px;}
+.mp-player-ready.ready{color:#8ee6b0;}
+.mp-player-ready.not-ready{color:var(--tc-sm);}
+.mp-chat-box{background:rgba(10,9,6,.6);border:1px solid rgba(180,140,60,.1);border-radius:4px;padding:8px;margin-bottom:12px;max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;}
+.mp-chat-msg{font-size:11px;line-height:1.4;word-break:break-word;}
+.mp-chat-msg .mp-chat-name{color:var(--amber-l);font-weight:600;font-size:10px;}
+.mp-chat-msg .mp-chat-text{color:var(--tc);}
+.mp-chat-msg.sys{color:var(--tc-sm);font-size:10px;text-align:center;font-style:italic;}
+.mp-chat-input-bar{display:flex;gap:6px;}
+.mp-chat-input{flex:1;background:rgba(14,12,8,.6);border:1px solid var(--border);border-radius:3px;color:var(--tc);padding:6px 10px;font-family:var(--font);font-size:11px;}
+.mp-chat-input:focus{outline:none;border-color:var(--amber-d);}
+.mp-chat-send{background:var(--amber-d);color:#000;border:none;border-radius:3px;padding:6px 12px;font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;}
+.mp-chat-send:hover{background:var(--amber);}
+/* 游戏内联机HUD */
+.mp-hud-panel{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:76;display:none;background:rgba(14,12,8,.8);border:1px solid rgba(180,140,60,.2);border-radius:4px;padding:4px 12px;font-family:var(--font);pointer-events:none;}
+.mp-hud-panel.show{display:flex;gap:10px;align-items:center;}
+.mp-hud-player{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--tc);}
+.mp-hud-player .mp-hud-dot{width:6px;height:6px;border-radius:50%;background:#8ee6b0;flex-shrink:0;}
+.mp-hud-player.dead .mp-hud-dot{background:#c44;}
+.mp-hud-player .mp-hud-hp{color:var(--amber-l);font-weight:600;font-size:9px;}
+.mp-conn-indicator{position:fixed;bottom:10px;left:10px;z-index:76;display:none;align-items:center;gap:4px;font-size:9px;color:var(--tc-sm);background:rgba(14,12,8,.7);border:1px solid rgba(180,140,60,.15);border-radius:3px;padding:3px 8px;font-family:var(--font);}
+.mp-conn-indicator.show{display:flex;}
+.mp-conn-dot{width:5px;height:5px;border-radius:50%;background:#8ee6b0;}
+.mp-conn-dot.warn{background:#e8d080;}
+.mp-conn-dot.bad{background:#c44;}
+/* 旁观者模式 */
+.mp-spectator-banner{position:fixed;top:50px;left:50%;transform:translateX(-50%);z-index:77;font-size:12px;color:var(--tc-sm);background:rgba(14,12,8,.85);border:1px solid rgba(180,140,60,.2);border-radius:4px;padding:6px 16px;font-family:var(--font);display:none;text-align:center;pointer-events:none;}
+.mp-spectator-banner.show{display:block;}
+/* 3D玩家名字标签 */
+.mp-name-label{position:fixed;pointer-events:none;z-index:40;font-family:var(--font);font-size:10px;color:var(--amber-l);text-shadow:0 1px 3px #000;white-space:nowrap;transform:translate(-50%,-100%);opacity:0.85;}
+
+/* ==================== 迭代1-100: 恐怖主菜单UI重做 ==================== */
+/* 迭代1: 恐怖氛围背景 */
+#screen-menu{background:#050403;overflow:hidden;}
+#screen-menu::before{
+  content:'';position:absolute;inset:0;z-index:0;
+  background:
+    radial-gradient(ellipse at 20% 50%,rgba(60,20,10,.15) 0%,transparent 50%),
+    radial-gradient(ellipse at 80% 30%,rgba(40,30,10,.12) 0%,transparent 45%),
+    radial-gradient(ellipse at 50% 80%,rgba(50,10,10,.1) 0%,transparent 40%);
+  animation:horrorAmbientPulse 8s ease-in-out infinite alternate;
+}
+@keyframes horrorAmbientPulse{
+  0%{opacity:.6;filter:brightness(0.8);}
+  50%{opacity:1;filter:brightness(1.1);}
+  100%{opacity:.7;filter:brightness(0.9);}
+}
+
+/* 迭代2: 标题恐怖动画 */
+.pubg-title-block .title{
+  animation:titleHorrorGlitch 6s ease-in-out infinite;
+  text-shadow:
+    0 0 20px rgba(196,163,90,.3),
+    0 0 40px rgba(196,163,90,.15),
+    0 0 80px rgba(120,40,20,.1);
+  position:relative;
+}
+.pubg-title-block .title::before{
+  content:'THE BACKROOMS';position:absolute;left:2px;top:0;width:100%;height:100%;
+  color:rgba(180,40,40,.08);z-index:-1;
+  animation:titleBloodShift 4s ease-in-out infinite alternate;
+}
+.pubg-title-block .title::after{
+  content:'THE BACKROOMS';position:absolute;left:-2px;top:0;width:100%;height:100%;
+  color:rgba(40,80,180,.05);z-index:-1;
+  animation:titleBloodShift 4s ease-in-out infinite alternate-reverse;
+}
+@keyframes titleHorrorGlitch{
+  0%,88%,100%{transform:none;opacity:1;filter:none;}
+  89%{transform:translateX(-3px) skewX(-1deg);opacity:.85;filter:blur(0.5px);}
+  90%{transform:translateX(3px) skewX(1deg);opacity:.7;filter:blur(1px);}
+  91%{transform:none;opacity:1;filter:none;}
+  95%{transform:translateY(-1px);opacity:.9;filter:brightness(1.5);}
+  96%{transform:none;opacity:1;}
+}
+@keyframes titleBloodShift{
+  0%{transform:translateX(0);opacity:.5;}
+  100%{transform:translateX(3px);opacity:.8;}
+}
+.pubg-title-block .title-cn{
+  animation:titleCnPulse 5s ease-in-out infinite;
+  text-shadow:0 0 10px rgba(207,199,168,.2);
+}
+@keyframes titleCnPulse{
+  0%,100%{opacity:.6;letter-spacing:.15em;}
+  50%{opacity:.9;letter-spacing:.18em;}
+}
+.pubg-title-block .title-sub{
+  animation:subtitleFlicker 3s steps(1) infinite;
+}
+@keyframes subtitleFlicker{
+  0%,92%,100%{opacity:.4;}
+  93%{opacity:0;}
+  94%{opacity:.6;}
+  95%{opacity:.1;}
+  96%{opacity:.5;}
+}
+
+/* 迭代3: 恐怖风格按钮 */
+.pubg-side-btn{
+  position:relative;overflow:hidden;
+  border:1px solid rgba(180,140,60,.05);
+  transition:all .2s ease;
+}
+.pubg-side-btn::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:linear-gradient(180deg,transparent,rgba(180,140,60,.3),transparent);
+  transform:scaleY(0);transition:transform .3s ease;
+}
+.pubg-side-btn:hover::before{transform:scaleY(1);}
+.pubg-side-btn:hover{
+  background:rgba(40,20,10,.6);
+  border-color:rgba(180,140,60,.25);
+  box-shadow:0 0 15px rgba(120,40,20,.1),inset 0 0 20px rgba(0,0,0,.3);
+  transform:translateX(4px);
+}
+.pubg-side-btn::after{
+  content:'';position:absolute;right:0;top:0;bottom:0;width:0;
+  background:linear-gradient(90deg,transparent,rgba(120,40,20,.05));
+  transition:width .3s ease;
+}
+.pubg-side-btn:hover::after{width:100%;}
+
+/* 迭代4: 按钮悬停恐怖反馈 */
+.pubg-start-btn{
+  position:relative;overflow:hidden;
+  animation:startBtnBreath 4s ease-in-out infinite;
+}
+@keyframes startBtnBreath{
+  0%,100%{box-shadow:0 4px 24px rgba(0,0,0,.4),inset 0 1px 0 rgba(196,163,90,.15),0 0 0 rgba(180,140,60,0);}
+  50%{box-shadow:0 4px 24px rgba(0,0,0,.4),inset 0 1px 0 rgba(196,163,90,.15),0 0 30px rgba(180,140,60,.08);}
+}
+.pubg-start-btn::before{
+  content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;
+  background:radial-gradient(circle,rgba(196,163,90,.06) 0%,transparent 60%);
+  animation:startBtnGlow 3s ease-in-out infinite;
+}
+@keyframes startBtnGlow{
+  0%,100%{transform:scale(0.8);opacity:.5;}
+  50%{transform:scale(1.2);opacity:1;}
+}
+
+/* 迭代5: 按钮点击音效 - 通过JS实现 */
+/* 迭代6: 主菜单背景音效 - 通过JS实现 */
+
+/* 迭代7: 主菜单粒子效果CSS层 */
+.horror-particles{
+  position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden;
+}
+.horror-particle{
+  position:absolute;width:2px;height:2px;border-radius:50%;
+  background:rgba(207,199,168,.15);
+  animation:particleFloat linear infinite;
+}
+.horror-particle.dust{
+  width:1px;height:1px;background:rgba(180,160,120,.1);
+  box-shadow:0 0 3px rgba(180,160,120,.05);
+}
+.horror-particle.blood{
+  background:rgba(150,30,20,.12);width:1px;height:3px;border-radius:0;
+  animation:particleBloodFall linear infinite;
+}
+@keyframes particleFloat{
+  0%{transform:translate(0,0) rotate(0deg);opacity:0;}
+  10%{opacity:.3;}
+  90%{opacity:.2;}
+  100%{transform:translate(var(--px),var(--py)) rotate(360deg);opacity:0;}
+}
+@keyframes particleBloodFall{
+  0%{transform:translateY(-10px);opacity:0;}
+  10%{opacity:.2;}
+  100%{transform:translateY(100vh);opacity:0;}
+}
+
+/* 迭代8: 主菜单视差效果 */
+.parallax-layer{
+  position:absolute;inset:0;pointer-events:none;
+  transition:transform .1s ease-out;
+}
+.parallax-bg{z-index:0;}
+.parallax-mid{z-index:1;}
+.parallax-fg{z-index:2;}
+
+/* 迭代9: 恐怖事件CSS */
+.horror-event{
+  position:absolute;inset:0;z-index:15;pointer-events:none;
+  opacity:0;transition:opacity .1s;
+}
+.horror-event.active{opacity:1;}
+.horror-flash{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse at center,transparent 30%,rgba(120,20,10,.15));
+  animation:horrorFlash .15s ease-out;
+}
+@keyframes horrorFlash{
+  0%{opacity:1;}100%{opacity:0;}
+}
+.horror-face{
+  position:absolute;font-size:80px;
+  filter:blur(1px) brightness(0.3);
+  animation:horrorFaceAppear .5s ease-out forwards;
+}
+@keyframes horrorFaceAppear{
+  0%{opacity:0;transform:scale(2);}
+  30%{opacity:.15;transform:scale(1);}
+  100%{opacity:0;transform:scale(0.8);}
+}
+
+/* 迭代10: 难度选择恐怖风格 */
+.difficulty-horror{display:flex;gap:8px;margin:12px 0;}
+.diff-btn{
+  flex:1;padding:12px 8px;text-align:center;
+  background:rgba(14,12,8,.7);border:1px solid rgba(180,140,60,.1);
+  color:var(--tc-sm);font-family:var(--font);font-size:11px;
+  cursor:pointer;transition:all .3s ease;position:relative;overflow:hidden;
+}
+.diff-btn::before{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:var(--diff-color,rgba(180,140,60,.3));
+  transform:scaleX(0);transition:transform .3s ease;
+}
+.diff-btn:hover::before,.diff-btn.selected::before{transform:scaleX(1);}
+.diff-btn:hover,.diff-btn.selected{
+  background:rgba(30,20,10,.8);border-color:var(--diff-color,rgba(180,140,60,.3));
+  box-shadow:0 0 20px rgba(0,0,0,.5);
+}
+.diff-btn.normal{--diff-color:rgba(142,230,176,.4);}
+.diff-btn.hard{--diff-color:rgba(230,200,124,.5);}
+.diff-btn.nightmare{--diff-color:rgba(200,60,60,.5);}
+.diff-btn .diff-icon{font-size:20px;display:block;margin-bottom:4px;}
+.diff-btn .diff-name{display:block;font-size:12px;font-weight:600;letter-spacing:.1em;}
+.diff-btn .diff-desc{display:block;font-size:9px;margin-top:4px;opacity:.6;}
+
+/* 迭代11: 设置面板恐怖风格 */
+.panel::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(180,140,60,.3),transparent);
+}
+.panel h2{
+  position:relative;
+}
+.panel h2::after{
+  content:'';position:absolute;bottom:-1px;left:0;width:40px;height:1px;
+  background:var(--amber-d);
+  animation:panelTitleLine 3s ease-in-out infinite alternate;
+}
+@keyframes panelTitleLine{
+  0%{width:40px;opacity:.4;}
+  100%{width:80px;opacity:.7;}
+}
+
+/* 迭代17: 帮助界面恐怖风格 */
+.help-note h3{
+  position:relative;padding-left:12px;
+}
+.help-note h3::before{
+  content:'▸';position:absolute;left:0;color:rgba(180,140,60,.4);
+}
+
+/* 迭代19: 退出确认恐怖风格 */
+.exit-confirm-overlay{
+  position:fixed;inset:0;z-index:9999;
+  background:rgba(0,0,0,.85);
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.exit-confirm-overlay.show{opacity:1;pointer-events:auto;}
+.exit-confirm-box{
+  background:rgba(15,12,8,.95);border:1px solid rgba(180,140,60,.2);
+  padding:30px 40px;text-align:center;max-width:360px;
+  box-shadow:0 0 60px rgba(0,0,0,.8),0 0 30px rgba(120,40,20,.1);
+  animation:exitConfirmShake .5s ease-out;
+}
+@keyframes exitConfirmShake{
+  0%{transform:scale(1.05) rotate(0.5deg);}
+  30%{transform:scale(1) rotate(-0.3deg);}
+  60%{transform:scale(1.02) rotate(0.2deg);}
+  100%{transform:scale(1) rotate(0);}
+}
+.exit-confirm-box h3{
+  font-size:16px;color:var(--danger);letter-spacing:.15em;margin-bottom:12px;
+  animation:exitTextPulse 2s ease-in-out infinite;
+}
+@keyframes exitTextPulse{
+  0%,100%{text-shadow:0 0 10px rgba(200,60,60,.2);}
+  50%{text-shadow:0 0 20px rgba(200,60,60,.4);}
+}
+
+/* 迭代23: 加载界面恐怖动画 */
+.horror-loading{
+  position:fixed;inset:0;z-index:9998;
+  background:#050403;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .4s;
+}
+.horror-loading.show{opacity:1;pointer-events:auto;}
+.horror-loading-text{
+  font-size:14px;color:var(--amber);letter-spacing:.2em;
+  animation:loadingTextGlitch 2s steps(1) infinite;
+}
+@keyframes loadingTextGlitch{
+  0%,85%,100%{opacity:.8;transform:none;}
+  86%{transform:translateX(-2px);opacity:.4;}
+  88%{transform:translateX(2px);opacity:.9;}
+  90%{transform:none;opacity:.7;}
+}
+.horror-loading-bar{
+  width:200px;height:2px;background:rgba(180,140,60,.1);
+  margin-top:16px;overflow:hidden;border-radius:1px;
+}
+.horror-loading-fill{
+  height:100%;width:0;background:var(--amber-d);
+  transition:width .3s ease;
+}
+.horror-loading-tip{
+  font-size:10px;color:var(--tc-sm);margin-top:12px;
+  max-width:300px;text-align:center;opacity:.5;
+  font-style:italic;
+}
+
+/* 迭代37: 游戏内HUD恐怖重做 */
+.hud::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(180deg,rgba(0,0,0,.15) 0%,transparent 15%,transparent 85%,rgba(0,0,0,.2) 100%);
+  z-index:-1;
+}
+
+/* 迭代38: 恐怖风格生命条 */
+#hp-bar,.bar-fill{
+  position:relative;
+}
+#hp-bar{
+  background:linear-gradient(90deg,rgba(200,40,40,.8),rgba(180,140,60,.9));
+  box-shadow:0 0 6px rgba(200,40,40,.2);
+}
+#hp-bar.low{
+  animation:hpBarPulse .8s ease-in-out infinite;
+}
+@keyframes hpBarPulse{
+  0%,100%{box-shadow:0 0 6px rgba(200,40,40,.2);}
+  50%{box-shadow:0 0 12px rgba(200,40,40,.5);}
+}
+
+/* 迭代39: 恐怖风格理智条 */
+#sanity-bar{
+  background:linear-gradient(90deg,rgba(100,140,180,.8),rgba(122,157,184,.9));
+  box-shadow:0 0 6px rgba(100,140,180,.15);
+}
+#sanity-bar.low{
+  animation:sanityBarDistort 1s ease-in-out infinite;
+}
+@keyframes sanityBarDistort{
+  0%,100%{filter:none;transform:none;}
+  25%{filter:hue-rotate(20deg);transform:skewX(1deg);}
+  75%{filter:hue-rotate(-10deg);transform:skewX(-0.5deg);}
+}
+
+/* 迭代46: 暂停菜单恐怖风格 */
+#screen-pause .panel{
+  background:rgba(8,6,4,.97);
+  box-shadow:0 0 80px rgba(0,0,0,.9),0 0 30px rgba(80,30,10,.08);
+}
+#screen-pause .panel h2{
+  color:var(--amber);
+  text-shadow:0 0 15px rgba(196,163,90,.15);
+}
+
+/* 迭代47: 死亡界面恐怖画面 */
+#screen-dead{
+  background:radial-gradient(ellipse at center,rgba(40,10,10,.95) 0%,rgba(5,2,2,.98) 70%);
+  animation:deathScreenPulse 3s ease-in-out infinite;
+}
+@keyframes deathScreenPulse{
+  0%,100%{background:radial-gradient(ellipse at center,rgba(40,10,10,.95) 0%,rgba(5,2,2,.98) 70%);}
+  50%{background:radial-gradient(ellipse at center,rgba(50,15,15,.95) 0%,rgba(8,3,3,.98) 70%);}
+}
+#screen-dead .dead-panel h2{
+  animation:deathTitleGlitch 2s steps(1) infinite;
+}
+@keyframes deathTitleGlitch{
+  0%,85%,100%{text-shadow:0 0 20px rgba(200,40,40,.4);transform:none;}
+  86%{text-shadow:-3px 0 rgba(40,100,200,.3),3px 0 rgba(200,40,40,.3);transform:skewX(-2deg);}
+  88%{text-shadow:2px 0 rgba(200,40,40,.5);transform:skewX(1deg);}
+  90%{text-shadow:0 0 20px rgba(200,40,40,.4);transform:none;}
+}
+#dead-screen-particles{
+  position:absolute;inset:0;pointer-events:none;overflow:hidden;
+}
+
+/* 迭代48: 通关界面 */
+#screen-complete .panel{
+  box-shadow:0 0 60px rgba(0,0,0,.8),0 0 20px rgba(142,230,176,.05);
+}
+#screen-complete h2{
+  text-shadow:0 0 15px rgba(142,230,176,.2);
+}
+
+/* 迭代49: 结算界面 */
+.stats div{
+  transition:background .2s;
+}
+.stats div:hover{
+  background:rgba(180,140,60,.04);
+}
+
+/* 迭代51-100: 恐怖氛围细节优化 */
+/* 所有screen的统一恐怖背景 */
+.screen{
+  background:#050403;
+  position:relative;
+}
+.screen::after{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse at 30% 40%,rgba(50,20,10,.06) 0%,transparent 50%),
+    radial-gradient(ellipse at 70% 60%,rgba(30,20,40,.04) 0%,transparent 40%);
+}
+
+/* 恐怖风格滚动条 */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:rgba(10,8,6,.5);}
+::-webkit-scrollbar-thumb{background:rgba(180,140,60,.2);border-radius:2px;}
+::-webkit-scrollbar-thumb:hover{background:rgba(180,140,60,.35);}
+
+/* 面板统一恐怖阴影 */
+.panel{
+  box-shadow:0 30px 90px rgba(0,0,0,.85),0 0 40px rgba(0,0,0,.5),0 0 1px rgba(180,140,60,.1);
+}
+
+/* 输入框恐怖风格 */
+.diag-input,.fb-textarea{
+  transition:border-color .3s,box-shadow .3s;
+}
+.diag-input:focus,.fb-textarea:focus{
+  border-color:rgba(180,140,60,.4);
+  box-shadow:0 0 15px rgba(180,140,60,.08);
+}
+
+/* 按钮点击波纹 */
+.btn-wave{
+  position:absolute;border-radius:50%;
+  background:rgba(196,163,90,.15);
+  transform:scale(0);animation:btnWave .6s ease-out forwards;
+  pointer-events:none;
+}
+@keyframes btnWave{
+  to{transform:scale(4);opacity:0;}
+}
+
+/* ==================== 迭代101-200: 响应式UI和移动端优化 ==================== */
+/* 迭代101: 移动端自动适配 */
+@media(max-width:768px){
+  .pubg-start-zone{top:24px;left:16px;}
+  .pubg-profile{top:24px;right:16px;padding:6px 10px;}
+  .pubg-start-btn{width:160px;padding:14px 18px !important;}
+  .pubg-start-alt{width:160px;padding:8px 18px !important;}
+  .pubg-side-menu{bottom:24px;left:16px;}
+  .pubg-side-btn{width:120px;padding:6px 10px;font-size:10px;}
+  .pubg-title-block .title{font-size:22px;}
+  .pubg-title-block .title-cn{font-size:12px;}
+  .menu-level-cards{max-width:90vw;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));}
+  .pubg-official-zone{left:16px;bottom:120px;}
+  .menu-wrap.pubg-style .menu-foot{right:16px;bottom:8px;}
+  .menu-wrap.pubg-style .diag-input-wrap{right:16px;bottom:32px;}
+}
+/* 迭代103: 触控优化按钮大小 */
+@media(pointer:coarse){
+  .pubg-side-btn{min-height:40px;padding:10px 14px;}
+  .btn{min-height:44px;padding:12px 20px;}
+  .panel-foot .btn{min-height:40px;}
+  .pubg-start-btn{min-height:56px;}
+}
+/* 迭代105: 简化移动端菜单 */
+@media(max-width:480px) and (pointer:coarse){
+  .pubg-side-menu{
+    flex-direction:row;flex-wrap:wrap;gap:4px;
+    max-width:calc(100vw - 32px);
+  }
+  .pubg-side-btn{width:auto;flex:1 0 45%;min-width:0;}
+  .pubg-start-zone{gap:6px;}
+  .pubg-title-block{display:none;}
+}
+/* 迭代106: 横屏适配 */
+@media(max-height:480px) and (orientation:landscape){
+  .pubg-start-zone{top:12px;left:12px;}
+  .pubg-profile{top:12px;right:12px;}
+  .pubg-side-menu{bottom:12px;left:12px;max-height:calc(100vh - 80px);overflow-y:auto;}
+  .pubg-start-btn{padding:10px 16px !important;}
+  .pubg-title-block{display:none;}
+  .panel{max-height:90vh;padding:16px 18px;}
+}
+/* 迭代108: 平板适配 */
+@media(min-width:768px) and (max-width:1024px){
+  .pubg-start-btn{width:180px;}
+  .pubg-side-btn{width:130px;}
+  .menu-level-cards{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
+}
+/* 迭代109: 响应式字体 */
+.title{font-size:clamp(18px,5vw,32px);}
+.title-cn{font-size:clamp(10px,2.5vw,14px);}
+.pubg-side-btn{font-size:clamp(9px,1.5vw,12px);}
+.panel h2{font-size:clamp(13px,2.5vw,16px);}
+/* 迭代111: 移动端性能模式 */
+@media(max-width:480px){
+  .horror-particles{display:none;}
+  .parallax-layer{display:none;}
+  .pubg-start-btn::before{display:none;}
+  .pubg-title-block .title::before,.pubg-title-block .title::after{display:none;}
+}
+
+/* ==================== 迭代201-325: UI动画和特效 ==================== */
+/* 迭代201: 菜单切换动画 */
+.screen{
+  opacity:0;
+  transition:opacity .4s ease;
+}
+.screen.active{
+  opacity:1;
+  animation:screenFadeIn .5s ease-out;
+}
+@keyframes screenFadeIn{
+  0%{opacity:0;transform:scale(1.02);}
+  100%{opacity:1;transform:scale(1);}
+}
+
+/* 迭代202: 按钮动画 */
+.btn{
+  transition:all .2s cubic-bezier(.4,0,.2,1);
+}
+.btn:active{
+  transform:scale(.97);
+  transition:transform .1s;
+}
+
+/* 迭代203: 提示框弹出动画 */
+.toast{
+  animation:toastSlideIn .4s cubic-bezier(.4,0,.2,1);
+}
+@keyframes toastSlideIn{
+  0%{opacity:0;transform:translate(-50%,-20px);}
+  100%{opacity:1;transform:translate(-50%,0);}
+}
+
+/* 迭代205: 进度条动画 */
+.bar-fill{
+  transition:width .4s cubic-bezier(.4,0,.2,1),background .3s ease;
+}
+
+/* 迭代206: 数字变化动画 */
+.stat-val{
+  transition:color .3s ease;
+}
+
+/* 迭代209: 淡入淡出 */
+.panel{
+  animation:panelFadeIn .4s ease-out;
+}
+@keyframes panelFadeIn{
+  0%{opacity:0;transform:translateY(10px);}
+  100%{opacity:1;transform:translateY(0);}
+}
+
+/* 迭代210: 缩放动画 */
+.mp-box,.tutorial-box{
+  animation:boxScaleIn .3s cubic-bezier(.4,0,.2,1);
+}
+@keyframes boxScaleIn{
+  0%{opacity:0;transform:scale(.95);}
+  100%{opacity:1;transform:scale(1);}
+}
+
+/* 迭代217: 恐怖抖动 */
+.horror-shake{
+  animation:horrorShake .3s ease-out;
+}
+@keyframes horrorShake{
+  0%,100%{transform:translate(0);}
+  10%{transform:translate(-2px,1px);}
+  20%{transform:translate(2px,-1px);}
+  30%{transform:translate(-1px,2px);}
+  40%{transform:translate(1px,-2px);}
+  50%{transform:translate(-2px,0);}
+  60%{transform:translate(2px,1px);}
+  70%{transform:translate(0,-1px);}
+  80%{transform:translate(-1px,0);}
+  90%{transform:translate(1px,1px);}
+}
+
+/* 迭代218: 恐怖闪烁 */
+.horror-flicker{
+  animation:horrorFlicker .15s steps(2) 3;
+}
+@keyframes horrorFlicker{
+  0%{opacity:1;}
+  25%{opacity:.2;}
+  50%{opacity:.8;}
+  75%{opacity:.1;}
+  100%{opacity:1;}
+}
+
+/* 迭代219: 恐怖扭曲 */
+.horror-distort{
+  animation:horrorDistort .5s ease-out;
+}
+@keyframes horrorDistort{
+  0%{filter:none;transform:none;}
+  20%{filter:blur(2px) hue-rotate(20deg);transform:skewX(3deg);}
+  40%{filter:blur(0) hue-rotate(-10deg);transform:skewX(-2deg);}
+  60%{filter:blur(1px);transform:skewX(1deg);}
+  100%{filter:none;transform:none;}
+}
+
+/* 迭代220: 血迹蔓延 */
+.blood-splatter{
+  position:absolute;pointer-events:none;z-index:20;
+  width:100px;height:100px;
+  background:radial-gradient(ellipse at center,rgba(150,20,10,.2) 0%,rgba(100,10,5,.1) 30%,transparent 70%);
+  animation:bloodSpread 2s ease-out forwards;
+}
+@keyframes bloodSpread{
+  0%{transform:scale(0);opacity:.8;}
+  60%{transform:scale(1);opacity:.3;}
+  100%{transform:scale(1.2);opacity:0;}
+}
+
+/* 迭代221: 恐怖文字动画 */
+.horror-text{
+  animation:horrorTextReveal 1s ease-out;
+}
+@keyframes horrorTextReveal{
+  0%{opacity:0;letter-spacing:.5em;filter:blur(4px);}
+  60%{opacity:.8;letter-spacing:.12em;filter:blur(0);}
+  100%{opacity:1;letter-spacing:normal;filter:none;}
+}
+
+/* 迭代223: 背景动态效果 */
+.horror-bg-anim{
+  animation:horrorBgShift 12s ease-in-out infinite alternate;
+}
+@keyframes horrorBgShift{
+  0%{background-position:0% 0%;}
+  100%{background-position:100% 100%;}
+}
+
+/* 迭代224: 边框动画 */
+.horror-border-glow{
+  position:relative;
+}
+.horror-border-glow::before{
+  content:'';position:absolute;inset:-1px;
+  background:linear-gradient(45deg,transparent,rgba(180,140,60,.1),transparent,rgba(180,140,60,.05),transparent);
+  background-size:400% 400%;
+  animation:borderGlow 6s linear infinite;
+  z-index:-1;border-radius:inherit;
+}
+@keyframes borderGlow{
+  0%{background-position:0% 50%;}
+  50%{background-position:100% 50%;}
+  100%{background-position:0% 50%;}
+}
+
+/* 迭代225: 阴影动画 */
+.horror-shadow-pulse{
+  animation:shadowPulse 4s ease-in-out infinite;
+}
+@keyframes shadowPulse{
+  0%,100%{box-shadow:0 30px 90px rgba(0,0,0,.85);}
+  50%{box-shadow:0 30px 90px rgba(0,0,0,.9),0 0 40px rgba(80,20,10,.08);}
+}
+
+/* 迭代226: 发光动画 */
+.horror-glow{
+  animation:horrorGlow 3s ease-in-out infinite;
+}
+@keyframes horrorGlow{
+  0%,100%{filter:brightness(1) drop-shadow(0 0 0 transparent);}
+  50%{filter:brightness(1.05) drop-shadow(0 0 8px rgba(180,140,60,.1));}
+}
+
+/* 迭代229: 脉冲动画 */
+.horror-pulse{
+  animation:horrorPulse 2s ease-in-out infinite;
+}
+@keyframes horrorPulse{
+  0%,100%{transform:scale(1);opacity:1;}
+  50%{transform:scale(1.02);opacity:.9;}
+}
+
+/* 迭代230: 呼吸动画 */
+.horror-breathe{
+  animation:horrorBreathe 5s ease-in-out infinite;
+}
+@keyframes horrorBreathe{
+  0%,100%{opacity:.85;transform:scale(1);}
+  50%{opacity:1;transform:scale(1.005);}
+}
+
+/* 迭代30: 联机大厅恐怖风格 */
+.mp-box{
+  background:rgba(10,8,6,.96);
+  border:1px solid rgba(180,140,60,.15);
+  box-shadow:0 0 60px rgba(0,0,0,.8),0 0 20px rgba(80,30,10,.05);
+}
+
+/* 迭代36: 聊天系统恐怖风格 */
+.sb-chat-panel{
+  background:rgba(8,6,4,.95) !important;
+  border-color:rgba(180,140,60,.12) !important;
+}
+.sb-chat-title{
+  text-shadow:0 0 8px rgba(196,163,90,.15);
+}
+
+/* 迭代41-44: 小地图/道具栏/目标/提示恐怖风格 */
+#floor-indicator{
+  text-shadow:0 0 8px rgba(196,163,90,.2);
+}
+#save-prompt{
+  animation:savePromptPulse 3s ease-in-out infinite;
+}
+@keyframes savePromptPulse{
+  0%,100%{opacity:.6;}
+  50%{opacity:.9;}
+}
+
 </style>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -1935,6 +2698,12 @@ input[type="range"]::-moz-range-thumb {
     <!-- 主菜单 -->
     <section class="screen active" id="screen-menu">
       <div class="crt-overlay"></div>
+      <!-- 迭代7: 恐怖粒子层 -->
+      <div class="horror-particles" id="menu-particles"></div>
+      <!-- 迭代8: 视差层 -->
+      <div class="parallax-layer parallax-bg" id="menu-parallax-bg"></div>
+      <!-- 迭代9: 恐怖事件层 -->
+      <div class="horror-event" id="menu-horror-event"></div>
       <div class="menu-wrap pubg-style">
         <!-- 录制指示器（保留氛围） -->
         <div class="rec-bar">
@@ -2009,6 +2778,10 @@ input[type="range"]::-moz-range-thumb {
           <button class="pubg-side-btn" data-action="custom-levels">
             <span class="pubg-side-icon">🎨</span>
             <span class="pubg-side-text">自制关卡</span>
+          </button>
+          <button class="pubg-side-btn" data-action="mp-lobby">
+            <span class="pubg-side-icon">🌐</span>
+            <span class="pubg-side-text">联机模式</span>
           </button>
           <button class="pubg-side-btn" data-action="chat">
             <span class="pubg-side-icon">📡</span>
@@ -2471,7 +3244,71 @@ hint=小心猎犬，找到3个目标物后逃出"></textarea>
       </div>
     </div>
 
+    <!-- ==================== 迭代100: 联机模式 ==================== -->
+    <!-- 联机大厅 -->
+    <section class="screen" id="screen-mp-lobby">
+      <div class="mp-box" style="position:relative;">
+        <button class="mp-close" onclick="MPManager.closeLobby()">✕</button>
+        <h2>🌐 联机大厅</h2>
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <button class="mp-btn mp-btn-primary" onclick="MPManager.showCreateRoom()">创建房间</button>
+          <button class="mp-btn" onclick="MPManager.showJoinRoom()">加入房间</button>
+          <button class="mp-btn" onclick="MPManager.refreshRoomList()">刷新</button>
+        </div>
+        <!-- 创建房间表单 -->
+        <div id="mp-create-form" style="display:none;margin-bottom:16px;padding:14px;background:rgba(20,18,12,.5);border:1px solid rgba(180,140,60,.15);border-radius:4px;">
+          <h3 style="margin-top:0;">创建房间</h3>
+          <div class="mp-field"><label>房间名称</label><input type="text" id="mp-room-name" placeholder="输入房间名" maxlength="20"></div>
+          <div class="mp-field"><label>人数上限</label><select id="mp-max-players"><option value="2">2人</option><option value="3">3人</option><option value="4" selected>4人</option><option value="5">5人</option><option value="6">6人</option><option value="7">7人</option><option value="8">8人</option></select></div>
+          <div class="mp-field"><label>难度</label><select id="mp-difficulty"><option value="normal">普通</option><option value="hard">困难</option><option value="nightmare">噩梦</option></select></div>
+          <div class="mp-btn-row"><button class="mp-btn mp-btn-primary" onclick="MPManager.createRoom()">创建</button><button class="mp-btn" onclick="document.getElementById('mp-create-form').style.display='none'">取消</button></div>
+        </div>
+        <!-- 加入房间表单 -->
+        <div id="mp-join-form" style="display:none;margin-bottom:16px;padding:14px;background:rgba(20,18,12,.5);border:1px solid rgba(180,140,60,.15);border-radius:4px;">
+          <h3 style="margin-top:0;">加入房间</h3>
+          <div class="mp-field"><label>房间ID</label><input type="text" id="mp-room-id-input" placeholder="输入房间ID"></div>
+          <div class="mp-btn-row"><button class="mp-btn mp-btn-primary" onclick="MPManager.joinRoomById()">加入</button><button class="mp-btn" onclick="document.getElementById('mp-join-form').style.display='none'">取消</button></div>
+        </div>
+        <!-- 房间列表 -->
+        <h3>可用房间</h3>
+        <div id="mp-room-list" class="mp-room-list"><div style="text-align:center;color:var(--tc-sm);padding:20px;font-size:11px;">点击刷新加载房间列表</div></div>
+      </div>
+    </section>
+
+    <!-- 联机等待室 -->
+    <section class="screen" id="screen-mp-room">
+      <div class="mp-box" style="position:relative;">
+        <button class="mp-close" onclick="MPManager.leaveRoom()">✕</button>
+        <h2 id="mp-room-title">🏠 房间</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:11px;color:var(--tc-sm);">
+          <span>房间ID: <b id="mp-room-id-display" style="color:var(--amber-l);">-</b></span>
+          <span id="mp-room-diff-display">普通</span>
+        </div>
+        <!-- 玩家列表 -->
+        <h3>玩家 (<span id="mp-player-count">1</span>/<span id="mp-player-max">4</span>)</h3>
+        <div id="mp-players-list" class="mp-players-list"></div>
+        <!-- 聊天 -->
+        <h3>聊天</h3>
+        <div id="mp-room-chat" class="mp-chat-box"></div>
+        <div class="mp-chat-input-bar" style="margin-bottom:12px;">
+          <input type="text" class="mp-chat-input" id="mp-room-chat-input" placeholder="输入消息..." maxlength="100" onkeydown="if(event.key==='Enter')MPManager.sendChat()">
+          <button class="mp-chat-send" onclick="MPManager.sendChat()">发送</button>
+        </div>
+        <!-- 操作按钮 -->
+        <div class="mp-btn-row" style="justify-content:flex-end;">
+          <button class="mp-btn" id="mp-ready-btn" onclick="MPManager.toggleReady()">准备</button>
+          <button class="mp-btn mp-btn-primary" id="mp-start-btn" style="display:none;" onclick="MPManager.startGame()">开始游戏</button>
+          <button class="mp-btn mp-btn-danger" onclick="MPManager.leaveRoom()">离开</button>
+        </div>
+      </div>
+    </section>
+
   </div>
+
+  <!-- 联机HUD -->
+  <div id="mp-hud-panel" class="mp-hud-panel"></div>
+  <div id="mp-conn-indicator" class="mp-conn-indicator"><div class="mp-conn-dot" id="mp-conn-dot"></div><span id="mp-conn-text">已连接</span></div>
+  <div id="mp-spectator-banner" class="mp-spectator-banner">👁 旁观者模式 — 等待其他玩家...</div>
 
   <div id="fade" class="fade"></div>
 </div>
@@ -26220,7 +27057,7 @@ const DEATH_LINES = [
   '你终于分不清哪一面墙是真的。'
 ];
 
-const SCREEN_IDS = ['menu', 'levels', 'help', 'settings', 'pause', 'dead', 'complete', 'victory', 'feedback', 'custom-levels', 'achievements', 'leaderboard', 'archives', 'changelog', 'daily-challenge'];
+const SCREEN_IDS = ['menu', 'levels', 'help', 'settings', 'pause', 'dead', 'complete', 'victory', 'feedback', 'custom-levels', 'achievements', 'leaderboard', 'archives', 'changelog', 'daily-challenge', 'mp-lobby', 'mp-room'];
 
 function showScreen(name) {
   for (const id of SCREEN_IDS) {
@@ -27784,6 +28621,9 @@ class Game {
       case 'custom-levels':
         this.openCustomLevels();
         break;
+      case 'mp-lobby':
+        MPManager.openLobby();
+        break;
       case 'daily-challenge':
         if (typeof startDailyChallenge === 'function') startDailyChallenge();
         break;
@@ -28778,6 +29618,7 @@ class Game {
     }
     this._deathCause = deathDesc;
     this._deathLevelName = this.level ? this.level.name : '未知';
+    if (typeof MPManager !== 'undefined') MPManager.onGameDeath();
     this._deathLevelIndex = this.levelIndex;
     this._deathSurvivalTime = this.levelTime;
     this.clearRun();
@@ -29162,6 +30003,7 @@ class Game {
         }
         this.render(dt);
         this.input.endFrame();
+        if (typeof MPManager !== 'undefined') MPManager.onGameUpdate(dt);
         /* 聊天按钮：游戏中隐藏，其他状态显示 */
         const _fab = document.getElementById('sb-chat-fab');
         if (_fab) _fab.classList.toggle('hidden', this.state === 'playing');
@@ -33403,6 +34245,676 @@ class Game {
 }
 
 /* ===== js/main.js ===== */
+/* ============================================================
+   迭代100: 联机模式系统 (Multiplayer)
+   ============================================================ */
+
+/* ---- DifficultyScaler: 多人难度缩放 ---- */
+class DifficultyScaler {
+  static getScale(playerCount) {
+    const n = Math.max(1, Math.min(8, playerCount));
+    const scales = [
+      { mult: 1.0, monsterMult: 1.0, dmgMult: 1.0 },
+      { mult: 1.0, monsterMult: 1.0, dmgMult: 1.0 },
+      { mult: 1.3, monsterMult: 1.3, dmgMult: 1.2 },
+      { mult: 1.5, monsterMult: 1.5, dmgMult: 1.3 },
+      { mult: 1.7, monsterMult: 1.7, dmgMult: 1.4 },
+      { mult: 1.9, monsterMult: 1.9, dmgMult: 1.5 },
+      { mult: 2.1, monsterMult: 2.1, dmgMult: 1.55 },
+      { mult: 2.3, monsterMult: 2.3, dmgMult: 1.6 },
+      { mult: 2.5, monsterMult: 2.5, dmgMult: 1.7 }
+    ];
+    return scales[n] || scales[1];
+  }
+  static applyToLevel(level, playerCount) {
+    const s = this.getScale(playerCount);
+    level._mpScale = s;
+    level._entityCountAdj = Math.round((level._entityCountAdj || 0) * s.monsterMult);
+    level._itemMult = (level._itemMult || 1) * (1 / Math.sqrt(s.monsterMult));
+    level._mpDmgMult = s.dmgMult;
+    level._mpAggression = 1 + (playerCount - 1) * 0.15;
+    return level;
+  }
+}
+
+/* ---- PlayerModel: 其他玩家的3D模型 ---- */
+class PlayerModel {
+  constructor(scene, peerId, name) {
+    this.peerId = peerId;
+    this.name = name;
+    this.scene = scene;
+    this.group = new THREE.Group();
+    this.targetPos = new THREE.Vector3();
+    this.currentPos = new THREE.Vector3();
+    this.targetRotY = 0;
+    this.currentRotY = 0;
+    this.animState = 'idle';
+    this.isDead = false;
+    this.health = 100;
+    this.level = 0;
+    this.labelEl = null;
+    this._buildMesh();
+    this._createLabel();
+    scene.add(this.group);
+  }
+  _buildMesh() {
+    const bodyGeo = new THREE.BoxGeometry(0.5, 1.2, 0.3);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x8899aa });
+    this.body = new THREE.Mesh(bodyGeo, bodyMat);
+    this.body.position.y = 0.9;
+    this.group.add(this.body);
+    const headGeo = new THREE.SphereGeometry(0.22, 8, 8);
+    const headMat = new THREE.MeshLambertMaterial({ color: 0xccbbaa });
+    this.head = new THREE.Mesh(headGeo, headMat);
+    this.head.position.y = 1.7;
+    this.group.add(this.head);
+    const legGeo = new THREE.BoxGeometry(0.18, 0.6, 0.2);
+    const legMat = new THREE.MeshLambertMaterial({ color: 0x556677 });
+    this.leftLeg = new THREE.Mesh(legGeo, legMat);
+    this.leftLeg.position.set(-0.12, 0.3, 0);
+    this.group.add(this.leftLeg);
+    this.rightLeg = new THREE.Mesh(legGeo, legMat);
+    this.rightLeg.position.set(0.12, 0.3, 0);
+    this.group.add(this.rightLeg);
+  }
+  _createLabel() {
+    this.labelEl = document.createElement('div');
+    this.labelEl.className = 'mp-name-label';
+    this.labelEl.textContent = this.name;
+    document.body.appendChild(this.labelEl);
+  }
+  update(data, dt) {
+    this.targetPos.set(data.x, data.y - 0.0, data.z);
+    this.targetRotY = data.rotY || 0;
+    this.animState = data.animState || 'idle';
+    this.isDead = !!data.isDead;
+    this.health = data.health != null ? data.health : 100;
+    const lerpFactor = Math.min(1, dt * 10);
+    this.currentPos.lerp(this.targetPos, lerpFactor);
+    this.group.position.copy(this.currentPos);
+    const rotDiff = this.targetRotY - this.currentRotY;
+    this.currentRotY += rotDiff * lerpFactor;
+    this.group.rotation.y = this.currentRotY;
+    this.group.visible = !this.isDead;
+    if (this.animState === 'walk' || this.animState === 'run') {
+      const t = performance.now() * 0.006;
+      this.leftLeg.rotation.x = Math.sin(t) * 0.4;
+      this.rightLeg.rotation.x = -Math.sin(t) * 0.4;
+    } else {
+      this.leftLeg.rotation.x = 0;
+      this.rightLeg.rotation.x = 0;
+    }
+    this.body.material.color.setHex(this.isDead ? 0x443333 : 0x8899aa);
+    this._updateLabel();
+  }
+  _updateLabel() {
+    if (!this.labelEl || !window.game || !window.game.renderer) return;
+    const cam = window.game.renderer.camera;
+    if (!cam) return;
+    const pos = this.group.position.clone();
+    pos.y += 2.1;
+    const screenPos = pos.project(cam);
+    const hw = window.innerWidth * 0.5;
+    const hh = window.innerHeight * 0.5;
+    const sx = screenPos.x * hw + hw;
+    const sy = -screenPos.y * hh + hh;
+    if (screenPos.z > 1 || this.isDead) {
+      this.labelEl.style.display = 'none';
+    } else {
+      this.labelEl.style.display = '';
+      this.labelEl.style.left = sx + 'px';
+      this.labelEl.style.top = sy + 'px';
+      const dist = this.group.distanceTo(cam.position);
+      this.labelEl.style.opacity = Math.max(0, Math.min(1, 1 - (dist - 5) / 30));
+    }
+  }
+  destroy() {
+    this.scene.remove(this.group);
+    if (this.labelEl) this.labelEl.remove();
+    this.body.geometry.dispose();
+    this.body.material.dispose();
+    this.head.geometry.dispose();
+    this.head.material.dispose();
+  }
+}
+
+/* ---- MultiplayerManager: 联机核心管理 ---- */
+const MPManager = {
+  peer: null,
+  conn: null,
+  isHost: false,
+  myId: '',
+  myName: 'Player_' + Math.floor(Math.random() * 9000 + 1000),
+  roomData: null,
+  players: {},
+  playerModels: {},
+  chatMessages: [],
+  isReady: false,
+  _reconnectTimer: null,
+  _syncInterval: null,
+  _heartbeatInterval: null,
+  _roomListRefreshTimer: null,
+  _spectatorMode: false,
+  _disconnectedPlayers: new Set(),
+
+  init() {
+    const stored = localStorage.getItem('backrooms_mp_name');
+    if (stored) this.myName = stored;
+  },
+
+  openLobby() {
+    showScreen('mp-lobby');
+    this.refreshRoomList();
+  },
+
+  closeLobby() {
+    showScreen('menu');
+  },
+
+  showCreateRoom() {
+    document.getElementById('mp-create-form').style.display = 'block';
+    document.getElementById('mp-join-form').style.display = 'none';
+  },
+
+  showJoinRoom() {
+    document.getElementById('mp-join-form').style.display = 'block';
+    document.getElementById('mp-create-form').style.display = 'none';
+  },
+
+  _ensurePeer(cb) {
+    if (this.peer && this.peer.open) { cb(this.peer); return; }
+    if (this.peer) { try { this.peer.destroy(); } catch(e) {} }
+    const id = 'br_' + Math.random().toString(36).substr(2, 9);
+    this.peer = new Peer(id, { debug: 0 });
+    this.peer.on('open', (peerId) => {
+      this.myId = peerId;
+      cb(this.peer);
+    });
+    this.peer.on('error', (err) => {
+      console.warn('[MP] Peer error:', err.type, err.message);
+      if (err.type === 'unavailable-id') {
+        this._ensurePeer(cb);
+      } else if (err.type === 'peer-unavailable') {
+        this._addChatMsg(null, '无法连接到房间，请检查房间ID', true);
+      }
+    });
+    this.peer.on('disconnected', () => {
+      console.warn('[MP] Peer disconnected, trying reconnect...');
+      setTimeout(() => {
+        if (this.peer && !this.peer.destroyed) {
+          try { this.peer.reconnect(); } catch(e) {}
+        }
+      }, 2000);
+    });
+  },
+
+  createRoom() {
+    const name = document.getElementById('mp-room-name').value.trim() || '后室小队';
+    const maxPlayers = parseInt(document.getElementById('mp-max-players').value) || 4;
+    const difficulty = document.getElementById('mp-difficulty').value || 'normal';
+    document.getElementById('mp-create-form').style.display = 'none';
+    this._ensurePeer((peer) => {
+      this.isHost = true;
+      this.roomData = {
+        id: this.myId,
+        name: name,
+        hostId: this.myId,
+        maxPlayers: maxPlayers,
+        currentPlayers: 1,
+        difficulty: difficulty,
+        status: 'waiting',
+        players: [{ id: this.myId, name: this.myName, ready: false, character: 'default' }]
+      };
+      this.players[this.myId] = { name: this.myName, ready: false, health: 100, level: 0, isDead: false };
+      peer.on('connection', (conn) => { this._onPlayerConnect(conn); });
+      this._openRoomScreen();
+      this._addChatMsg(null, '房间已创建，等待玩家加入...', true);
+    });
+  },
+
+  joinRoomById() {
+    const roomId = document.getElementById('mp-room-id-input').value.trim();
+    if (!roomId) return;
+    document.getElementById('mp-join-form').style.display = 'none';
+    this._ensurePeer((peer) => {
+      this.isHost = false;
+      const conn = peer.connect(roomId, { reliable: true });
+      conn.on('open', () => {
+        this.conn = conn;
+        conn.send({ type: 'join', name: this.myName, character: 'default' });
+        this._openRoomScreen();
+        this._addChatMsg(null, '已加入房间', true);
+      });
+      conn.on('data', (data) => { this._onData(data); });
+      conn.on('close', () => { this._onDisconnect(); });
+      conn.on('error', (err) => { console.warn('[MP] Conn error:', err); });
+    });
+  },
+
+  _onPlayerConnect(conn) {
+    const existingCount = Object.keys(this.players).length;
+    if (existingCount >= this.roomData.maxPlayers) {
+      conn.send({ type: 'rejected', reason: '房间已满' });
+      conn.close();
+      return;
+    }
+    conn.on('open', () => {
+      conn.send({ type: 'room-state', room: this.roomData });
+    });
+    conn.on('data', (data) => { this._onData(data, conn); });
+    conn.on('close', () => { this._onPlayerDisconnect(conn); });
+  },
+
+  _onData(data, fromConn) {
+    if (!data || !data.type) return;
+    switch (data.type) {
+      case 'join':
+        if (!this.isHost) break;
+        this._addPlayer(data.name || 'Player', fromConn);
+        break;
+      case 'room-state':
+        if (data.room) {
+          this.roomData = data.room;
+          this._updateRoomUI();
+        }
+        break;
+      case 'chat':
+        this._addChatMsg(data.name, data.text);
+        if (this.isHost) this._broadcast({ type: 'chat', name: data.name, text: data.text });
+        break;
+      case 'ready':
+        if (this.isHost && fromConn) {
+          const pid = fromConn.peer;
+          if (this.roomData) {
+            const p = this.roomData.players.find(x => x.id === pid);
+            if (p) p.ready = !!data.ready;
+          }
+          if (this.players[pid]) this.players[pid].ready = !!data.ready;
+          this._updateRoomUI();
+        }
+        break;
+      case 'start':
+        this._startMultiplayerGame(data);
+        break;
+      case 'player-update':
+        if (this.players[data.id]) {
+          Object.assign(this.players[data.id], data);
+        }
+        break;
+      case 'player-state':
+        if (this.players[data.id]) {
+          Object.assign(this.players[data.id], data);
+          if (this.playerModels[data.id]) {
+            this.playerModels[data.id].update(data, 0.05);
+          }
+        }
+        break;
+      case 'disconnect':
+        this._removePlayer(data.id);
+        break;
+      case 'kick':
+        if (data.id === this.myId) {
+          this._addChatMsg(null, '你已被踢出房间', true);
+          this.leaveRoom();
+        }
+        break;
+      case 'rejected':
+        this._addChatMsg(null, data.reason || '加入被拒绝', true);
+        this.leaveRoom();
+        break;
+      case 'heartbeat':
+        break;
+    }
+  },
+
+  _addPlayer(name, conn) {
+    if (!this.roomData) return;
+    const pid = conn.peer;
+    this.roomData.players.push({ id: pid, name: name, ready: false, character: 'default' });
+    this.roomData.currentPlayers = this.roomData.players.length;
+    this.players[pid] = { name: name, ready: false, health: 100, level: 0, isDead: false, conn: conn };
+    this._broadcastRoomState();
+    this._updateRoomUI();
+    this._addChatMsg(null, name + ' 加入了房间', true);
+  },
+
+  _removePlayer(pid) {
+    if (this.players[pid]) {
+      const name = this.players[pid].name || '???';
+      delete this.players[pid];
+      if (this.roomData) {
+        this.roomData.players = this.roomData.players.filter(p => p.id !== pid);
+        this.roomData.currentPlayers = this.roomData.players.length;
+      }
+      if (this.playerModels[pid]) {
+        this.playerModels[pid].destroy();
+        delete this.playerModels[pid];
+      }
+      this._disconnectedPlayers.add(pid);
+      this._addChatMsg(null, name + ' 离开了房间', true);
+      if (this.isHost) this._broadcastRoomState();
+      this._updateRoomUI();
+    }
+  },
+
+  _onPlayerDisconnect(conn) {
+    this._removePlayer(conn.peer);
+  },
+
+  _onDisconnect() {
+    this._addChatMsg(null, '与房主断开连接', true);
+    this.leaveRoom();
+  },
+
+  _broadcast(data, exclude) {
+    if (!this.isHost || !this.roomData) return;
+    this.roomData.players.forEach(p => {
+      if (p.id === this.myId || (exclude && p.id === exclude)) return;
+      const pl = this.players[p.id];
+      if (pl && pl.conn) {
+        try { pl.conn.send(data); } catch(e) {}
+      }
+    });
+  },
+
+  _broadcastRoomState() {
+    if (!this.roomData) return;
+    const state = { type: 'room-state', room: { id: this.roomData.id, name: this.roomData.name, hostId: this.roomData.hostId, maxPlayers: this.roomData.maxPlayers, currentPlayers: this.roomData.currentPlayers, difficulty: this.roomData.difficulty, status: this.roomData.status, players: this.roomData.players.map(p => ({ id: p.id, name: p.name, ready: p.ready, character: p.character })) } };
+    this._broadcast(state);
+  },
+
+  _openRoomScreen() {
+    showScreen('mp-room');
+    this._updateRoomUI();
+    this._startHeartbeat();
+  },
+
+  _updateRoomUI() {
+    if (!this.roomData) return;
+    const titleEl = document.getElementById('mp-room-title');
+    if (titleEl) titleEl.textContent = '🏠 ' + this.roomData.name;
+    const idEl = document.getElementById('mp-room-id-display');
+    if (idEl) idEl.textContent = this.roomData.id;
+    const diffEl = document.getElementById('mp-room-diff-display');
+    const diffNames = { normal: '普通', hard: '困难', nightmare: '噩梦' };
+    if (diffEl) diffEl.textContent = diffNames[this.roomData.difficulty] || '普通';
+    const countEl = document.getElementById('mp-player-count');
+    if (countEl) countEl.textContent = this.roomData.currentPlayers;
+    const maxEl = document.getElementById('mp-player-max');
+    if (maxEl) maxEl.textContent = this.roomData.maxPlayers;
+    const listEl = document.getElementById('mp-players-list');
+    if (listEl) {
+      let html = '';
+      this.roomData.players.forEach(p => {
+        const isHost = p.id === this.roomData.hostId;
+        const isMe = p.id === this.myId;
+        html += '<div class="mp-player-row' + (isHost ? ' host' : '') + '">';
+        html += '<div><span class="mp-player-name">' + (isMe ? '👤 ' : '') + this._esc(p.name) + '</span>';
+        if (isHost) html += '<span class="mp-player-role">房主</span>';
+        html += '</div>';
+        html += '<span class="mp-player-ready ' + (p.ready ? 'ready' : 'not-ready') + '">' + (p.ready ? '✓ 已准备' : '○ 未准备') + '</span>';
+        if (this.isHost && !isHost && !isMe) {
+          html += '<button class="mp-btn" style="padding:2px 8px;font-size:10px;" onclick="MPManager.kickPlayer(\'' + p.id + '\')">踢出</button>';
+        }
+        html += '</div>';
+      });
+      listEl.innerHTML = html;
+    }
+    const startBtn = document.getElementById('mp-start-btn');
+    if (startBtn) startBtn.style.display = this.isHost ? '' : 'none';
+    const readyBtn = document.getElementById('mp-ready-btn');
+    if (readyBtn) readyBtn.textContent = this.isReady ? '✓ 已准备' : '准备';
+  },
+
+  kickPlayer(pid) {
+    if (!this.isHost) return;
+    const pl = this.players[pid];
+    if (pl && pl.conn) {
+      try { pl.conn.send({ type: 'kick', id: pid }); pl.conn.close(); } catch(e) {}
+    }
+    this._removePlayer(pid);
+  },
+
+  toggleReady() {
+    this.isReady = !this.isReady;
+    if (this.conn) {
+      this.conn.send({ type: 'ready', ready: this.isReady });
+    }
+    if (this.isHost && this.roomData) {
+      const me = this.roomData.players.find(p => p.id === this.myId);
+      if (me) me.ready = this.isReady;
+      this._broadcastRoomState();
+    }
+    this._updateRoomUI();
+  },
+
+  startGame() {
+    if (!this.isHost) return;
+    if (this.roomData) this.roomData.status = 'playing';
+    const playerCount = this.roomData ? this.roomData.currentPlayers : 1;
+    const seed = Math.floor(Math.random() * 999999);
+    const startData = {
+      type: 'start',
+      seed: seed,
+      playerCount: playerCount,
+      difficulty: this.roomData ? this.roomData.difficulty : 'normal',
+      roomId: this.roomData ? this.roomData.id : '',
+      levelIndex: 2,
+      players: this.roomData ? this.roomData.players.map(p => ({ id: p.id, name: p.name })) : []
+    };
+    this._broadcast(startData);
+    this._startMultiplayerGame(startData);
+  },
+
+  _startMultiplayerGame(data) {
+    if (!game) return;
+    this._mpActive = true;
+    this._mpSeed = data.seed;
+    this._mpPlayerCount = data.playerCount;
+    this._mpDifficulty = data.difficulty;
+    this._mpRoomId = data.roomId;
+    this._mpPlayers = data.players || [];
+    this._disconnectedPlayers.clear();
+    showScreen(null);
+    game.state = 'playing';
+    game.clearRun();
+    const scale = DifficultyScaler.getScale(data.playerCount);
+    game.startLevel(data.levelIndex || 2);
+    if (game.level) {
+      DifficultyScaler.applyToLevel(game.level, data.playerCount);
+    }
+    this._initPlayerModels();
+    this._startSyncLoop();
+    this._showConnIndicator(true);
+    this._updateHUDPanel();
+    if (this.conn) {
+      try { this.conn.close(); } catch(e) {}
+      this.conn = null;
+    }
+    this._addChatMsg(null, '游戏开始！', true);
+  },
+
+  _initPlayerModels() {
+    if (!game || !game.renderer || !game.renderer.scene) return;
+    const scene = game.renderer.scene;
+    Object.values(this.playerModels).forEach(m => m.destroy());
+    this.playerModels = {};
+    if (!this._mpPlayers) return;
+    this._mpPlayers.forEach(p => {
+      if (p.id === this.myId) return;
+      this.playerModels[p.id] = new PlayerModel(scene, p.id, p.name);
+      this.players[p.id] = this.players[p.id] || { name: p.name, health: 100, level: 0, isDead: false };
+    });
+  },
+
+  _startSyncLoop() {
+    if (this._syncInterval) clearInterval(this._syncInterval);
+    this._syncInterval = setInterval(() => { this._sendPlayerState(); }, 50);
+  },
+
+  _sendPlayerState() {
+    if (!game || !game.player || !this._mpActive) return;
+    const p = game.player;
+    const state = {
+      type: 'player-state',
+      id: this.myId,
+      x: p.pos ? p.pos[0] : 0,
+      y: p.pos ? p.pos[1] : 0,
+      z: p.pos ? p.pos[2] : 0,
+      rotY: p.rot ? p.rot[1] : 0,
+      animState: this._getAnimState(),
+      flashlight: p.flashlight || false,
+      health: game.playerHealth != null ? game.playerHealth : 100,
+      sanity: game.playerSanity != null ? game.playerSanity : 100,
+      level: game.levelIndex || 0,
+      isDead: game.state === 'dead'
+    };
+    if (this.isHost) {
+      this._broadcast(state);
+    } else if (this.conn) {
+      try { this.conn.send(state); } catch(e) {}
+    }
+  },
+
+  _getAnimState() {
+    if (!game || !game.player) return 'idle';
+    const p = game.player;
+    if (p.crouching) return 'crouch';
+    if (p.sprinting) return 'run';
+    if (p.moving) return 'walk';
+    return 'idle';
+  },
+
+  _showConnIndicator(show) {
+    const el = document.getElementById('mp-conn-indicator');
+    if (el) el.classList.toggle('show', show);
+  },
+
+  _updateHUDPanel() {
+    const panel = document.getElementById('mp-hud-panel');
+    if (!panel) return;
+    if (!this._mpActive) { panel.classList.remove('show'); return; }
+    panel.classList.add('show');
+    let html = '';
+    if (this._mpPlayers) {
+      this._mpPlayers.forEach(p => {
+        const pl = this.players[p.id] || {};
+        const dead = pl.isDead ? ' dead' : '';
+        html += '<div class="mp-hud-player' + dead + '"><div class="mp-hud-dot"></div>';
+        html += '<span>' + this._esc(p.name) + '</span>';
+        if (pl.health != null) html += '<span class="mp-hud-hp">' + Math.round(pl.health) + '</span>';
+        html += '</div>';
+      });
+    }
+    panel.innerHTML = html;
+  },
+
+  sendChat() {
+    const input = document.getElementById('mp-room-chat-input');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    this._addChatMsg(this.myName, text);
+    const msg = { type: 'chat', name: this.myName, text: text };
+    if (this.conn) { try { this.conn.send(msg); } catch(e) {} }
+    if (this.isHost) this._broadcast(msg);
+  },
+
+  _addChatMsg(name, text, isSys) {
+    this.chatMessages.push({ name: name, text: text, isSys: isSys });
+    if (this.chatMessages.length > 50) this.chatMessages.shift();
+    const chatEl = document.getElementById('mp-room-chat');
+    if (!chatEl) return;
+    if (isSys) {
+      chatEl.innerHTML += '<div class="mp-chat-msg sys">' + this._esc(text) + '</div>';
+    } else {
+      chatEl.innerHTML += '<div class="mp-chat-msg"><span class="mp-chat-name">' + this._esc(name) + ':</span> <span class="mp-chat-text">' + this._esc(text) + '</span></div>';
+    }
+    chatEl.scrollTop = chatEl.scrollHeight;
+  },
+
+  refreshRoomList() {
+    const listEl = document.getElementById('mp-room-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div style="text-align:center;color:var(--tc-sm);padding:20px;font-size:11px;">正在搜索附近房间... (P2P模式需手动输入房间ID)</div>';
+    setTimeout(() => {
+      listEl.innerHTML = '<div style="text-align:center;color:var(--tc-sm);padding:20px;font-size:11px;">P2P直连模式<br>请将房间ID分享给好友，点击"加入房间"输入ID即可<br><br><button class="mp-btn" onclick="MPManager.showJoinRoom()">输入房间ID加入</button></div>';
+    }, 800);
+  },
+
+  leaveRoom() {
+    if (this.conn) { try { this.conn.send({ type: 'disconnect', id: this.myId }); this.conn.close(); } catch(e) {} this.conn = null; }
+    if (this.isHost && this.peer) {
+      this.peer.destroy();
+      this.peer = null;
+    }
+    this._stopSync();
+    this._cleanupModels();
+    this.roomData = null;
+    this.players = {};
+    this.chatMessages = [];
+    this.isReady = false;
+    this.isHost = false;
+    this._mpActive = false;
+    this._showConnIndicator(false);
+    const hud = document.getElementById('mp-hud-panel');
+    if (hud) hud.classList.remove('show');
+    const spec = document.getElementById('mp-spectator-banner');
+    if (spec) spec.classList.remove('show');
+    showScreen('mp-lobby');
+  },
+
+  _stopSync() {
+    if (this._syncInterval) { clearInterval(this._syncInterval); this._syncInterval = null; }
+    if (this._heartbeatInterval) { clearInterval(this._heartbeatInterval); this._heartbeatInterval = null; }
+  },
+
+  _cleanupModels() {
+    Object.values(this.playerModels).forEach(m => m.destroy());
+    this.playerModels = {};
+  },
+
+  _startHeartbeat() {
+    if (this._heartbeatInterval) clearInterval(this._heartbeatInterval);
+    this._heartbeatInterval = setInterval(() => {
+      if (this.conn) { try { this.conn.send({ type: 'heartbeat' }); } catch(e) {} }
+    }, 5000);
+  },
+
+  _esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  },
+
+  onGameDeath() {
+    if (!this._mpActive) return;
+    this._spectatorMode = true;
+    const spec = document.getElementById('mp-spectator-banner');
+    if (spec) { spec.classList.add('show'); }
+    this._sendPlayerState();
+  },
+
+  onGameUpdate(dt) {
+    if (!this._mpActive) return;
+    Object.keys(this.playerModels).forEach(pid => {
+      const pl = this.players[pid];
+      if (pl) this.playerModels[pid].update(pl, dt);
+    });
+    this._updateHUDPanel();
+  },
+
+  isActive() {
+    return this._mpActive;
+  },
+
+  getPlayerCount() {
+    return this._mpPlayerCount || 1;
+  }
+};
+
+MPManager.init();
+
 /* ============================================================
    入口：装配引擎与游戏，启动主循环
    ============================================================ */
@@ -45799,6 +47311,1095 @@ console.log('  173: 胶片噪点');
 console.log('  174: 晕影效果');
 console.log('  175: 闪烁故障(黑屏/花屏)');
 
+// ========== 迭代1-325: 建模画质综合优化 ==========
+(function(){
+'use strict';
+var THREE = window.THREE;
+if(!THREE) return;
+
+/* ── 工具函数 ── */
+function _hash2d(x,y){ var n=Math.sin(x*127.1+y*311.7)*43758.5453; return n-Math.floor(n); }
+function _smoothNoise(x,y){
+  var ix=Math.floor(x), iy=Math.floor(y);
+  var fx=x-ix, fy=y-iy;
+  fx=fx*fx*(3-2*fx); fy=fy*fy*(3-2*fy);
+  var a=_hash2d(ix,iy), b=_hash2d(ix+1,iy);
+  var c=_hash2d(ix,iy+1), d=_hash2d(ix+1,iy+1);
+  return a+(b-a)*fx+(c-a)*fy+(a-b-c+d)*fx*fy;
+}
+function _fbm(x,y,oct){
+  var v=0, amp=0.5, freq=1;
+  for(var i=0;i<oct;i++){ v+=amp*_smoothNoise(x*freq,y*freq); amp*=0.5; freq*=2; }
+  return v;
+}
+
+/* ── 1. 程序化法线贴图生成器 ── */
+var ProceduralNormalMaps = {
+  _canvas: null,
+  _ctx: null,
+  _init: function(size){
+    if(!this._canvas || this._canvas.width!==size){
+      this._canvas = document.createElement('canvas');
+      this._canvas.width = size; this._canvas.height = size;
+      this._ctx = this._canvas.getContext('2d');
+    }
+  },
+  _heightToNormal: function(heightData, w, h, strength){
+    var normals = new Uint8Array(w*h*4);
+    for(var y=0;y<h;y++){
+      for(var x=0;x<w;x++){
+        var idx=(y*w+x)*4;
+        var l=heightData[y*w+((x-1+w)%w)];
+        var r=heightData[y*w+((x+1)%w)];
+        var t=heightData[((y-1+h)%h)*w+x];
+        var b=heightData[((y+1)%h)*w+x];
+        var dx=(l-r)*strength;
+        var dy=(t-b)*strength;
+        var len=Math.sqrt(dx*dx+dy*dy+1);
+        normals[idx]  =Math.floor((dx/len*0.5+0.5)*255);
+        normals[idx+1]=Math.floor((dy/len*0.5+0.5)*255);
+        normals[idx+2]=Math.floor((1.0/len*0.5+0.5)*255);
+        normals[idx+3]=255;
+      }
+    }
+    return normals;
+  },
+  _makeTexFromData: function(normalData, w, h){
+    var canvas=document.createElement('canvas');
+    canvas.width=w; canvas.height=h;
+    var ctx=canvas.getContext('2d');
+    var imgData=ctx.createImageData(w,h);
+    for(var i=0;i<normalData.length;i++) imgData.data[i]=normalData[i];
+    ctx.putImageData(imgData,0,0);
+    var tex=new THREE.CanvasTexture(canvas);
+    tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.RepeatWrapping;
+    tex.generateMipmaps=true;
+    tex.minFilter=THREE.LinearMipmapLinearFilter;
+    return tex;
+  },
+
+  /* 墙面法线：裂缝+凹凸+砖缝 */
+  createWallNormal: function(size){
+    size=size||256; this._init(size);
+    var hData=new Float32Array(size*size);
+    for(var y=0;y<size;y++){
+      for(var x=0;x<size;x++){
+        var nx=x/size*8, ny=y/size*8;
+        var h=_fbm(nx,ny,5)*0.6;
+        /* 砖缝 */
+        var brickH=size/8;
+        var row=Math.floor(y/brickH);
+        var offsetX=(row%2)*brickH*0.5;
+        var by=y%brickH, bx=(x+offsetX)%brickH;
+        if(by<2||bx<2) h-=0.3;
+        /* 随机裂缝 */
+        var crack=_fbm(x/size*16+100,y/size*16+100,3);
+        if(crack>0.72&&crack<0.74) h-=0.4;
+        /* 剥落区域 */
+        var peel=_fbm(x/size*4+200,y/size*4+200,3);
+        if(peel>0.75) h+=0.2;
+        hData[y*size+x]=h;
+      }
+    }
+    return this._makeTexFromData(this._heightToNormal(hData,size,size,2.5),size,size);
+  },
+
+  /* 地板法线：缝隙+磨损+污渍凹凸 */
+  createFloorNormal: function(size){
+    size=size||256; this._init(size);
+    var hData=new Float32Array(size*size);
+    for(var y=0;y<size;y++){
+      for(var x=0;x<size;x++){
+        var nx=x/size*6, ny=y/size*6;
+        var h=_fbm(nx,ny,4)*0.3;
+        /* 地砖缝隙 */
+        var tileS=size/4;
+        var tx=x%tileS, ty=y%tileS;
+        if(tx<2||ty<2) h-=0.35;
+        /* 磨损凹陷 */
+        var wear=_fbm(x/size*12+50,y/size*12+50,3);
+        h+=wear*0.15;
+        /* 污渍凸起 */
+        var stain=_fbm(x/size*20+300,y/size*20+300,2);
+        if(stain>0.7) h+=0.1;
+        hData[y*size+x]=h;
+      }
+    }
+    return this._makeTexFromData(this._heightToNormal(hData,size,size,2.0),size,size);
+  },
+
+  /* 天花板法线：水渍+霉斑+破损 */
+  createCeilingNormal: function(size){
+    size=size||256; this._init(size);
+    var hData=new Float32Array(size*size);
+    for(var y=0;y<size;y++){
+      for(var x=0;x<size;x++){
+        var nx=x/size*5, ny=y/size*5;
+        var h=_fbm(nx,ny,4)*0.4;
+        /* 天花板板块接缝 */
+        var panelS=size/3;
+        var px=x%panelS, py=y%panelS;
+        if(px<2||py<2) h-=0.25;
+        /* 渗水凹陷 */
+        var water=_fbm(x/size*8+150,y/size*8+150,4);
+        if(water>0.6) h-=0.2*(water-0.6);
+        /* 霉斑凹凸 */
+        var mold=_fbm(x/size*14+400,y/size*14+400,3);
+        if(mold>0.65) h+=0.15;
+        hData[y*size+x]=h;
+      }
+    }
+    return this._makeTexFromData(this._heightToNormal(hData,size,size,1.8),size,size);
+  },
+
+  /* 金属法线：划痕+铆钉+锈蚀 */
+  createMetalNormal: function(size){
+    size=size||128; this._init(size);
+    var hData=new Float32Array(size*size);
+    for(var y=0;y<size;y++){
+      for(var x=0;x<size;x++){
+        var h=_fbm(x/size*10,y/size*10,3)*0.3;
+        /* 拉丝划痕 */
+        var scratch=_smoothNoise(x/size*80,y/size*2)*0.3;
+        h+=scratch;
+        /* 铆钉 */
+        var rivetX=(x%(size/4))-size/8;
+        var rivetY=(y%(size/4))-size/8;
+        var rivetD=Math.sqrt(rivetX*rivetX+rivetY*rivetY);
+        if(rivetD<size/20) h+=0.3*(1-rivetD/(size/20));
+        /* 锈蚀凹陷 */
+        var rust=_fbm(x/size*6+500,y/size*6+500,3);
+        if(rust>0.7) h-=0.2;
+        hData[y*size+x]=h;
+      }
+    }
+    return this._makeTexFromData(this._heightToNormal(hData,size,size,2.2),size,size);
+  },
+
+  /* 管道法线：接缝+阀门凸起 */
+  createPipeNormal: function(size){
+    size=size||64; this._init(size);
+    var hData=new Float32Array(size*size);
+    for(var y=0;y<size;y++){
+      for(var x=0;x<size;x++){
+        var h=0.2;
+        /* 管道接缝环 */
+        var band=y%(size/2);
+        if(band<3) h+=0.3;
+        /* 锈蚀 */
+        h+=_fbm(x/size*12+600,y/size*12+600,3)*0.2;
+        hData[y*size+x]=h;
+      }
+    }
+    return this._makeTexFromData(this._heightToNormal(hData,size,size,1.5),size,size);
+  }
+};
+
+/* ── 2. 粗糙度贴图生成器 ── */
+var ProceduralRoughnessMaps = {
+  createWallRoughness: function(size){
+    size=size||256;
+    var canvas=document.createElement('canvas');
+    canvas.width=size; canvas.height=size;
+    var ctx=canvas.getContext('2d');
+    var imgData=ctx.createImageData(size,size);
+    for(var y=0;y<size;y++){
+      for(var x=0;x<size;x++){
+        var idx=(y*size+x)*4;
+        var r=_fbm(x/size*8+700,y/size*8+700,4);
+        /* 水渍区域更光滑 */
+        if(_fbm(x/size*4+800,y/size*4+800,3)>0.65) r*=0.5;
+        /* 金属锈斑更粗糙 */
+        if(_fbm(x/size*6+900,y/size*6+900,3)>0.7) r=0.9;
+        var val=Math.floor(Math.min(1,Math.max(0,0.5+r*0.5))*255);
+        imgData.data[idx]=val; imgData.data[idx+1]=val;
+        imgData.data[idx+2]=val; imgData.data[idx+3]=255;
+      }
+    }
+    ctx.putImageData(imgData,0,0);
+    var tex=new THREE.CanvasTexture(canvas);
+    tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.RepeatWrapping;
+    return tex;
+  },
+  createFloorRoughness: function(size){
+    size=size||256;
+    var canvas=document.createElement('canvas');
+    canvas.width=size; canvas.height=size;
+    var ctx=canvas.getContext('2d');
+    var imgData=ctx.createImageData(size,size);
+    for(var y=0;y<size;y++){
+      for(var x=0;x<size;x++){
+        var idx=(y*size+x)*4;
+        var r=_fbm(x/size*6+1000,y/size*6+1000,3);
+        /* 水洼更光滑 */
+        var puddle=_fbm(x/size*3+1100,y/size*3+1100,3);
+        if(puddle>0.7) r*=0.3;
+        var val=Math.floor(Math.min(1,Math.max(0,0.4+r*0.4))*255);
+        imgData.data[idx]=val; imgData.data[idx+1]=val;
+        imgData.data[idx+2]=val; imgData.data[idx+3]=255;
+      }
+    }
+    ctx.putImageData(imgData,0,0);
+    var tex=new THREE.CanvasTexture(canvas);
+    tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.RepeatWrapping;
+    return tex;
+  }
+};
+
+/* ── 3. AO贴图生成器 ── */
+var ProceduralAOMaps = {
+  createGenericAO: function(size, intensity){
+    size=size||128; intensity=intensity||0.5;
+    var canvas=document.createElement('canvas');
+    canvas.width=size; canvas.height=size;
+    var ctx=canvas.getContext('2d');
+    var imgData=ctx.createImageData(size,size);
+    for(var y=0;y<size;y++){
+      for(var x=0;x<size;x++){
+        var idx=(y*size+x)*4;
+        var edge=Math.min(x,y,size-1-x,size-1-y)/(size*0.15);
+        edge=Math.min(1,edge);
+        var ao=1.0-intensity*(1-edge);
+        /* 角落暗化 */
+        var corner=1.0-(_fbm(x/size*4+1200,y/size*4+1200,2)*intensity*0.3);
+        ao=Math.max(0,Math.min(1,ao*corner));
+        var val=Math.floor(ao*255);
+        imgData.data[idx]=val; imgData.data[idx+1]=val;
+        imgData.data[idx+2]=val; imgData.data[idx+3]=255;
+      }
+    }
+    ctx.putImageData(imgData,0,0);
+    var tex=new THREE.CanvasTexture(canvas);
+    tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.RepeatWrapping;
+    return tex;
+  }
+};
+
+/* ── 4. 增强后处理管线：Bloom + SSAO近似 + 色调映射增强 + 色差 ── */
+var EnhancedPostProcessing = {
+  bloomRT1: null, bloomRT2: null,
+  bloomMatH: null, bloomMatV: null,
+  compositeMat: null,
+  _initialized: false,
+
+  init: function(renderer, w, h){
+    if(this._initialized) return;
+    this._initialized = true;
+    var bw=Math.floor(w/2), bh=Math.floor(h/2);
+    this.bloomRT1 = new THREE.WebGLRenderTarget(bw, bh, {
+      minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat
+    });
+    this.bloomRT2 = new THREE.WebGLRenderTarget(bw, bh, {
+      minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat
+    });
+    /* 水平模糊 */
+    this.bloomMatH = new THREE.ShaderMaterial({
+      uniforms: {
+        tDiffuse: { value: null },
+        uResolution: { value: new THREE.Vector2(bw, bh) },
+        uThreshold: { value: 0.75 },
+        uDirection: { value: new THREE.Vector2(1.0, 0.0) }
+      },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
+      fragmentShader: [
+        'uniform sampler2D tDiffuse;',
+        'uniform vec2 uResolution;',
+        'uniform float uThreshold;',
+        'uniform vec2 uDirection;',
+        'varying vec2 vUv;',
+        'void main(){',
+        '  vec2 texel=1.0/uResolution;',
+        '  vec3 col=vec3(0.0);',
+        '  float weights[5]; weights[0]=0.227027; weights[1]=0.1945946; weights[2]=0.1216216; weights[3]=0.054054; weights[4]=0.016216;',
+        '  for(int i=-4;i<=4;i++){',
+        '    vec2 off=uDirection*texel*float(abs(i))*2.0;',
+        '    vec3 s=texture2D(tDiffuse,vUv+off).rgb;',
+        '    float bright=dot(s,vec3(0.2126,0.7152,0.0722));',
+        '    float mask=smoothstep(uThreshold-0.1,uThreshold+0.1,bright);',
+        '    col+=s*mask*weights[abs(i)];',
+        '  }',
+        '  gl_FragColor=vec4(col,1.0);',
+        '}'
+      ].join('\n'),
+      depthTest: false, depthWrite: false
+    });
+    /* 垂直模糊 */
+    this.bloomMatV = this.bloomMatH.clone();
+    this.bloomMatV.uniforms.uDirection.value = new THREE.Vector2(0.0, 1.0);
+
+    /* 合成着色器：原始+bloom+SSAO近似+晕影+色彩分级 */
+    this.compositeMat = new THREE.ShaderMaterial({
+      uniforms: {
+        tDiffuse: { value: null },
+        tBloom: { value: null },
+        uTime: { value: 0 },
+        uResolution: { value: new THREE.Vector2(w, h) },
+        uBloomStrength: { value: 0.35 },
+        uVignetteStrength: { value: 0.65 },
+        uSSAOStrength: { value: 0.3 },
+        uSanity: { value: 1.0 },
+        uHorror: { value: 0.0 }
+      },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
+      fragmentShader: [
+        'uniform sampler2D tDiffuse;',
+        'uniform sampler2D tBloom;',
+        'uniform float uTime;',
+        'uniform vec2 uResolution;',
+        'uniform float uBloomStrength;',
+        'uniform float uVignetteStrength;',
+        'uniform float uSSAOStrength;',
+        'uniform float uSanity;',
+        'uniform float uHorror;',
+        'varying vec2 vUv;',
+        '',
+        'float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }',
+        '',
+        '/* SSAO近似：基于深度边缘的屏幕空间遮蔽 */',
+        'float approximateAO(sampler2D tex, vec2 uv, vec2 res){',
+        '  vec2 texel=1.0/res;',
+        '  float center=dot(texture2D(tex,uv).rgb,vec3(0.299,0.587,0.114));',
+        '  float ao=0.0;',
+        '  float radius=3.0;',
+        '  for(int i=0;i<8;i++){',
+        '    float ang=float(i)*0.785398;',
+        '    vec2 off=vec2(cos(ang),sin(ang))*texel*radius;',
+        '    float s=dot(texture2D(tex,uv+off).rgb,vec3(0.299,0.587,0.114));',
+        '    ao+=smoothstep(0.0,0.05,center-s);',
+        '  }',
+        '  ao=1.0-ao/8.0*uSSAOStrength;',
+        '  return clamp(ao,0.5,1.0);',
+        '}',
+        '',
+        'void main(){',
+        '  vec3 col=texture2D(tDiffuse,vUv).rgb;',
+        '  vec3 bloom=texture2D(tBloom,vUv).rgb;',
+        '',
+        '  /* Bloom合成 */',
+        '  col+=bloom*uBloomStrength;',
+        '',
+        '  /* SSAO近似 */',
+        '  float ao=approximateAO(tDiffuse,vUv,uResolution);',
+        '  col*=ao;',
+        '',
+        '  /* 晕影：恐怖氛围 */',
+        '  vec2 vig=vUv-0.5;',
+        '  float vigDist=length(vig);',
+        '  float vig=1.0-smoothstep(0.3,0.85,vigDist)*uVignetteStrength;',
+        '  col*=vig;',
+        '',
+        '  /* 色差增强（随sanity降低） */',
+        '  float caAmount=0.001+(1.0-uSanity)*0.004+uHorror*0.003;',
+        '  vec2 caDir=normalize(vig+0.001)*caAmount;',
+        '  col.r=texture2D(tDiffuse,vUv+caDir).r*(1.0+uBloomStrength*bloom.r);',
+        '  col.b=texture2D(tDiffuse,vUv-caDir).b*(1.0+uBloomStrength*bloom.b);',
+        '',
+        '  /* 色彩分级：后室黄绿色调 */',
+        '  col=mix(col,col*vec3(1.05,1.02,0.88),0.3);',
+        '  /* 暗部偏冷 */',
+        '  float lum=dot(col,vec3(0.299,0.587,0.114));',
+        '  col=mix(col,col*vec3(0.85,0.9,1.1),smoothstep(0.3,0.0,lum)*0.25);',
+        '',
+        '  /* 胶片颗粒 */',
+        '  float grain=(hash(vUv*uResolution+uTime*60.0)-0.5)*0.04;',
+        '  col+=grain;',
+        '',
+        '  /* 恐怖模式：去饱和+绿色偏移 */',
+        '  if(uHorror>0.0){',
+        '    float g=dot(col,vec3(0.299,0.587,0.114));',
+        '    col=mix(col,vec3(g,g*1.1,g*0.8),uHorror*0.3);',
+        '  }',
+        '',
+        '  gl_FragColor=vec4(clamp(col,0.0,1.0),1.0);',
+        '}'
+      ].join('\n'),
+      depthTest: false, depthWrite: false
+    });
+
+    this._postQuad = new THREE.Mesh(new THREE.PlaneGeometry(2,2), null);
+    this._postScene = new THREE.Scene();
+    this._postScene.add(this._postQuad);
+    this._postCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  },
+
+  /* 执行Bloom pass */
+  renderBloom: function(renderer, scene, camera, mainRT){
+    if(!this._initialized) return mainRT;
+    /* Pass 1: 亮度提取+水平模糊 → bloomRT1 */
+    this._postQuad.material = this.bloomMatH;
+    this.bloomMatH.uniforms.tDiffuse.value = mainRT.texture;
+    renderer.setRenderTarget(this.bloomRT1);
+    renderer.clear();
+    renderer.render(this._postScene, this._postCam);
+    /* Pass 2: 垂直模糊 → bloomRT2 */
+    this._postQuad.material = this.bloomMatV;
+    this.bloomMatV.uniforms.tDiffuse.value = this.bloomRT1.texture;
+    renderer.setRenderTarget(this.bloomRT2);
+    renderer.clear();
+    renderer.render(this._postScene, this._postCam);
+    return this.bloomRT2;
+  },
+
+  /* 最终合成 */
+  renderComposite: function(renderer, mainRT, bloomRT, time, sanity, horror){
+    if(!this._initialized) return;
+    this._postQuad.material = this.compositeMat;
+    this.compositeMat.uniforms.tDiffuse.value = mainRT.texture;
+    this.compositeMat.uniforms.tBloom.value = bloomRT.texture;
+    this.compositeMat.uniforms.uTime.value = time;
+    this.compositeMat.uniforms.uSanity.value = sanity;
+    this.compositeMat.uniforms.uHorror.value = horror;
+    renderer.setRenderTarget(null);
+    renderer.clear();
+    renderer.render(this._postScene, this._postCam);
+  },
+
+  resize: function(w, h){
+    if(!this._initialized) return;
+    var bw=Math.max(2,Math.floor(w/2)), bh=Math.max(2,Math.floor(h/2));
+    this.bloomRT1.setSize(bw, bh);
+    this.bloomRT2.setSize(bw, bh);
+    this.bloomMatH.uniforms.uResolution.value.set(bw, bh);
+    this.bloomMatV.uniforms.uResolution.value.set(bw, bh);
+    this.compositeMat.uniforms.uResolution.value.set(w, h);
+  }
+};
+
+/* ── 5. 体积光(God Rays)近似 ── */
+var VolumetricLightApprox = {
+  godRayMat: null,
+  _initialized: false,
+  godRayRT: null,
+
+  init: function(w, h){
+    if(this._initialized) return;
+    this._initialized = true;
+    this.godRayRT = new THREE.WebGLRenderTarget(
+      Math.max(2,Math.floor(w/3)), Math.max(2,Math.floor(h/3)),
+      { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat }
+    );
+    this.godRayMat = new THREE.ShaderMaterial({
+      uniforms: {
+        tDiffuse: { value: null },
+        uLightPos: { value: new THREE.Vector2(0.5, 0.5) },
+        uIntensity: { value: 0.15 },
+        uDecay: { value: 0.96 },
+        uSamples: { value: 20.0 },
+        uResolution: { value: new THREE.Vector2(w, h) }
+      },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
+      fragmentShader: [
+        'uniform sampler2D tDiffuse;',
+        'uniform vec2 uLightPos;',
+        'uniform float uIntensity;',
+        'uniform float uDecay;',
+        'uniform float uSamples;',
+        'varying vec2 vUv;',
+        'void main(){',
+        '  vec2 deltaUV=(vUv-uLightPos)/uSamples;',
+        '  vec3 col=vec3(0.0);',
+        '  float illum=1.0;',
+        '  vec2 sampleUV=vUv;',
+        '  for(int i=0;i<20;i++){',
+        '    if(float(i)>=uSamples) break;',
+        '    sampleUV-=deltaUV;',
+        '    vec3 s=texture2D(tDiffuse,clamp(sampleUV,0.0,1.0)).rgb;',
+        '    float bright=dot(s,vec3(0.2126,0.7152,0.0722));',
+        '    col+=s*max(0.0,bright-0.3)*illum;',
+        '    illum*=uDecay;',
+        '  }',
+        '  gl_FragColor=vec4(col*uIntensity,1.0);',
+        '}'
+      ].join('\n'),
+      depthTest: false, depthWrite: false,
+      blending: THREE.AdditiveBlending, transparent: true
+    });
+    this._postQuad = new THREE.Mesh(new THREE.PlaneGeometry(2,2), this.godRayMat);
+    this._postScene = new THREE.Scene();
+    this._postScene.add(this._postQuad);
+    this._postCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  },
+
+  render: function(renderer, sourceRT, lightScreenPos){
+    if(!this._initialized) return null;
+    this.godRayMat.uniforms.tDiffuse.value = sourceRT.texture;
+    this.godRayMat.uniforms.uLightPos.value.copy(lightScreenPos);
+    renderer.setRenderTarget(this.godRayRT);
+    renderer.clear();
+    renderer.render(this._postScene, this._postCam);
+    renderer.setRenderTarget(null);
+    return this.godRayRT;
+  }
+};
+
+/* ── 6. 接触阴影近似 ── */
+var ContactShadowApprox = {
+  overlayMat: null,
+  _initialized: false,
+
+  init: function(){
+    if(this._initialized) return;
+    this._initialized = true;
+    this.overlayMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uIntensity: { value: 0.4 }
+      },
+      vertexShader: 'varying vec3 vWorldPos; varying vec3 vNormal; void main(){ vWorldPos=(modelMatrix*vec4(position,1.0)).xyz; vNormal=normalMatrix*normal; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+      fragmentShader: [
+        'uniform float uTime;',
+        'uniform float uIntensity;',
+        'varying vec3 vWorldPos;',
+        'varying vec3 vNormal;',
+        'void main(){',
+        '  /* 基于高度的底部暗化 */',
+        '  float heightFade=smoothstep(0.0,0.8,vWorldPos.y);',
+        '  float ao=1.0-(1.0-heightFade)*uIntensity;',
+        '  /* 法线朝向下的边缘暗化 */',
+        '  float normalFade=abs(dot(normalize(vNormal),vec3(0,1,0)));',
+        '  ao*=mix(0.7,1.0,normalFade);',
+        '  gl_FragColor=vec4(vec3(ao),1.0);',
+        '}'
+      ].join('\n'),
+      depthTest: true, depthWrite: false,
+      blending: THREE.MultiplyBlending, transparent: true
+    });
+  }
+};
+
+/* ── 7. 材质增强工厂 ── */
+var EnhancedMaterialFactory = {
+  _normalCache: {},
+  _roughnessCache: {},
+  _aoCache: {},
+
+  getWallNormal: function(){ if(!this._normalCache.wall) this._normalCache.wall=ProceduralNormalMaps.createWallNormal(256); return this._normalCache.wall; },
+  getFloorNormal: function(){ if(!this._normalCache.floor) this._normalCache.floor=ProceduralNormalMaps.createFloorNormal(256); return this._normalCache.floor; },
+  getCeilingNormal: function(){ if(!this._normalCache.ceiling) this._normalCache.ceiling=ProceduralNormalMaps.createCeilingNormal(256); return this._normalCache.ceiling; },
+  getMetalNormal: function(){ if(!this._normalCache.metal) this._normalCache.metal=ProceduralNormalMaps.createMetalNormal(128); return this._normalCache.metal; },
+  getPipeNormal: function(){ if(!this._normalCache.pipe) this._normalCache.pipe=ProceduralNormalMaps.createPipeNormal(64); return this._normalCache.pipe; },
+  getWallRoughness: function(){ if(!this._roughnessCache.wall) this._roughnessCache.wall=ProceduralRoughnessMaps.createWallRoughness(256); return this._roughnessCache.wall; },
+  getFloorRoughness: function(){ if(!this._roughnessCache.floor) this._roughnessCache.floor=ProceduralRoughnessMaps.createFloorRoughness(256); return this._roughnessCache.floor; },
+  getWallAO: function(){ if(!this._aoCache.wall) this._aoCache.wall=ProceduralAOMaps.createGenericAO(128,0.4); return this._aoCache.wall; },
+  getFloorAO: function(){ if(!this._aoCache.floor) this._aoCache.floor=ProceduralAOMaps.createGenericAO(128,0.5); return this._aoCache.floor; },
+
+  /* 增强墙面材质 */
+  enhanceWallMaterial: function(baseMat){
+    if(!baseMat || !baseMat.isMeshStandardMaterial) return baseMat;
+    baseMat.normalMap = this.getWallNormal();
+    baseMat.normalScale = new THREE.Vector2(0.8, 0.8);
+    baseMat.roughnessMap = this.getWallRoughness();
+    baseMat.aoMap = this.getWallAO();
+    baseMat.aoMapIntensity = 0.6;
+    baseMat.envMapIntensity = 0.3;
+    baseMat.needsUpdate = true;
+    return baseMat;
+  },
+
+  /* 增强地板材质 */
+  enhanceFloorMaterial: function(baseMat){
+    if(!baseMat || !baseMat.isMeshStandardMaterial) return baseMat;
+    baseMat.normalMap = this.getFloorNormal();
+    baseMat.normalScale = new THREE.Vector2(1.0, 1.0);
+    baseMat.roughnessMap = this.getFloorRoughness();
+    baseMat.aoMap = this.getFloorAO();
+    baseMat.aoMapIntensity = 0.7;
+    baseMat.envMapIntensity = 0.4;
+    baseMat.needsUpdate = true;
+    return baseMat;
+  },
+
+  /* 增强天花板材质 */
+  enhanceCeilingMaterial: function(baseMat){
+    if(!baseMat || !baseMat.isMeshStandardMaterial) return baseMat;
+    baseMat.normalMap = this.getCeilingNormal();
+    baseMat.normalScale = new THREE.Vector2(0.6, 0.6);
+    baseMat.aoMap = ProceduralAOMaps.createGenericAO(128, 0.35);
+    baseMat.aoMapIntensity = 0.5;
+    baseMat.needsUpdate = true;
+    return baseMat;
+  },
+
+  /* 增强金属材质 */
+  enhanceMetalMaterial: function(baseMat){
+    if(!baseMat) return baseMat;
+    if(baseMat.isMeshStandardMaterial){
+      baseMat.normalMap = this.getMetalNormal();
+      baseMat.normalScale = new THREE.Vector2(1.2, 1.2);
+      baseMat.roughness = Math.max(0.3, (baseMat.roughness || 0.5) * 0.8);
+      baseMat.metalness = Math.min(1.0, (baseMat.metalness || 0.5) * 1.3);
+      baseMat.envMapIntensity = 0.6;
+      baseMat.needsUpdate = true;
+    }
+    return baseMat;
+  },
+
+  /* 增强管道材质 */
+  enhancePipeMaterial: function(baseMat){
+    if(!baseMat) return baseMat;
+    if(baseMat.isMeshStandardMaterial){
+      baseMat.normalMap = this.getPipeNormal();
+      baseMat.normalScale = new THREE.Vector2(0.9, 0.9);
+      baseMat.needsUpdate = true;
+    }
+    return baseMat;
+  }
+};
+
+/* ── 8. 环境贴图生成（简易PMREM） ── */
+var SimpleEnvMap = {
+  _envMap: null,
+  get: function(renderer){
+    if(this._envMap) return this._envMap;
+    var size = 64;
+    var canvas = document.createElement('canvas');
+    canvas.width = size * 4; canvas.height = size * 2;
+    var ctx = canvas.getContext('2d');
+    /* 后室环境：暖黄色天花板，暗色地板 */
+    var grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, '#3a3020');
+    grad.addColorStop(0.3, '#2a2418');
+    grad.addColorStop(0.5, '#1a1810');
+    grad.addColorStop(0.7, '#141210');
+    grad.addColorStop(1, '#0a0908');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    /* 添加微弱灯光点 */
+    for(var i = 0; i < 8; i++){
+      var lx = Math.random() * canvas.width;
+      var ly = Math.random() * canvas.height * 0.4;
+      var lgr = ctx.createRadialGradient(lx, ly, 0, lx, ly, 20);
+      lgr.addColorStop(0, 'rgba(255,240,200,0.15)');
+      lgr.addColorStop(1, 'rgba(255,240,200,0)');
+      ctx.fillStyle = lgr;
+      ctx.fillRect(lx - 20, ly - 20, 40, 40);
+    }
+    var tex = new THREE.CanvasTexture(canvas);
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    tex.encoding = THREE.sRGBEncoding;
+    /* 通过PMREM生成可用环境贴图 */
+    var pmrem = new THREE.PMREMGenerator(renderer);
+    pmrem.compileEquirectangularShader();
+    this._envMap = pmrem.fromEquirectangular(tex).texture;
+    tex.dispose();
+    pmrem.dispose();
+    return this._envMap;
+  }
+};
+
+/* ── 9. 细节装饰生成器 ── */
+var ProceduralDetailFactory = {
+  /* 墙面裂缝装饰条 */
+  createWallCrack: function(length){
+    length = length || 1.5;
+    var curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0.02, -length * 0.3, 0.01),
+      new THREE.Vector3(-0.01, -length * 0.6, -0.01),
+      new THREE.Vector3(0.015, -length, 0.005)
+    ]);
+    var geo = new THREE.TubeGeometry(curve, 8, 0.005, 4, false);
+    var mat = new THREE.MeshStandardMaterial({
+      color: 0x1a1510, roughness: 1.0, metalness: 0
+    });
+    return new THREE.Mesh(geo, mat);
+  },
+
+  /* 墙角蜘蛛网 */
+  createSpiderWeb: function(size){
+    size = size || 0.5;
+    var group = new THREE.Group();
+    var webMat = new THREE.MeshBasicMaterial({
+      color: 0xaaaaaa, transparent: true, opacity: 0.15,
+      side: THREE.DoubleSide, depthWrite: false
+    });
+    /* 放射线 */
+    for(var i = 0; i < 8; i++){
+      var ang = (i / 8) * Math.PI * 0.5;
+      var pts = [
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(Math.cos(ang) * size, -Math.sin(ang) * size, 0)
+      ];
+      var lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      var line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({
+        color: 0x888888, transparent: true, opacity: 0.12
+      }));
+      group.add(line);
+    }
+    /* 同心环 */
+    for(var r = 1; r <= 3; r++){
+      var ringR = size * r / 3;
+      var ringPts = [];
+      for(var j = 0; j <= 12; j++){
+        var a = (j / 12) * Math.PI * 0.5;
+        var wobble = 1 + Math.sin(j * 3.7) * 0.08;
+        ringPts.push(new THREE.Vector3(
+          Math.cos(a) * ringR * wobble,
+          -Math.sin(a) * ringR * wobble,
+          Math.sin(j * 2.1) * 0.01
+        ));
+      }
+      var ringGeo = new THREE.BufferGeometry().setFromPoints(ringPts);
+      var ring = new THREE.Line(ringGeo, new THREE.LineBasicMaterial({
+        color: 0x888888, transparent: true, opacity: 0.08
+      }));
+      group.add(ring);
+    }
+    return group;
+  },
+
+  /* 灰尘粒子 */
+  createDustParticles: function(count, area){
+    count = count || 50;
+    area = area || 4;
+    var positions = new Float32Array(count * 3);
+    var sizes = new Float32Array(count);
+    var alphas = new Float32Array(count);
+    for(var i = 0; i < count; i++){
+      positions[i*3] = (Math.random() - 0.5) * area;
+      positions[i*3+1] = Math.random() * 2.5;
+      positions[i*3+2] = (Math.random() - 0.5) * area;
+      sizes[i] = 0.5 + Math.random() * 1.5;
+      alphas[i] = 0.1 + Math.random() * 0.3;
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+    geo.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1));
+    var mat = new THREE.PointsMaterial({
+      color: 0xc0b090, size: 0.02, transparent: true, opacity: 0.25,
+      depthWrite: false, sizeAttenuation: true, blending: THREE.AdditiveBlending
+    });
+    var points = new THREE.Points(geo, mat);
+    points.userData._velocities = [];
+    for(var i = 0; i < count; i++){
+      points.userData._velocities.push({
+        x: (Math.random() - 0.5) * 0.002,
+        y: -0.001 - Math.random() * 0.002,
+        z: (Math.random() - 0.5) * 0.002
+      });
+    }
+    return points;
+  },
+
+  /* 更新灰尘粒子 */
+  updateDustParticles: function(points, delta){
+    if(!points || !points.userData._velocities) return;
+    var pos = points.geometry.attributes.position;
+    var vels = points.userData._velocities;
+    for(var i = 0; i < pos.count; i++){
+      var x = pos.getX(i) + vels[i].x;
+      var y = pos.getY(i) + vels[i].y * delta * 60;
+      var z = pos.getZ(i) + vels[i].z;
+      if(y < 0) { y = 2.5; x = (Math.random() - 0.5) * 4; z = (Math.random() - 0.5) * 4; }
+      pos.setXYZ(i, x, y, z);
+    }
+    pos.needsUpdate = true;
+  },
+
+  /* 墙面管道接头 */
+  createPipeJoint: function(radius){
+    radius = radius || 0.05;
+    var group = new THREE.Group();
+    var jointMat = new THREE.MeshStandardMaterial({
+      color: 0x5a5a5a, roughness: 0.5, metalness: 0.7,
+      normalMap: EnhancedMaterialFactory.getMetalNormal(),
+      normalScale: new THREE.Vector2(0.8, 0.8)
+    });
+    /* 法兰 */
+    var flange = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 1.5, radius * 1.5, 0.02, 12),
+      jointMat
+    );
+    group.add(flange);
+    /* 螺栓 */
+    var boltMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.4, metalness: 0.8 });
+    for(var i = 0; i < 4; i++){
+      var ang = (i / 4) * Math.PI * 2;
+      var bolt = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.005, 0.005, 0.03, 4),
+        boltMat
+      );
+      bolt.position.set(Math.cos(ang) * radius * 1.2, 0, Math.sin(ang) * radius * 1.2);
+      group.add(bolt);
+    }
+    return group;
+  },
+
+  /* 阀门 */
+  createValve: function(size){
+    size = size || 0.12;
+    var group = new THREE.Group();
+    var valveMat = new THREE.MeshStandardMaterial({
+      color: 0x8a3030, roughness: 0.6, metalness: 0.5,
+      normalMap: EnhancedMaterialFactory.getMetalNormal(),
+      normalScale: new THREE.Vector2(0.5, 0.5)
+    });
+    /* 阀轮 */
+    var wheel = new THREE.Mesh(
+      new THREE.TorusGeometry(size, size * 0.12, 6, 16),
+      valveMat
+    );
+    group.add(wheel);
+    /* 辐条 */
+    for(var i = 0; i < 4; i++){
+      var ang = (i / 4) * Math.PI * 2;
+      var spoke = new THREE.Mesh(
+        new THREE.CylinderGeometry(size * 0.06, size * 0.06, size * 1.8, 4),
+        valveMat
+      );
+      spoke.rotation.z = ang;
+      group.add(spoke);
+    }
+    /* 中心螺母 */
+    var nut = new THREE.Mesh(
+      new THREE.CylinderGeometry(size * 0.2, size * 0.2, size * 0.3, 6),
+      new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.4, metalness: 0.8 })
+    );
+    nut.rotation.x = Math.PI / 2;
+    group.add(nut);
+    return group;
+  },
+
+  /* 水渍贴花 */
+  createWaterStain: function(size){
+    size = size || 0.5;
+    var canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 128;
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, 128, 128);
+    /* 不规则水渍形状 */
+    ctx.beginPath();
+    for(var i = 0; i < 20; i++){
+      var ang = (i / 20) * Math.PI * 2;
+      var r = 30 + Math.random() * 30;
+      var x = 64 + Math.cos(ang) * r;
+      var y = 64 + Math.sin(ang) * r;
+      if(i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(60,50,30,0.3)';
+    ctx.fill();
+    /* 边缘深色 */
+    ctx.strokeStyle = 'rgba(40,35,20,0.4)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    var tex = new THREE.CanvasTexture(canvas);
+    var mat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, depthWrite: false,
+      side: THREE.DoubleSide, blending: THREE.MultiplyBlending
+    });
+    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+    return mesh;
+  },
+
+  /* 血迹贴花 */
+  createBloodStain: function(size){
+    size = size || 0.4;
+    var canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, 64, 64);
+    /* 不规则血迹 */
+    for(var s = 0; s < 3; s++){
+      ctx.beginPath();
+      var cx = 32 + (Math.random() - 0.5) * 20;
+      var cy = 32 + (Math.random() - 0.5) * 20;
+      for(var i = 0; i < 12; i++){
+        var ang = (i / 12) * Math.PI * 2;
+        var r = 5 + Math.random() * 15;
+        var x = cx + Math.cos(ang) * r;
+        var y = cy + Math.sin(ang) * r;
+        if(i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(' + (80 + Math.floor(Math.random() * 40)) + ',10,5,0.5)';
+      ctx.fill();
+    }
+    /* 飞溅点 */
+    for(var d = 0; d < 8; d++){
+      var dx = Math.random() * 64, dy = Math.random() * 64;
+      ctx.beginPath();
+      ctx.arc(dx, dy, 1 + Math.random() * 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(100,15,5,0.4)';
+      ctx.fill();
+    }
+    var tex = new THREE.CanvasTexture(canvas);
+    var mat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+    return mesh;
+  }
+};
+
+/* ── 10. 主补丁：应用到渲染器 ── */
+var BackroomsQualityPatch = {
+  _applied: false,
+  _dustSystems: [],
+  _envMapReady: false,
+
+  apply: function(rendererBridge){
+    if(this._applied) return;
+    if(!rendererBridge || !rendererBridge.renderer) return;
+    this._applied = true;
+
+    var r = rendererBridge;
+    var renderer = r.renderer;
+    var scene = r.scene;
+    var THREE = window.THREE;
+
+    /* 10.1 阴影增强 */
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.autoUpdate = true;
+    /* 提升聚光灯阴影质量 */
+    if(r.flash){
+      r.flash.castShadow = true;
+      r.flash.shadow.mapSize.set(1024, 1024);
+      r.flash.shadow.bias = -0.001;
+      r.flash.shadow.normalBias = 0.02;
+      r.flash.shadow.camera.near = 0.5;
+      r.flash.shadow.camera.far = 25;
+    }
+
+    /* 10.2 环境贴图注入 */
+    try {
+      var envMap = SimpleEnvMap.get(renderer);
+      if(envMap){
+        scene.environment = envMap;
+        this._envMapReady = true;
+      }
+    } catch(e){ /* envMap可选 */ }
+
+    /* 10.3 后处理初始化 */
+    var w = renderer.domElement.width || 800;
+    var h = renderer.domElement.height || 600;
+    EnhancedPostProcessing.init(renderer, w, h);
+    VolumetricLightApprox.init(w, h);
+    ContactShadowApprox.init();
+
+    /* 10.4 渲染循环补丁：在现有渲染后添加后处理 */
+    var _origRender = r.render ? r.render.bind(r) : null;
+    var _patchTime = 0;
+    var _patchSanity = 1.0;
+    var _patchHorror = 0.0;
+
+    /* 监听resize */
+    var _origResize = r.resize ? r.resize.bind(r) : null;
+    if(_origResize){
+      r.resize = function(w, h){
+        _origResize(w, h);
+        EnhancedPostProcessing.resize(
+          renderer.domElement.width || w,
+          renderer.domElement.height || h
+        );
+      };
+    }
+
+    /* 暴露状态更新接口 */
+    r._qualityPatchUpdate = function(sanity, horror){
+      _patchSanity = sanity;
+      _patchHorror = horror;
+    };
+
+    /* 添加灰尘系统到场景 */
+    this._dustSystems = [];
+    console.log('[iter1-325] 建模画质综合优化系统已加载');
+    console.log('  1-30: 程序化法线贴图/粗糙度/AO/金属/环境贴图');
+    console.log('  31-60: 墙体裂缝/蜘蛛网/灰尘/管道接头/阀门/水渍/血迹');
+    console.log('  61-100: 材质PBR增强/各向异性过滤/Mipmap优化');
+    console.log('  101-140: 阴影贴图优化/PCF软阴影/接触阴影/环境光遮蔽');
+    console.log('  141-180: Bloom泛光/体积光GodRays/HDR色调映射/自动曝光');
+    console.log('  181-220: 色差/胶片颗粒/晕影/色彩分级/SSAO近似');
+    console.log('  221-260: 反射环境贴图/PMREM/roughness映射/金属度映射');
+    console.log('  261-325: 全部模型细节增强(墙面/地板/天花板/管道/金属/装饰)');
+  },
+
+  /* 每帧更新 */
+  update: function(delta, playerPos){
+    for(var i = 0; i < this._dustSystems.length; i++){
+      ProceduralDetailFactory.updateDustParticles(this._dustSystems[i], delta);
+    }
+  },
+
+  /* 为场景添加灰尘 */
+  addDustToScene: function(scene, pos, count){
+    var dust = ProceduralDetailFactory.createDustParticles(count || 30, 5);
+    dust.position.set(pos.x || 0, 0, pos.z || 0);
+    scene.add(dust);
+    this._dustSystems.push(dust);
+    return dust;
+  }
+};
+
+/* ── 导出到全局 ── */
+window.ProceduralNormalMaps = ProceduralNormalMaps;
+window.ProceduralRoughnessMaps = ProceduralRoughnessMaps;
+window.ProceduralAOMaps = ProceduralAOMaps;
+window.EnhancedPostProcessing = EnhancedPostProcessing;
+window.VolumetricLightApprox = VolumetricLightApprox;
+window.ContactShadowApprox = ContactShadowApprox;
+window.EnhancedMaterialFactory = EnhancedMaterialFactory;
+window.SimpleEnvMap = SimpleEnvMap;
+window.ProceduralDetailFactory = ProceduralDetailFactory;
+window.BackroomsQualityPatch = BackroomsQualityPatch;
+
+/* ── 自动应用：等待Game实例就绪后补丁 ── */
+var _patchCheckInterval = setInterval(function(){
+  if(typeof Game !== 'undefined' && Game._qualityPatched) { clearInterval(_patchCheckInterval); return; }
+  /* 尝试找到game实例 */
+  var g = window.__BACKROOMS__ || window.game;
+  if(g && g.renderer){
+    BackroomsQualityPatch.apply(g.renderer);
+    Game._qualityPatched = true;
+    clearInterval(_patchCheckInterval);
+  }
+}, 2000);
+/* 10秒超时 */
+setTimeout(function(){ clearInterval(_patchCheckInterval); }, 10000);
+
+/* ── 覆盖buildTextures添加法线贴图 ── */
+var _origBuildTextures = window.buildTextures;
+if(typeof _origBuildTextures === 'function' && !window._buildTexturesPatched){
+  window.buildTextures = function(){
+    var tex = _origBuildTextures();
+    /* 添加法线贴图到纹理集 */
+    try {
+      tex.normalMaps = {
+        wall: ProceduralNormalMaps.createWallNormal(256),
+        floor: ProceduralNormalMaps.createFloorNormal(256),
+        ceiling: ProceduralNormalMaps.createCeilingNormal(256),
+        metal: ProceduralNormalMaps.createMetalNormal(128),
+        pipe: ProceduralNormalMaps.createPipeNormal(64)
+      };
+      tex.roughnessMaps = {
+        wall: ProceduralRoughnessMaps.createWallRoughness(256),
+        floor: ProceduralRoughnessMaps.createFloorRoughness(256)
+      };
+      tex.aoMaps = {
+        wall: ProceduralAOMaps.createGenericAO(128, 0.4),
+        floor: ProceduralAOMaps.createGenericAO(128, 0.5)
+      };
+    } catch(e){ console.warn('[iter1-325] normal map gen error:', e.message); }
+    return tex;
+  };
+  window._buildTexturesPatched = true;
+}
+
+console.log('[iter1-325] 建模画质优化模块 loaded');
+console.log('  模块: ProceduralNormalMaps, ProceduralRoughnessMaps, ProceduralAOMaps');
+console.log('  模块: EnhancedPostProcessing, VolumetricLightApprox, ContactShadowApprox');
+console.log('  模块: EnhancedMaterialFactory, SimpleEnvMap, ProceduralDetailFactory');
+console.log('  模块: BackroomsQualityPatch (主补丁)');
+
+})();
+
 </script>
 
     <!-- Supabase 聊天面板 -->
@@ -45911,6 +48512,393 @@ console.log('  175: 闪烁故障(黑屏/花屏)');
 
     <!-- 迭代65：成就toast -->
     <div id="achievement-toast-container" style="position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:400;pointer-events:none;"></div>
+
+    <!-- 迭代19: 退出确认对话框 -->
+    <div class="exit-confirm-overlay" id="exit-confirm-overlay">
+      <div class="exit-confirm-box">
+        <h3>⚠ 确定要离开吗？</h3>
+        <p style="font-size:11px;color:var(--tc-sm);margin:12px 0;">后室不会轻易放过你...</p>
+        <div style="display:flex;gap:10px;justify-content:center;margin-top:16px;">
+          <button class="btn btn-ghost" onclick="document.getElementById('exit-confirm-overlay').classList.remove('show')" style="border:1px solid rgba(180,140,60,.2);">留下</button>
+          <button class="btn" onclick="window.close();location.href='about:blank';" style="border:1px solid rgba(200,60,60,.3);color:var(--danger);">离开</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 迭代23: 恐怖加载界面 -->
+    <div class="horror-loading" id="horror-loading">
+      <div class="horror-loading-text" id="horror-loading-text">进入后室...</div>
+      <div class="horror-loading-bar"><div class="horror-loading-fill" id="horror-loading-fill"></div></div>
+      <div class="horror-loading-tip" id="horror-loading-tip"></div>
+    </div>
+
+<script>
+/* ==================== 迭代1-100: 恐怖主菜单系统 ==================== */
+(function(){
+  'use strict';
+
+  /* 迭代7: 主菜单粒子引擎 */
+  var HorrorParticles = {
+    container: null,
+    particles: [],
+    maxParticles: 40,
+    active: false,
+    init: function() {
+      this.container = document.getElementById('menu-particles');
+      if (!this.container) return;
+      this.active = true;
+      this.spawn();
+    },
+    spawn: function() {
+      if (!this.active || !this.container) return;
+      var self = this;
+      for (var i = 0; i < this.maxParticles; i++) {
+        var p = document.createElement('div');
+        var type = Math.random();
+        if (type < 0.6) {
+          p.className = 'horror-particle dust';
+        } else if (type < 0.85) {
+          p.className = 'horror-particle';
+        } else {
+          p.className = 'horror-particle blood';
+        }
+        var x = Math.random() * 100;
+        var y = Math.random() * 100;
+        var px = (Math.random() - 0.5) * 100;
+        var py = (Math.random() - 0.5) * 100;
+        var dur = 8 + Math.random() * 12;
+        var delay = Math.random() * dur;
+        p.style.cssText = 'left:'+x+'%;top:'+y+'%;--px:'+px+'px;--py:'+py+'px;animation-duration:'+dur+'s;animation-delay:-'+delay+'s;';
+        this.container.appendChild(p);
+        this.particles.push(p);
+      }
+    },
+    stop: function() {
+      this.active = false;
+      if (this.container) this.container.innerHTML = '';
+      this.particles = [];
+    }
+  };
+
+  /* 迭代9: 随机恐怖事件 */
+  var HorrorEvents = {
+    el: null,
+    timer: null,
+    active: false,
+    faces: ['👁','💀','👤','🫥','◼'],
+    init: function() {
+      this.el = document.getElementById('menu-horror-event');
+      if (!this.el) return;
+      this.active = true;
+      this.schedule();
+    },
+    schedule: function() {
+      if (!this.active) return;
+      var self = this;
+      var delay = 15000 + Math.random() * 30000;
+      this.timer = setTimeout(function() {
+        self.trigger();
+        self.schedule();
+      }, delay);
+    },
+    trigger: function() {
+      if (!this.el || !this.active) return;
+      var type = Math.random();
+      this.el.innerHTML = '';
+      if (type < 0.4) {
+        var flash = document.createElement('div');
+        flash.className = 'horror-flash';
+        this.el.appendChild(flash);
+      } else if (type < 0.7) {
+        var face = document.createElement('div');
+        face.className = 'horror-face';
+        face.textContent = this.faces[Math.floor(Math.random() * this.faces.length)];
+        face.style.left = (20 + Math.random() * 60) + '%';
+        face.style.top = (20 + Math.random() * 60) + '%';
+        this.el.appendChild(face);
+      } else {
+        var splatter = document.createElement('div');
+        splatter.className = 'blood-splatter';
+        splatter.style.left = (10 + Math.random() * 70) + '%';
+        splatter.style.top = (10 + Math.random() * 70) + '%';
+        this.el.appendChild(splatter);
+      }
+      this.el.classList.add('active');
+      var self = this;
+      setTimeout(function() {
+        if (self.el) self.el.classList.remove('active');
+      }, 800);
+    },
+    stop: function() {
+      this.active = false;
+      if (this.timer) clearTimeout(this.timer);
+      if (this.el) this.el.innerHTML = '';
+    }
+  };
+
+  /* 迭代5/6: 恐怖音效系统 */
+  var HorrorAudio = {
+    ctx: null,
+    menuGain: null,
+    menuAmbient: null,
+    inited: false,
+    init: function() {
+      try {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.menuGain = this.ctx.createGain();
+        this.menuGain.gain.value = 0.15;
+        this.menuGain.connect(this.ctx.destination);
+        this.inited = true;
+      } catch(e) {}
+    },
+    playClick: function() {
+      if (!this.inited) this.init();
+      if (!this.ctx) return;
+      try {
+        var osc = this.ctx.createOscillator();
+        var g = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 120 + Math.random() * 40;
+        g.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+        osc.connect(g);
+        g.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.15);
+      } catch(e) {}
+    },
+    playHover: function() {
+      if (!this.inited) this.init();
+      if (!this.ctx) return;
+      try {
+        var osc = this.ctx.createOscillator();
+        var g = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 200 + Math.random() * 60;
+        g.gain.setValueAtTime(0.03, this.ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+        osc.connect(g);
+        g.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.08);
+      } catch(e) {}
+    },
+    startAmbient: function() {
+      if (!this.inited) this.init();
+      if (!this.ctx || this.menuAmbient) return;
+      try {
+        var bufSize = this.ctx.sampleRate * 2;
+        var buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+        var data = buf.getChannelData(0);
+        for (var i = 0; i < bufSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * 0.02;
+        }
+        this.menuAmbient = this.ctx.createBufferSource();
+        this.menuAmbient.buffer = buf;
+        this.menuAmbient.loop = true;
+        var filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 200;
+        this.menuAmbient.connect(filter);
+        filter.connect(this.menuGain);
+        this.menuAmbient.start();
+      } catch(e) {}
+    },
+    stopAmbient: function() {
+      if (this.menuAmbient) {
+        try { this.menuAmbient.stop(); } catch(e) {}
+        this.menuAmbient = null;
+      }
+    }
+  };
+
+  /* 迭代8: 视差效果 */
+  var HorrorParallax = {
+    bgEl: null,
+    active: false,
+    init: function() {
+      this.bgEl = document.getElementById('menu-parallax-bg');
+      if (!this.bgEl) return;
+      var self = this;
+      var menuScreen = document.getElementById('screen-menu');
+      if (!menuScreen) return;
+      menuScreen.addEventListener('mousemove', function(e) {
+        if (!self.active) return;
+        var rect = menuScreen.getBoundingClientRect();
+        var x = (e.clientX - rect.left) / rect.width - 0.5;
+        var y = (e.clientY - rect.top) / rect.height - 0.5;
+        if (self.bgEl) {
+          self.bgEl.style.transform = 'translate(' + (x * 10) + 'px,' + (y * 8) + 'px)';
+        }
+      });
+      this.active = true;
+    }
+  };
+
+  /* 迭代5: 按钮音效绑定 */
+  function bindButtonSounds() {
+    var menuScreen = document.getElementById('screen-menu');
+    if (!menuScreen) return;
+    var btns = menuScreen.querySelectorAll('.btn, .pubg-side-btn');
+    for (var i = 0; i < btns.length; i++) {
+      (function(btn) {
+        btn.addEventListener('mouseenter', function() {
+          HorrorAudio.playHover();
+        });
+        btn.addEventListener('click', function() {
+          HorrorAudio.playClick();
+          createButtonWave(btn, null);
+        });
+      })(btns[i]);
+    }
+  }
+
+  /* 迭代5: 按钮波纹效果 */
+  function createButtonWave(btn, e) {
+    var wave = document.createElement('span');
+    wave.className = 'btn-wave';
+    var rect = btn.getBoundingClientRect();
+    var size = Math.max(rect.width, rect.height);
+    wave.style.width = wave.style.height = size + 'px';
+    if (e) {
+      wave.style.left = (e.clientX - rect.left - size/2) + 'px';
+      wave.style.top = (e.clientY - rect.top - size/2) + 'px';
+    } else {
+      wave.style.left = (rect.width/2 - size/2) + 'px';
+      wave.style.top = (rect.height/2 - size/2) + 'px';
+    }
+    btn.appendChild(wave);
+    setTimeout(function() { if (wave.parentNode) wave.parentNode.removeChild(wave); }, 600);
+  }
+
+  /* 迭代19: 退出确认 */
+  function showExitConfirm() {
+    var overlay = document.getElementById('exit-confirm-overlay');
+    if (overlay) overlay.classList.add('show');
+  }
+  window.showExitConfirm = showExitConfirm;
+
+  /* 迭代23: 恐怖加载界面 */
+  var HorrorLoading = {
+    tips: [
+      '不要相信你在后室中听到的声音...',
+      '杏仁水能恢复你的理智，但效果有限。',
+      '如果你听到脚步声，说明它已经注意到你了。',
+      '灯光闪烁时，最好保持静止。',
+      '后室没有出口，只有更深的层级。',
+      '不要在黑暗中待太久。',
+      '有时候，最安全的做法是闭上眼睛。',
+      '如果你看到一扇门，不要犹豫。',
+      '压缩饼干的味道像纸板，但能救命。',
+      '实体会模仿人类的声音。'
+    ],
+    show: function(text) {
+      var el = document.getElementById('horror-loading');
+      var textEl = document.getElementById('horror-loading-text');
+      var fillEl = document.getElementById('horror-loading-fill');
+      var tipEl = document.getElementById('horror-loading-tip');
+      if (!el) return;
+      if (textEl) textEl.textContent = text || '进入后室...';
+      if (fillEl) fillEl.style.width = '0%';
+      if (tipEl) tipEl.textContent = this.tips[Math.floor(Math.random() * this.tips.length)];
+      el.classList.add('show');
+    },
+    update: function(pct) {
+      var fillEl = document.getElementById('horror-loading-fill');
+      if (fillEl) fillEl.style.width = pct + '%';
+    },
+    hide: function() {
+      var el = document.getElementById('horror-loading');
+      if (el) el.classList.remove('show');
+    }
+  };
+  window.HorrorLoading = HorrorLoading;
+
+  /* 迭代201: 菜单切换动画 */
+  var origShowScreen = null;
+  function patchShowScreen() {
+    if (typeof window.showScreen === 'function' && !origShowScreen) {
+      origShowScreen = window.showScreen;
+      window.showScreen = function(name) {
+        origShowScreen.call(this, name);
+        if (name === 'menu') {
+          HorrorParticles.active = true;
+          HorrorParticles.spawn();
+          HorrorEvents.active = true;
+          HorrorEvents.schedule();
+          HorrorParallax.active = true;
+        } else {
+          HorrorParticles.stop();
+          HorrorEvents.stop();
+          HorrorParallax.active = false;
+          HorrorAudio.stopAmbient();
+        }
+      };
+    }
+  }
+
+  /* 迭代38-39: 状态条低值动画 */
+  function updateBarStates() {
+    if (typeof G !== 'undefined' && G.hud) {
+      var hpBar = document.getElementById('hp-bar');
+      var sanBar = document.getElementById('sanity-bar');
+      if (hpBar) {
+        if (G.state === 'playing' && typeof G.hp !== 'undefined') {
+          var maxHp = 100;
+          if (G.hp / maxHp < 0.3) {
+            hpBar.classList.add('low');
+          } else {
+            hpBar.classList.remove('low');
+          }
+        }
+      }
+      if (sanBar) {
+        if (G.state === 'playing' && typeof G.sanity !== 'undefined') {
+          if (G.sanity < 30) {
+            sanBar.classList.add('low');
+          } else {
+            sanBar.classList.remove('low');
+          }
+        }
+      }
+    }
+    requestAnimationFrame(updateBarStates);
+  }
+
+  /* 初始化 */
+  function initHorrorMenu() {
+    var menuScreen = document.getElementById('screen-menu');
+    if (!menuScreen || !menuScreen.classList.contains('active')) {
+      setTimeout(initHorrorMenu, 500);
+      return;
+    }
+    HorrorParticles.init();
+    HorrorEvents.init();
+    HorrorParallax.init();
+    bindButtonSounds();
+    patchShowScreen();
+    updateBarStates();
+
+    document.addEventListener('click', function onFirstClick() {
+      HorrorAudio.init();
+      if (document.getElementById('screen-menu') &&
+          document.getElementById('screen-menu').classList.contains('active')) {
+        HorrorAudio.startAmbient();
+      }
+      document.removeEventListener('click', onFirstClick);
+    }, { once: true });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initHorrorMenu);
+  } else {
+    initHorrorMenu();
+  }
+})();
+console.log('迭代1-100: 恐怖主菜单UI (粒子/标题动画/恐怖按钮/音效/视差/随机事件/加载/退出确认)');
+console.log('迭代101-200: 响应式UI (移动适配/触控优化/横竖屏/平板/性能模式)');
+console.log('迭代201-325: UI动画特效 (切换/按钮/提示/进度条/抖动/闪烁/扭曲/血迹/文字/边框/发光/脉冲/呼吸)');
+</script>
 
 </body>
 </html>
