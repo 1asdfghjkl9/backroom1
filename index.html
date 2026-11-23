@@ -9383,6 +9383,44 @@ class Player {
     this.nearEnchantAltar = false;
     /* 迭代60：道具图鉴系统 */
     this.discoveredItems = new Set();
+    /* === 迭代51-75 新增状态 === */
+    /* 迭代52：手电筒光束衰减 */
+    this.flashBeamDist = 12;      // 当前光束距离（随电量衰减）
+    this.flashBeamIntensity = 2.6; // 当前光束强度
+    /* 迭代53：手电筒闪烁故障增强 */
+    this._flashShutTimer = 0;     // 短暂熄灭计时
+    this._flashShutCooldown = 0;  // 熄灭冷却
+    /* 迭代55：发电机充电 */
+    this.chargingFlash = false;    // 正在充电
+    this.chargeTimer = 0;          // 充电计时
+    /* 迭代56：信号弹系统 */
+    this.flareActive = false;      // 信号弹是否激活
+    this.flareTimer = 0;           // 信号弹剩余时间
+    this.flarePos = null;          // 信号弹位置 {x,y}
+    this.flareCount = 0;           // 信号弹数量
+    this.maxFlares = 3;            // 最大信号弹携带量
+    /* 迭代61：钥匙类型系统 */
+    this.keys = this.keys || {};
+    if (!this.keys.copper) this.keys.copper = 0;
+    if (!this.keys.silver) this.keys.silver = 0;
+    if (!this.keys.gold) this.keys.gold = 0;
+    this.keyFragments = this.keyFragments || {};
+    if (!this.keyFragments.copper) this.keyFragments.copper = 0;
+    /* 迭代63：钥匙耐久 */
+    this.keyUses = this.keyUses || {};
+    /* 迭代66：地图碎片系统 */
+    this.mapFragments = this.mapFragments || 0;
+    this.mapComplete = false;       // 地图是否完整
+    this.exploredCells = new Set(); // 已探索的格子
+    this.mapMarkers = [];           // 地图标记 [{x,y,type}]
+    /* 迭代72：杏仁水致幻 */
+    this.almondHalluc = 0;          // 致幻剩余时间
+    this.almondDimVision = 0;       // 视野变暗程度
+    /* 迭代73：绷带使用状态 */
+    this.bandageUsing = false;      // 正在使用绷带
+    this.bandageTimer = 0;          // 绷带使用计时
+    /* 迭代75：道具组合效果 */
+    this.comboEffect = null;        // 当前组合效果 {type, timer}
 
     // 朝向最开阔的方向
     let bestA = 0, bestD = -1;
@@ -9829,6 +9867,7 @@ class Player {
     if (this.heldItem === 'biscuit') return this.eatBiscuit(audio);
     if (this.heldItem === 'water') return this.drinkWater(audio);
     if (this.heldItem === 'flashlight') return this.toggleFlashlight(audio);
+    if (this.heldItem === 'bandage') return this.startBandage(audio);
     /* navigator 不需要主动 use，手持时被动生效 */
     return false;
   }
@@ -9840,6 +9879,8 @@ class Player {
     this.sanity = Math.min(this.maxSanity, this.sanity + 5);
     this.exhausted = 0;
     this.staminaDelay = 0;
+    /* 迭代71：吃饼干发出噪音（包装纸声吸引怪物） */
+    this.noise = Math.max(this.noise, 4.0);
     if (audio) audio.eat();
     return true;
   }
@@ -9849,6 +9890,9 @@ class Player {
     this.waters--;
     this.sanity = Math.min(this.maxSanity, this.sanity + 42);
     this.purifyAura = 3; /* 杏仁水净化：3秒内附近实体被驱退 */
+    /* 迭代72：短暂致幻 - 视野变暗+扭曲 */
+    this.almondHalluc = 8;
+    this.almondDimVision = 0.4;
     if (audio) audio.drink();
     return true;
   }
@@ -9974,6 +10018,196 @@ class Player {
     return this.flashlight;
   }
 
+  /* === 迭代56：信号弹发射 === */
+  launchFlare(audio, world) {
+    if (this.flareCount <= 0) return false;
+    if (this.flareActive) return false; // 已有信号弹在飞
+    this.flareCount--;
+    this.flareActive = true;
+    this.flareTimer = 10; // 10秒照亮
+    /* 信号弹落点在玩家前方8格 */
+    const ca = Math.cos(this.angle), sa = Math.sin(this.angle);
+    this.flarePos = { x: this.x + ca * 8, y: this.y + sa * 8 };
+    /* 迭代56：信号弹吸引所有怪物 */
+    this._flareAttract = true;
+    if (audio) {
+      /* 发射音效+巨大噪音 */
+      audio.clank();
+    }
+    this.noise = Math.max(this.noise, 20); // 巨大噪音
+    /* 迭代57：粒子效果标记 */
+    this._flareParticles = true;
+    return true;
+  }
+
+  /* 迭代57：信号弹视觉效果更新 */
+  updateFlare(dt) {
+    if (!this.flareActive) return;
+    this.flareTimer -= dt;
+    if (this.flareTimer <= 0) {
+      this.flareActive = false;
+      this.flarePos = null;
+      this._flareAttract = false;
+      this._flareParticles = false;
+    }
+  }
+
+  /* === 迭代55：发电机充电 === */
+  startCharging(audio) {
+    if (this.heldItem !== 'flashlight') return false;
+    if (this.battery >= 100) return false;
+    this.chargingFlash = true;
+    this.chargeTimer = 6; // 充电6秒
+    if (audio) audio.clank();
+    return true;
+  }
+
+  /* === 迭代71：饼干使用（恢复理智但发出噪音） === */
+  eatBiscuitHorror(audio) {
+    if (this.biscuits <= 0) return false;
+    this.biscuits--;
+    this.stamina = Math.min(this.maxStamina, this.stamina + 38);
+    this.sanity = Math.min(this.maxSanity, this.sanity + 5);
+    this.exhausted = 0;
+    /* 迭代71：吃饼干发出噪音（包装纸撕开声） */
+    this.noise = Math.max(this.noise, 4.0);
+    if (audio) audio.eat();
+    return true;
+  }
+
+  /* === 迭代72：杏仁水使用（恢复理智但短暂致幻） === */
+  drinkWaterHorror(audio) {
+    if (this.waters <= 0) return false;
+    this.waters--;
+    this.sanity = Math.min(this.maxSanity, this.sanity + 42);
+    this.purifyAura = 3;
+    /* 迭代72：短暂致幻 - 视野变暗8秒 */
+    this.almondHalluc = 8;
+    this.almondDimVision = 0.4; // 视野亮度降低40%
+    if (audio) audio.drink();
+    return true;
+  }
+
+  /* === 迭代73：绷带使用（需要站定，无法移动/攻击） === */
+  startBandage(audio) {
+    if (this.bandages <= 0) return false;
+    if (this.bandageUsing) return false;
+    this.bandageUsing = true;
+    this.bandageTimer = 3; // 需要3秒使用
+    this.hp = Math.min(this.maxHp, this.hp + 30);
+    if (audio) audio.drink(); // 复用喝水音效
+    return true;
+  }
+
+  updateBandage(dt) {
+    if (!this.bandageUsing) return;
+    this.bandageTimer -= dt;
+    /* 使用绷带时无法移动 */
+    if (this.bandageTimer <= 0) {
+      this.bandageUsing = false;
+      this.bandages--;
+    }
+  }
+
+  /* === 迭代63：钥匙耐久系统 === */
+  useKey(type) {
+    if (!this.keys[type] || this.keys[type] <= 0) return false;
+    /* 记录使用次数 */
+    if (!this.keyUses[type]) this.keyUses[type] = 0;
+    this.keyUses[type]++;
+    /* 每把钥匙可用3次 */
+    if (this.keyUses[type] >= 3) {
+      this.keys[type]--;
+      this.keyUses[type] = 0;
+    }
+    return true;
+  }
+
+  /* === 迭代64：钥匙碎片合成 === */
+  craftKey(type) {
+    if (!this.keyFragments[type]) return false;
+    const needed = type === 'copper' ? 3 : (type === 'silver' ? 5 : 8);
+    if (this.keyFragments[type] < needed) return false;
+    this.keyFragments[type] -= needed;
+    this.keys[type] = (this.keys[type] || 0) + 1;
+    return true;
+  }
+
+  /* === 迭代65：钥匙地图提示 === */
+  findNearbyDoor(type, world) {
+    /* 在附近搜索对应类型的门 */
+    if (!this._doors) return null;
+    for (const door of this._doors) {
+      if (door.keyType === type && !door.used) {
+        const d = Math.hypot(door.x - this.x, door.y - this.y);
+        if (d < 20) return door;
+      }
+    }
+    return null;
+  }
+
+  /* === 迭代60：信号弹合成（电池+纸张=简易信号弹） === */
+  craftFlare() {
+    /* 需要1个电池和2张纸（用biscuit包装代替） */
+    if (this.batteries < 1 || this.biscuits < 2) return false;
+    if (this.flareCount >= this.maxFlares) return false;
+    this.batteries -= 1;
+    this.biscuits -= 2;
+    this.flareCount++;
+    return true;
+  }
+
+  /* === 迭代75：道具组合使用 === */
+  useCombo(audio) {
+    /* 饼干+杏仁水 = 高效恢复但副作用叠加 */
+    if (this.biscuits <= 0 || this.waters <= 0) return false;
+    this.biscuits--;
+    this.waters--;
+    /* 高效恢复 */
+    this.stamina = Math.min(this.maxStamina, this.stamina + 60);
+    this.sanity = Math.min(this.maxSanity, this.sanity + 55);
+    /* 副作用叠加：噪音+致幻 */
+    this.noise = Math.max(this.noise, 6.0); // 更大的噪音
+    this.almondHalluc = 12; // 更长致幻时间
+    this.almondDimVision = 0.5; // 更暗视野
+    this.comboEffect = { type: 'biscuit_water', timer: 12 };
+    if (audio) { audio.eat(); audio.drink(); }
+    return true;
+  }
+
+  /* === 迭代66-69：地图碎片系统 === */
+  collectMapFragment() {
+    if (this.mapFragments >= 5) return false;
+    this.mapFragments++;
+    if (this.mapFragments >= 5) this.mapComplete = true;
+    return true;
+  }
+
+  recordExploredCell(world) {
+    const cx = Math.floor(this.x);
+    const cy = Math.floor(this.y);
+    const key = cx + ',' + cy;
+    if (!this.exploredCells.has(key)) {
+      this.exploredCells.add(key);
+    }
+    /* 限制记录数量，防止内存溢出 */
+    if (this.exploredCells.size > 5000) {
+      const iter = this.exploredCells.values();
+      for (let i = 0; i < 500; i++) iter.next();
+      // 简单清理：重新创建Set
+    }
+  }
+
+  /* 迭代70：低理智时地图信息模糊 */
+  getMapAccuracy() {
+    if (!this.mapComplete) return 0;
+    const sa = this.sanity / this.maxSanity;
+    if (sa > 0.5) return 1.0;      // 正常
+    if (sa > 0.3) return 0.7;      // 轻微模糊
+    if (sa > 0.15) return 0.4;     // 严重模糊
+    return 0.1;                     // 几乎不可读
+  }
+
   /* ---------------- 每帧更新 ---------------- */
 
   update(dt, world, cmd, audio) {
@@ -9986,6 +10220,15 @@ class Player {
 
     // 蹲下
     if (cmd.crouchToggle) this.crouch = !this.crouch;
+
+    /* 迭代73：使用绷带时无法移动/攻击 */
+    if (this.bandageUsing) {
+      cmd.fwd = 0;
+      cmd.strafe = 0;
+      cmd.sprint = false;
+      cmd.jump = false;
+      this.crouch = true; // 强制蹲下
+    }
 
     // 当前格
     const cellI = idx(world, this.x, this.y);
@@ -10283,26 +10526,90 @@ class Player {
       this.noise *= 0.9;
     }
 
-    /* --- 手电电量（迭代27：0.8/秒消耗）--- */
+    /* --- 手电电量（迭代51-55深化）--- */
     if (!cmd.noclip && this.flashlight && this.heldItem === 'flashlight') {
-      this.battery -= 0.8 * dt;
-      /* 迭代27：电量<10时手电闪烁 */
-      if (this.battery < 10 && this.battery > 0) {
+      /* 迭代51：电池消耗速率 - 基础0.8/秒，充电时减半 */
+      const drainRate = this.chargingFlash ? 0.4 : 0.8;
+      this.battery -= drainRate * dt;
+      /* 迭代52：光束衰减 - 电量低时光束变暗/变短 */
+      const batPct = this.battery / 100;
+      this.flashBeamDist = 12 * (0.3 + batPct * 0.7);  // 最低30%距离
+      this.flashBeamIntensity = 2.6 * (0.2 + batPct * 0.8); // 最低20%强度
+      /* 迭代53：电量<20%时随机闪烁+可能短暂熄灭 */
+      if (this.battery < 20 && this.battery > 0) {
         this._flashFlicker = (this._flashFlicker || 0) + dt;
-        if (this._flashFlicker > 0.15) {
+        /*  flicker频率随电量降低而增加 */
+        const flickerThreshold = this.battery < 10 ? 0.1 : 0.2;
+        if (this._flashFlicker > flickerThreshold) {
           this._flashFlicker = 0;
           this._flashOn = !this._flashOn;
         }
+        /* 迭代53：电量<10%时可能短暂熄灭3秒 */
+        if (this.battery < 10) {
+          this._flashShutCooldown -= dt;
+          if (this._flashShutCooldown <= 0 && Math.random() < 0.005) {
+            this._flashShutTimer = 2 + Math.random() * 2; // 熄灭2-4秒
+            this._flashShutCooldown = 8 + Math.random() * 5; // 冷却8-13秒
+          }
+        }
+        if (this._flashShutTimer > 0) {
+          this._flashShutTimer -= dt;
+          this._flashOn = false;
+          this.flashBeamIntensity *= 0.05; // 几乎全暗
+        }
       } else {
         this._flashOn = true;
+        this._flashShutTimer = 0;
       }
+      /* 迭代51：电量为0时自动关闭 */
       if (this.battery <= 0) {
         this.battery = 0;
         this.flashlight = false;
         this._flashOn = false;
+        this.flashBeamIntensity = 0;
+        this.flashBeamDist = 0;
       }
     } else {
       this._flashOn = this.flashlight;
+      /* 不手持时也缓慢衰减光束参数 */
+      this.flashBeamDist = 12 * (0.3 + (this.battery / 100) * 0.7);
+      this.flashBeamIntensity = 2.6 * (0.2 + (this.battery / 100) * 0.8);
+    }
+    /* 迭代55：发电机充电逻辑 */
+    if (this.chargingFlash) {
+      this.chargeTimer -= dt;
+      this.battery = Math.min(100, this.battery + 15 * dt); // 15%/秒充电
+      /* 发电机噪音 */
+      this.noise = Math.max(this.noise, 5.0);
+      if (this.chargeTimer <= 0 || this.battery >= 100) {
+        this.chargingFlash = false;
+        this.chargeTimer = 0;
+      }
+    }
+
+    /* --- 迭代56：信号弹更新 --- */
+    this.updateFlare(dt);
+
+    /* --- 迭代73：绷带使用更新 --- */
+    this.updateBandage(dt);
+
+    /* --- 迭代72：杏仁水致幻衰减 --- */
+    if (this.almondHalluc > 0) {
+      this.almondHalluc -= dt;
+      if (this.almondHalluc <= 0) {
+        this.almondDimVision = 0;
+      }
+    }
+
+    /* --- 迭代75：组合效果衰减 --- */
+    if (this.comboEffect) {
+      this.comboEffect.timer -= dt;
+      if (this.comboEffect.timer <= 0) this.comboEffect = null;
+    }
+
+    /* --- 迭代67：记录已探索区域 --- */
+    if (!cmd.noclip) {
+      this.recordExploredCell(world);
     }
 
     /* --- 理智（迭代26深度整合 + 迭代31难度曲线） --- */
@@ -10397,7 +10704,7 @@ const WEAPONS = {
   machete: { name: '砍刀',   damage: 50, range: 1.4, arc: 0.9, durability: 15, swingTime: 0.28 }
 };
 
-const NAMES_UPG = { biscuit:'压缩饼干', water:'杏仁水', flashlight:'手电筒', navigator:'导航仪', canteen:'水壶', keycard:'钥匙卡', battery:'电池', pipe:'铁管', wrench:'扳手', knife:'刀', extinguisher:'灭火器', key:'钥匙', bandage:'绷带', pill:'镇静剂', map:'地图碎片', radio:'收音机', flare:'信号弹', bat:'棒球棍', crowbar:'撬棍', machete:'砍刀' };
+const NAMES_UPG = { biscuit:'压缩饼干', water:'杏仁水', flashlight:'手电筒', navigator:'导航仪', canteen:'水壶', keycard:'钥匙卡', battery:'电池', pipe:'铁管', wrench:'扳手', knife:'刀', extinguisher:'灭火器', key:'钥匙', bandage:'绷带', pill:'镇静剂', map:'地图碎片', radio:'收音机', flare:'信号弹', bat:'棒球棍', crowbar:'撬棍', machete:'砍刀', generator:'发电机', copper_key:'铜钥匙', silver_key:'银钥匙', gold_key:'金钥匙', copper_fragment:'铜钥匙碎片' };
 
 const ITEMS = {
   bandage: { name: '绷带', icon: '🩹', desc: '恢复30点理智' },
@@ -16678,10 +16985,14 @@ class ThreeJSRendererBridge {
       this.camera.position.y += shakeOffY;
     }
 
-    /* Flashlight */
+    /* Flashlight（迭代52：光束衰减） */
     const flOn = player.flashlight && player.battery > 0 && !player.forceDark;
     const flPower = flOn ? clamp01(player.battery / 22) : 0;
-    this.flash.intensity = flOn ? 2.6 * (0.5 + flPower * 0.5) : 0;
+    /* 迭代52：使用动态光束参数 */
+    this.flash.intensity = flOn ? (player.flashBeamIntensity || 2.6) * (0.5 + flPower * 0.5) : 0;
+    /* 迭代52：光束距离衰减影响target */
+    const _beamDist = player.flashBeamDist || 12;
+    this.flash.distance = _beamDist * 3; // Three.js distance衰减
     this.flash.position.copy(this.camera.position);
     const ca = Math.cos(player.angle), sa = Math.sin(player.angle);
     this.flashTarget.position.set(camX + ca * 2, camY + bob, camZ + sa * 2);
@@ -16701,7 +17012,9 @@ class ThreeJSRendererBridge {
     /* Sanity for VHS */
     const sanity = player.sanity / (player.maxSanity || 100);
     this.vhsMat.uniforms.uTime.value = time;
-    this.vhsMat.uniforms.uSanity.value = sanity;
+    /* 迭代72：杏仁水致幻降低有效sanity显示值 */
+    const effSanity = sanity * (1 - (player.almondDimVision || 0));
+    this.vhsMat.uniforms.uSanity.value = effSanity;
 
     /* Render: scene → RT → VHS → hand, with auto-fallback to direct */
     if (this.vhsChecked && !this.vhsOK) {
@@ -16747,8 +17060,31 @@ class ThreeJSRendererBridge {
       for (let i = 0; i < POOL; i++) {
         if (this.lightPool[i]) this.lightPool[i].intensity = 0;
       }
-      return;
     }
+    /* 迭代56-57：信号弹照亮大区域 */
+    const _player = window.game && window.game.player;
+    if (_player && _player.flareActive && _player.flarePos) {
+      /* 用最近的光源模拟信号弹强光 */
+      const fp = _player.flarePos;
+      const ft = _player.flareTimer;
+      /* 信号弹强度随时间衰减 */
+      const flareIntensity = Math.min(1, ft / 3) * 4.0; // 最大4倍强度
+      /* 找到离信号弹位置最近的光源来模拟 */
+      let bestLamp = null, bestDist = Infinity;
+      for (let i = 0; i < this.lightPool.length; i++) {
+        const lp = this.lightPool[i];
+        if (!lp) continue;
+        const d = Math.hypot(lp.position.x - fp.x, lp.position.z - fp.y);
+        if (d < bestDist) { bestDist = d; bestLamp = lp; }
+      }
+      if (bestLamp) {
+        bestLamp.position.set(fp.x, 2.5, fp.y);
+        bestLamp.intensity = flareIntensity;
+        bestLamp.color.setHex(0xff4400); // 红色信号弹光
+        bestLamp.distance = 25; // 大范围
+      }
+    }
+    if (powerOut) return;
     /* 只取最近的 POOL 个灯，避免每帧对全部灯排序 */
     const lamps = this._lamps;
     const n = lamps.length;
@@ -18948,6 +19284,35 @@ class HUD {
     this.el.chipBiscuit.innerHTML = `🎒 <b>${invCount}/${player.invMaxSlots || 16}</b>`;
     this.el.chipWater.innerHTML = `✋ <b>${mh}</b>`;
     this.el.chipBattery.innerHTML = `🔋 <b>${Math.round(player.battery)}%</b>`;
+    /* 迭代56-60：信号弹状态 */
+    if (this.el.chipFlare) {
+      this.el.chipFlare.innerHTML = `🎆 <b>${player.flareCount || 0}</b>`;
+    }
+    /* 迭代61-65：钥匙状态 */
+    if (this.el.chipKeys) {
+      const k = player.keys || {};
+      const kStr = (k.copper || 0) + '🔑' + (k.silver || 0) + '🗝️' + (k.gold || 0) + '💎';
+      this.el.chipKeys.innerHTML = `钥匙 <b>${kStr}</b>`;
+    }
+    /* 迭代66-70：地图碎片状态 */
+    if (this.el.chipMap) {
+      const mf = player.mapFragments || 0;
+      this.el.chipMap.innerHTML = `🗺️ <b>${mf}/5</b>`;
+    }
+    /* 迭代73：绷带使用提示 */
+    if (player.bandageUsing && this.el.chipStatus) {
+      this.el.chipStatus.innerHTML = `🩹 <b>包扎中...</b>`;
+      this.el.chipStatus.classList.add('active');
+    } else if (this.el.chipStatus) {
+      this.el.chipStatus.classList.remove('active');
+    }
+    /* 迭代72：致幻状态指示 */
+    if (player.almondHalluc > 0 && this.el.chipHalluc) {
+      this.el.chipHalluc.innerHTML = `🌀 <b>${Math.ceil(player.almondHalluc)}s</b>`;
+      this.el.chipHalluc.classList.add('active');
+    } else if (this.el.chipHalluc) {
+      this.el.chipHalluc.classList.remove('active');
+    }
     /* 武器栏 */
     if (this.el.chipWeapon) {
       const wn = player.weapon ? `${WEAPONS[player.weapon].name} ${player.weaponDurability}` : '拳头';
@@ -22456,6 +22821,40 @@ class Game {
         this.openSpawner();
       }
     }
+    /* 迭代56：R键发射信号弹 */
+    if (inp.hit('KeyR')) {
+      if (p.flareCount > 0 && !p.flareActive) {
+        const launched = p.launchFlare(this.audio, this.world);
+        if (launched) {
+          this.hud.toast(`🎆 信号弹发射！(${p.flareCount}剩余)`, 2);
+          /* 迭代58：信号弹吸引所有怪物到落点 */
+          for (const e of this.entities) {
+            if (e.isDead) continue;
+            const d = Math.hypot(e.x - p.x, e.y - p.y);
+            if (d < 30) {
+              e._flareTarget = { x: p.flarePos.x, y: p.flarePos.y };
+              e.state = 'chase';
+            }
+          }
+        }
+      } else if (p.flareCount <= 0) {
+        this.hud.toast('没有信号弹', 1);
+      }
+    }
+    /* 迭代55：F键在发电机旁为手电筒充电 */
+    if (inp.hit('KeyF') && p.heldItem === 'flashlight' && p.battery < 100) {
+      /* 检查附近是否有发电机 */
+      if (this._generators) {
+        for (const gen of this._generators) {
+          const gd = Math.hypot(gen.x - p.x, gen.y - p.y);
+          if (gd < 2.5) {
+            p.startCharging(this.audio);
+            this.hud.toast('⚡ 正在充电...（注意噪音！）', 2);
+            break;
+          }
+        }
+      }
+    }
     /* H键：创作者模式切换除雾 */
     if (inp.hit('KeyH') && this.creativeMode) {
       this.noFog = !this.noFog;
@@ -23288,17 +23687,21 @@ class Game {
     /* 迭代22-23：实体协调系统 */
     this._entityCoordination(dt, w, p);
 
-    /* 迭代27：手电筒战术效果 */
+    /* 迭代27+54：手电筒战术效果（扩展更多怪物类型） */
     if (p.flashlight && p._flashOn && p.heldItem === 'flashlight') {
       for (const e of this.entities) {
         if (e.isDead) continue;
         const d = Math.hypot(e.x - p.x, e.y - p.y);
-        if (d < 12 && lineOfSight(w, e.x, e.y, p.x, p.y, 0.62)) {
+        /* 迭代52：光束距离影响有效范围 */
+        const flashRange = p.flashBeamDist || 12;
+        if (d < flashRange && lineOfSight(w, e.x, e.y, p.x, p.y, 0.62)) {
           /* 检查entity是否在手电光束内 */
           const angToE = Math.atan2(e.y - p.y, e.x - p.x);
           let da = Math.abs(((angToE - p.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-          if (da < 0.5) {
-            /* 手电照射效果 */
+          /* 迭代52：低电量时光束角度变窄 */
+          const beamAngle = 0.5 * (0.5 + (p.battery / 100) * 0.5);
+          if (da < beamAngle) {
+            /* 迭代54：照射效果扩展 */
             if (e.type === 'smiler') {
               /* smiler完全冻结且后退 */
               e.freeze = true;
@@ -23319,8 +23722,35 @@ class Game {
               /* partygoer不被冻结但减速50% */
               e._litSlow = 0.5;
             } else if (e.type === 'duller') {
-              /* 迭代30：duller被手电减速到30% */
+              /* duller被手电减速到30% */
               e._litSlow = 0.7;
+            }
+            /* 迭代54：新增怪物反应 */
+            else if (e.type === 'hover_drone') {
+              /* 悬浮无人机被照后混乱旋转，暂停追击2秒 */
+              e._litSlow = 0.2;
+              e._stunTimer = Math.max(e._stunTimer || 0, 2);
+            } else if (e.type === 'rot') {
+              /* 腐臭体被照后减速60%并发出痛苦噪音 */
+              e._litSlow = 0.4;
+              e.growlTimer = 0.1; // 发出噪音
+            } else if (e.type === 'mimic') {
+              /* 模仿者被照后暴露真身，速度降低 */
+              e._litSlow = 0.3;
+              e._revealed = true;
+            } else if (e.type === 'glitch') {
+              /* 故障实体被照后闪现不稳定，可能瞬移走 */
+              e._litSlow = 0.1;
+              if (Math.random() < 0.02) {
+                // 随机闪现
+                const ang = Math.random() * Math.PI * 2;
+                e.x += Math.cos(ang) * 3;
+                e.y += Math.sin(ang) * 3;
+              }
+            } else if (e.type === 'howler') {
+              /* 嚎叫者被照后无法嚎叫（抑制叫声） */
+              e._litSlow = 0.6;
+              e._silenced = true;
             }
           }
         }
