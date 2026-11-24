@@ -2298,6 +2298,12 @@ input[type="range"]::-moz-range-thumb {
   .pubg-title-block{display:none;}
   .panel{max-height:90vh;padding:16px 18px;}
 }
+/* 迭代1200: 大屏平板/小桌面适配 */
+@media(max-width:1200px) and (min-width:1025px){
+  .pubg-start-btn{width:190px;}
+  .pubg-side-menu{max-height:calc(100vh - 160px);}
+  .menu-level-cards{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));}
+}
 /* 迭代108: 平板适配 */
 @media(min-width:768px) and (max-width:1024px){
   .pubg-start-btn{width:180px;}
@@ -2309,6 +2315,17 @@ input[type="range"]::-moz-range-thumb {
 .title-cn{font-size:clamp(10px,2.5vw,14px);}
 .pubg-side-btn{font-size:clamp(9px,1.5vw,12px);}
 .panel h2{font-size:clamp(13px,2.5vw,16px);}
+/* 迭代520: 中等手机适配 */
+@media(max-width:520px) and (min-width:481px){
+  .pubg-start-zone{top:16px;left:14px;}
+  .pubg-profile{top:16px;right:14px;padding:6px 10px;}
+  .pubg-start-btn{width:170px;padding:12px 18px !important;}
+  .pubg-start-alt{width:170px;padding:8px 18px !important;}
+  .pubg-side-menu{bottom:14px;left:14px;max-height:calc(100vh - 100px);}
+  .pubg-title-block{display:none;}
+  .menu-wrap.pubg-style .menu-foot{left:14px;right:14px;bottom:4px;}
+  .menu-wrap.pubg-style .diag-input-wrap{right:14px;bottom:30px;}
+}
 /* 迭代111: 移动端性能模式 */
 @media(max-width:480px){
   .horror-particles{display:none;}
@@ -2531,6 +2548,67 @@ input[type="range"]::-moz-range-thumb {
   0%,100%{opacity:.6;}
   50%{opacity:.9;}
 }
+
+/* ==================== \u9648\u9ed8\u5f69\u86cb\u7cfb\u7edf CSS ==================== */
+.ee-discovery-toast{
+  position:fixed;top:15%;left:50%;transform:translateX(-50%) translateY(-20px);
+  z-index:9999;pointer-events:none;
+  background:linear-gradient(135deg,rgba(10,8,6,.97),rgba(20,16,10,.95));
+  border:1px solid rgba(196,163,90,.4);border-radius:6px;
+  padding:16px 28px;text-align:center;
+  box-shadow:0 0 40px rgba(196,163,90,.15),0 0 80px rgba(0,0,0,.6);
+  opacity:0;transition:all .6s cubic-bezier(.23,1,.32,1);
+  max-width:420px;
+}
+.ee-discovery-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.ee-discovery-toast .ee-toast-icon{font-size:24px;margin-bottom:6px;display:block;}
+.ee-discovery-toast .ee-toast-title{font-size:11px;letter-spacing:.15em;color:rgba(196,163,90,.7);margin-bottom:6px;text-transform:uppercase;}
+.ee-discovery-toast .ee-toast-text{font-size:12px;color:var(--tc);line-height:1.6;font-style:italic;}
+.ee-discovery-toast .ee-toast-chapter{font-size:9px;color:rgba(196,163,90,.4);margin-top:8px;letter-spacing:.1em;}
+.ee-wall-scratch{color:rgba(139,0,0,.5);font-size:10px;font-family:'Courier New',monospace;text-shadow:0 0 4px rgba(139,0,0,.3);letter-spacing:.05em;animation:eeScratchFlicker 4s ease-in-out infinite;}
+@keyframes eeScratchFlicker{0%,90%,100%{opacity:.5;}92%{opacity:.8;}95%{opacity:.3;}97%{opacity:.7;}}
+.ee-diary-panel{position:fixed;inset:0;z-index:8000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.85);backdrop-filter:blur(4px);}
+.ee-diary-panel.open{display:flex;}
+.ee-diary-content{max-width:480px;width:90%;max-height:80vh;overflow-y:auto;background:linear-gradient(180deg,rgba(30,26,16,.98),rgba(18,15,8,.98));border:1px solid rgba(196,163,90,.2);border-radius:8px;padding:28px 24px;box-shadow:0 0 60px rgba(0,0,0,.8);}
+.ee-diary-content h3{font-size:16px;color:var(--amber-l);margin-bottom:16px;letter-spacing:.1em;text-align:center;border-bottom:1px solid rgba(196,163,90,.15);padding-bottom:12px;}
+.ee-diary-entry{margin-bottom:16px;padding:12px;background:rgba(0,0,0,.3);border-left:2px solid rgba(196,163,90,.2);border-radius:0 4px 4px 0;}
+.ee-diary-entry .ee-day{font-size:10px;color:var(--amber);letter-spacing:.15em;margin-bottom:4px;}
+.ee-diary-entry .ee-text{font-size:12px;color:var(--tc);line-height:1.7;font-style:italic;}
+.ee-diary-close{display:block;margin:16px auto 0;padding:8px 24px;background:rgba(196,163,90,.1);border:1px solid rgba(196,163,90,.2);color:var(--amber);font-family:var(--font);font-size:11px;cursor:pointer;border-radius:4px;}
+.ee-diary-close:hover{background:rgba(196,163,90,.2);}
+.ee-progress-panel{position:fixed;inset:0;z-index:8000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);backdrop-filter:blur(6px);}
+.ee-progress-panel.open{display:flex;}
+.ee-progress-content{max-width:520px;width:90%;max-height:85vh;overflow-y:auto;background:linear-gradient(180deg,rgba(20,18,10,.98),rgba(12,10,6,.98));border:1px solid rgba(196,163,90,.15);border-radius:8px;padding:24px 20px;}
+.ee-progress-content h3{font-size:14px;color:var(--amber-l);margin-bottom:6px;letter-spacing:.1em;}
+.ee-progress-bar-wrap{height:4px;background:rgba(255,255,255,.05);border-radius:2px;margin-bottom:16px;overflow:hidden;}
+.ee-progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--amber-d),var(--amber));border-radius:2px;transition:width .5s ease;}
+.ee-chapter-group{margin-bottom:14px;}
+.ee-chapter-title{font-size:11px;color:var(--amber);letter-spacing:.08em;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid rgba(196,163,90,.1);}
+.ee-chapter-entry{display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:10px;color:var(--tc-sm);border-radius:3px;margin-bottom:2px;}
+.ee-chapter-entry.found{color:var(--tc);background:rgba(196,163,90,.05);}
+.ee-chapter-entry.locked{opacity:.35;}
+.ee-chapter-entry .ee-entry-icon{font-size:14px;width:20px;text-align:center;}
+.ee-dream-overlay{position:fixed;inset:0;z-index:7500;pointer-events:none;background:radial-gradient(ellipse at center,transparent 40%,rgba(20,0,40,.3) 100%);opacity:0;transition:opacity 2s;}
+.ee-dream-overlay.active{opacity:1;}
+.ee-dream-text{position:absolute;bottom:15%;left:50%;transform:translateX(-50%);font-size:14px;color:rgba(180,160,220,.6);text-align:center;letter-spacing:.15em;text-shadow:0 0 20px rgba(140,120,200,.3);animation:eeDreamFloat 6s ease-in-out infinite;}
+@keyframes eeDreamFloat{0%,100%{transform:translateX(-50%) translateY(0);opacity:.6;}50%{transform:translateX(-50%) translateY(-10px);opacity:.9;}}
+.ee-soul-release{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(0,0,0,.95);}
+.ee-soul-release.active{display:flex;}
+.ee-soul-text{font-size:16px;color:rgba(200,180,240,.8);text-align:center;line-height:2;max-width:480px;padding:20px;}
+.ee-soul-particles{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+.ee-soul-particle{position:absolute;width:4px;height:4px;border-radius:50%;background:rgba(200,180,240,.6);animation:eeSoulRise 4s ease-out forwards;}
+@keyframes eeSoulRise{0%{transform:translateY(0) scale(1);opacity:.8;}100%{transform:translateY(-100vh) scale(0);opacity:0;}}
+.ee-recording-ui{position:fixed;bottom:20%;left:50%;transform:translateX(-50%);z-index:8500;display:none;background:rgba(10,8,6,.95);border:1px solid rgba(196,163,90,.3);border-radius:6px;padding:12px 20px;text-align:center;min-width:240px;box-shadow:0 0 30px rgba(0,0,0,.6);}
+.ee-recording-ui.playing{display:block;}
+.ee-recording-ui .ee-rec-icon{font-size:20px;margin-bottom:4px;}
+.ee-recording-ui .ee-rec-text{font-size:11px;color:var(--tc);font-style:italic;line-height:1.6;max-width:300px;}
+.ee-recording-ui .ee-rec-wave{display:flex;gap:2px;justify-content:center;margin-top:8px;}
+.ee-recording-ui .ee-rec-bar-item{width:3px;height:12px;background:var(--amber);border-radius:1px;animation:eeRecWave .8s ease-in-out infinite;}
+.ee-recording-ui .ee-rec-bar-item:nth-child(2){animation-delay:.1s;}
+.ee-recording-ui .ee-rec-bar-item:nth-child(3){animation-delay:.2s;}
+.ee-recording-ui .ee-rec-bar-item:nth-child(4){animation-delay:.3s;}
+.ee-recording-ui .ee-rec-bar-item:nth-child(5){animation-delay:.4s;}
+@keyframes eeRecWave{0%,100%{height:4px;opacity:.4;}50%{height:16px;opacity:1;}}
 
 </style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -30461,6 +30539,75 @@ class Game {
       this.hud.toast('⚠ 警报！所有实体已被激活——跑！不要停！', 5);
     }
 
+    /* ============ 陈默彩蛋系统集成 ============ */
+    if (typeof eeSystem !== 'undefined' && !level.isHub && !level.isDream) {
+      var eeTriggers = eeSystem.checkLevelTriggers(index);
+      if (eeTriggers.length > 0) {
+        var eeMarker = eeTriggers[0];
+        var eeX, eeY, eeTries = 0;
+        var eeW = world.w, eeH = world.h;
+        do {
+          eeX = 5 + Math.floor(Math.random() * (eeW - 10));
+          eeY = 5 + Math.floor(Math.random() * (eeH - 10));
+          eeTries++;
+        } while (eeTries < 30 && world.height[eeY * eeW + eeX] > 0.6);
+        var eeObj = {
+          type: 'easter_egg', x: eeX + 0.5, y: eeY + 0.5,
+          taken: this.taken.has('ee_' + eeMarker.id),
+          key: 'ee_' + eeMarker.id,
+          eeId: eeMarker.id,
+          eeIcon: eeMarker.icon,
+          eeTitle: eeMarker.title,
+          eeText: eeMarker.text,
+          eeDetail: eeMarker.detail,
+          bob: Math.random() * 6.28, variant: 'normal'
+        };
+        this.items.push(eeObj);
+      }
+      var eeMarkers = eeSystem.getMarkersForLevel(index);
+      for (var emi = 0; emi < eeMarkers.length; emi++) {
+        var em = eeMarkers[emi];
+        if (Math.random() < 0.5) {
+          var mx, my, mt = 0;
+          do {
+            mx = 3 + Math.floor(Math.random() * (eeW - 6));
+            my = 3 + Math.floor(Math.random() * (eeH - 6));
+            mt++;
+          } while (mt < 20 && world.height[my * eeW + mx] > 0.6);
+          var moodColors = {calm:'#aaa',uneasy:'#b8a060',scared:'#c06030',curious:'#60a0c0',determined:'#c09030',analytical:'#80c0a0',horrified:'#c03030',existential:'#8060c0',desperate:'#c06060',hopeful:'#60c090',empathy:'#6090c0',acceptance:'#a0a0c0',peace:'#c0c0a0'};
+          var markerObj = {
+            type: 'ee_day_marker', x: mx + 0.5, y: my + 0.5,
+            taken: this.taken.has('eem_' + em.index),
+            key: 'eem_' + em.index,
+            eeDayIdx: em.index,
+            eeDayText: em.data.text,
+            eeDayNum: em.data.day,
+            eeDayMood: em.data.mood,
+            eeDayColor: moodColors[em.data.mood] || '#aaa',
+            bob: Math.random() * 6.28, variant: 'normal'
+          };
+          this.items.push(markerObj);
+        }
+      }
+      if (!this._eePickupHandler) {
+        this._eePickupHandler = true;
+        var origPickup = this.pickupItem;
+        var self59ee = this;
+        this.pickupItem = function(item) {
+          if (item && item.type === 'easter_egg' && !item.taken && typeof eeSystem !== 'undefined') {
+            eeSystem.discover(item.eeId);
+            if (item.eeTitle === '录音笔') {
+              setTimeout(function(){ eeSystem.playRecording(item.eeText); }, 3000);
+            }
+          }
+          if (item && item.type === 'ee_day_marker' && !item.taken && typeof eeSystem !== 'undefined') {
+            eeSystem.discoverDayMarker(item.eeDayIdx);
+          }
+          if (origPickup) return origPickup.call(self59ee, item);
+        };
+      }
+    }
+
     this.state = 'playing';
     showScreen(null);
     this.audio.init();
@@ -49774,6 +49921,233 @@ console.log('  模块: BackroomsQualityPatch (主补丁)');
     </div>
 
 <script>
+/* ==================== 陈默彩蛋系统 - EasterEggSystem ==================== */
+(function(){
+'use strict';
+var EE_CHAPTERS=[
+{id:1,chapter:1,level:0,title:'皱巴巴的纸条',icon:'\u{1f4dc}',trigger:'corner',text:'如果你看到这张纸条，说明你还活着。\n\n——陈默 第1天',detail:'纸条的边角被撕掉了，像是匆忙中写下的。'},
+{id:2,chapter:1,level:1,title:'墙壁上的刻字',icon:'\u{270d}\u{fe0f}',trigger:'wall',text:'它们能听到你的心跳。\n\n——陈默 第3天',detail:'字迹被深深地刻入墙壁。'},
+{id:3,chapter:1,level:2,title:'实验记录残页',icon:'\u{1f4c4}',trigger:'room',text:'后室不是自然形成的。这些墙壁、这些走廊……是有人设计的。\n\n——陈默 第7天',detail:'纸张的材质很特殊，像是实验室用的记录纸。'},
+{id:4,chapter:1,level:3,title:'录音笔',icon:'\u{1f399}\u{fe0f}',trigger:'item',text:'（录音开始）\n"……有人能听到吗？我是陈默。我已经在这里三天了。墙壁在……呼吸。"\n（录音结束）',detail:'录音笔已经快没电了。'},
+{id:5,chapter:2,level:4,title:'血写的警告',icon:'\u{1fa78}',trigger:'wall',text:'不要相信出口。\n\n——陈默 第15天',detail:'用血写的。字迹歪歪扭扭，但每个笔画都很用力。'},
+{id:6,chapter:2,level:5,title:'营地遗迹',icon:'\u{26fa}',trigger:'camp',text:'帐篷旁有几个空罐头和一本日记。\n"第22天。我决定了。不能只是活着。我要找到真相。"\n\n——陈默 第22天',detail:'营地被精心布置过。这个人曾在绝境中保持秩序。'},
+{id:7,chapter:2,level:6,title:'陈默的地图',icon:'\u{1f5fa}\u{fe0f}',trigger:'map',text:'手绘地图标注了Level 0-6的区域。某处用红笔圈出"安全屋"。\n"每5层都有一个中转站。"\n\n——陈默 第28天',detail:'地图画得很详细，有比例尺和方向标。'},
+{id:8,chapter:2,level:7,title:'完整日记',icon:'\u{1f4d4}',trigger:'book',text:'第30-47天日记节选：\n"第35天。我遇到了一个生物。它在容器里哭泣。\n第44天。那台机器在收集……灵魂。\n第47天。Level Dream。那不是活人的梦。是死人的梦。"',detail:'日记的最后几页字迹越来越潦草。'},
+{id:9,chapter:3,level:8,title:'研究笔记',icon:'\u{1f52c}',trigger:'lab',text:'"后室是一个封闭系统。死在这里的人——他们的意识不会消散。它们被收集、被存储、被利用。建造它的不是人类。至少不是现在的人类。"',detail:'笔记中有大量数学公式和物理推论。'},
+{id:10,chapter:3,level:9,title:'通讯记录',icon:'\u{1f4e1}',trigger:'radio',text:'"CM-0917呼叫任何人。有人在吗？\n（杂音）……有人在Level 12。他们说那里有机器。\n……信号中断了。Level 12的人没有再回复。"',detail:'通讯设备很旧。频率调到了一个不存在的波段。'},
+{id:11,chapter:3,level:10,title:'核心房间',icon:'\u{2699}\u{fe0f}',trigger:'core',text:'房间中央有一台机器——更像是祭坛。\n表面刻满不属于任何已知语言的符号。\n陈默的纸条："它在收集死者的记忆。每个被困在这里的灵魂都会变成它的燃料。"',detail:'触碰机器表面时，你感到一阵刺骨的寒冷。'},
+{id:12,chapter:3,level:11,title:'最后的录音',icon:'\u{1f4fc}',trigger:'recording',text:'（录音）"我找到了真相。它们也找到了我。\n这台机器——它是另一个维度的文明建造的。\n它们用灵魂作为能量来源。后室就是它们的……发电厂。\n（金属摩擦声越来越近）\n它们来了。我把最后的笔记藏在——"\n（录音中断）',detail:'录音最后几秒能听到某种低沉的共鸣声。'},
+{id:13,chapter:4,level:12,title:'非人类装置',icon:'\u{1f47d}',trigger:'alien',text:'"这不是我们的造物。它的材料不在元素周期表上。它利用的是……意识本身。我称建造者为\u2018收割者\u2019。"',detail:'装置表面有脉动的纹路，像是活物的血管。'},
+{id:14,chapter:4,level:13,title:'被困的外星生物',icon:'\u{1fae7}',trigger:'creature',text:'透明容器中有一个生物。很小，蜷缩着。发出微弱的蓝色光芒。它在哭泣。\n"它和我一样被困在这里。收割者不只收割人类。任何有意识的生命都是猎物。"',detail:'当你的手靠近容器时，生物的光芒变亮了。'},
+{id:15,chapter:4,level:14,title:'解救方法',icon:'\u{1f511}',trigger:'puzzle',text:'"需要三样东西：\n1. Level 8的电缆残件\n2. Level 10的机器碎片\n3. Level 12的外星晶体\n组合在一起可以产生反向脉冲。"',detail:'你检查了背包——这些东西似乎在之前的探索中都遇到过……'},
+{id:16,chapter:4,level:15,title:'外星生物的赠礼',icon:'\u{1f31f}',trigger:'gift',text:'容器打开了。生物飘浮到你面前。它在脑海中说话：\n"谢谢你。让我给你一个坐标。在Level 19。那里有笼子的核心。如果你去那里……你可以结束这一切。"',detail:'生物消散前，你感到脑海中多了一组坐标。'},
+{id:17,chapter:5,level:16,title:'陈默的遗骸',icon:'\u{1f480}',trigger:'body',text:'在坐标位置，你找到了陈默的遗骸。他靠墙坐着，手里握着笔记本。\n"如果你看到这个，说明你找到了我。去Level 19的最深处。"',detail:'遗骸旁边有一张照片——几个笑着的同事。陈默曾有过正常的生活。'},
+{id:18,chapter:5,level:17,title:'后室的真相',icon:'\u{1f30c}',trigger:'truth',text:'"后室是一个陷阱。外星文明建造了这个迷宫。死在这里的人，灵魂会被机器收集。\nLevel Dream——是死后的世界。是所有被困灵魂的集合意识。\n我就是Level Dream。我就是陈默死后做的噩梦。而你现在正在我的梦里。"',detail:'读完这段话，你感到整个世界都在震颤。'},
+{id:19,chapter:5,level:18,title:'破坏陷阱的方法',icon:'\u{1f4a5}',trigger:'plan',text:'"核心在Level 19的最深处。需要三把钥匙：\n第一把：在恐惧中——面对恐惧而不退缩。\n第二把：在绝望中——在必死绝境中不放弃希望。\n第三把：在真相中——接受真相后依然选择行动。\n毁掉核心后，所有灵魂都会被释放。但你可能再也无法离开。"',detail:'三条路在你面前展开。'},
+{id:20,chapter:5,level:19,title:'最终选择',icon:'\u{2696}\u{fe0f}',trigger:'choice',text:'你站在核心面前。数千个灵魂在闪烁。\n【选择一】破坏核心——释放所有灵魂。\n【选择二】利用核心——获得永生。\n【选择三】什么都不做。离开。',detail:'这是你最后一次选择。'}
+];
+var EE_DAY_MARKERS=[
+{day:1,text:'如果你看到这张纸条，说明你还活着。——陈默',mood:'calm'},
+{day:3,text:'它们能听到你的心跳。',mood:'calm'},
+{day:7,text:'食物快没了。这里没有白天和黑夜。',mood:'calm'},
+{day:12,text:'我看到了另一个人，但他消失在我面前。',mood:'uneasy'},
+{day:15,text:'出口是假的。所有的出口都是假的。',mood:'uneasy'},
+{day:18,text:'我开始听到声音。不是它们的声音。是我的声音。',mood:'uneasy'},
+{day:22,text:'墙壁在呼吸。我觉得它们一直都在呼吸。',mood:'scared'},
+{day:25,text:'找到了一些罐头。味道像铁锈。但能吃。',mood:'scared'},
+{day:28,text:'我看到了一扇不属于这里的门。它发着蓝光。',mood:'curious'},
+{day:30,text:'我决定走进那扇门。',mood:'determined'},
+{day:32,text:'门后面是更深的噩梦。但至少这里有水。',mood:'determined'},
+{day:35,text:'我遇到了一个东西。它不像它们。它在哭泣。',mood:'curious'},
+{day:37,text:'那个东西被困在一个容器里。它和我一样。',mood:'empathy'},
+{day:40,text:'我开始理解这个世界的结构了。它不是自然形成的。',mood:'analytical'},
+{day:42,text:'有人在这里做过实验。很久以前。留下的只有机器和尸体。',mood:'analytical'},
+{day:44,text:'那台机器还在运转。我觉得它在收集什么。',mood:'scared'},
+{day:45,text:'我找到了答案。这台机器在收集灵魂。',mood:'horrified'},
+{day:46,text:'死在这里的人不会消失。他们的灵魂会永远留在这里。',mood:'horrified'},
+{day:47,text:'Level Dream。那是梦境。但不是活人的梦。是死人的。',mood:'horrified'},
+{day:48,text:'我做了那个梦。在梦里我看到了陈默。不，我看到了我自己。',mood:'existential'},
+{day:50,text:'我要毁掉那台机器。即使这意味着我也会被困在这里。',mood:'determined'},
+{day:52,text:'失败了。它们发现了我。我在逃跑。',mood:'desperate'},
+{day:53,text:'跑不掉了。如果你读到这个，请找到那台机器。毁掉它。',mood:'desperate'},
+{day:54,text:'它们就在我身后。我把最后的笔记藏在这里。',mood:'desperate'},
+{day:55,text:'如果你看到这个，说明你找到了我的遗骸。对不起。',mood:'acceptance'},
+{day:56,text:'最后一个秘密：机器的核心在Level 19的最深处。需要三把钥匙。',mood:'hopeful'},
+{day:57,text:'第一把钥匙在恐惧中。第二把在绝望中。第三把在真相中。',mood:'hopeful'},
+{day:58,text:'我要死了。但也许不是终结。也许只是另一个开始。',mood:'acceptance'},
+{day:59,text:'如果有人能读到这些，请记住我的名字。陈默。',mood:'acceptance'},
+{day:60,text:'我已经不害怕了。因为我知道，死亡不是结束。是进入Level Dream的门票。',mood:'peace'}
+];
+var EE_DREAM_CODE='CHENMO';
+function EasterEggSystem(){
+  this.STATE_KEY='backrooms_ee_state_v1';
+  this.state=this._load();
+  this._toastTimer=null;
+  this._uiCreated=false;
+}
+EasterEggSystem.prototype._load=function(){
+  try{var r=localStorage.getItem(this.STATE_KEY);if(r)return JSON.parse(r);}catch(e){}
+  return{found:{},dayMarkers:[],dreamUnlocked:false,dreamCompleted:false,ending:null,totalFound:0};
+};
+EasterEggSystem.prototype._save=function(){
+  try{localStorage.setItem(this.STATE_KEY,JSON.stringify(this.state));}catch(e){}
+};
+EasterEggSystem.prototype.isFound=function(id){return !!this.state.found[id];};
+EasterEggSystem.prototype.getProgress=function(){return{found:this.state.totalFound,total:EE_CHAPTERS.length,dreamUnlocked:this.state.dreamUnlocked};};
+EasterEggSystem.prototype.discover=function(id){
+  if(this.isFound(id))return false;
+  var ch=null;for(var i=0;i<EE_CHAPTERS.length;i++){if(EE_CHAPTERS[i].id===id){ch=EE_CHAPTERS[i];break;}}
+  if(!ch)return false;
+  this.state.found[id]={time:Date.now()};
+  this.state.totalFound=Object.keys(this.state.found).length;
+  this._save();
+  this._showDiscovery(ch);
+  if(this.state.totalFound>=16&&!this.state.dreamUnlocked){
+    this.state.dreamUnlocked=true;this._save();
+    var self=this;
+    setTimeout(function(){self._showToast({icon:'\u{1f319}',title:'隐藏要素解锁',text:'你感觉到了一扇门的存在……在主菜单输入特殊代码也许能打开它。',chapter:''},'unlock');},4500);
+  }
+  return true;
+};
+EasterEggSystem.prototype.discoverDayMarker=function(idx){
+  if(this.state.dayMarkers.indexOf(idx)>=0)return false;
+  this.state.dayMarkers.push(idx);this._save();
+  var m=EE_DAY_MARKERS[idx];
+  if(m){
+    var icons={calm:'\u{1f4dd}',uneasy:'\u{1f630}',scared:'\u{1f628}',curious:'\u{1f50d}',determined:'\u{1f4aa}',analytical:'\u{1f9e0}',horrified:'\u{1f631}',existential:'\u{1f300}',desperate:'\u{1f198}',hopeful:'\u{1f31f}',empathy:'\u{1f499}',acceptance:'\u{1f54a}\u{fe0f}',peace:'\u{262e}\u{fe0f}'};
+    this._showToast({icon:icons[m.mood]||'\u{1f4dd}',title:'\u7b2c'+m.day+'\u5929',text:m.text,chapter:'\u9648\u9ed8\u7684\u751f\u5b58\u6807\u8bb0 ('+this.state.dayMarkers.length+'/30)'},'day');
+  }
+  return true;
+};
+EasterEggSystem.prototype._showDiscovery=function(ch){
+  var cn={1:'\u53d1\u73b0',2:'\u6df1\u5165',3:'\u771f\u76f8',4:'\u5916\u661f\u652f\u7ebf',5:'\u89e3\u6551'};
+  this._showToast({icon:ch.icon,title:ch.title,text:ch.text.replace(/\n/g,'<br>'),chapter:'\u7b2c'+ch.chapter+'\u7ae0\uff1a'+cn[ch.chapter]+' ('+this.state.totalFound+'/'+EE_CHAPTERS.length+')'},'chapter');
+};
+EasterEggSystem.prototype._showToast=function(data,type){
+  var self=this;var el=document.getElementById('ee-toast');
+  if(!el){el=document.createElement('div');el.id='ee-toast';el.className='ee-discovery-toast';document.body.appendChild(el);}
+  el.innerHTML='<span class="ee-toast-icon">'+data.icon+'</span><div class="ee-toast-title">'+data.title+'</div><div class="ee-toast-text">'+data.text+'</div>'+(data.chapter?'<div class="ee-toast-chapter">'+data.chapter+'</div>':'');
+  if(this._toastTimer)clearTimeout(this._toastTimer);
+  el.classList.add('show');
+  this._toastTimer=setTimeout(function(){el.classList.remove('show');},type==='unlock'?5000:4000);
+};
+EasterEggSystem.prototype.showDiary=function(){
+  var panel=document.getElementById('ee-diary-panel');
+  if(!panel){panel=document.createElement('div');panel.id='ee-diary-panel';panel.className='ee-diary-panel';document.body.appendChild(panel);}
+  var html='<div class="ee-diary-content"><h3>\u{1f4d4} \u9648\u9ed8\u7684\u65e5\u8bb0</h3>';
+  var found=[];for(var i=0;i<EE_CHAPTERS.length;i++){if(this.isFound(EE_CHAPTERS[i].id))found.push(EE_CHAPTERS[i]);}
+  if(found.length===0){html+='<p style="text-align:center;color:var(--tc-sm);font-size:12px;padding:20px;">\u4f60\u8fd8\u6ca1\u6709\u627e\u5230\u4efb\u4f55\u65e5\u8bb0\u788e\u7247\u3002</p>';}
+  else{for(var j=0;j<found.length;j++){var e=found[j];html+='<div class="ee-diary-entry"><div class="ee-day">'+e.icon+' '+e.title+'</div><div class="ee-text">'+e.text.replace(/\n/g,'<br>')+'</div></div>';}}
+  html+='<button class="ee-diary-close" onclick="document.getElementById(\'ee-diary-panel\').classList.remove(\'open\')">\u5173\u95ed</button></div>';
+  panel.innerHTML=html;panel.classList.add('open');
+};
+EasterEggSystem.prototype.showProgress=function(){
+  var panel=document.getElementById('ee-progress-panel');
+  if(!panel){panel=document.createElement('div');panel.id='ee-progress-panel';panel.className='ee-progress-panel';document.body.appendChild(panel);}
+  var p=this.getProgress();var pct=p.total>0?Math.round(p.found/p.total*100):0;
+  var cn={1:'\u53d1\u73b0',2:'\u6df1\u5165',3:'\u771f\u76f8',4:'\u5916\u661f\u652f\u7ebf',5:'\u89e3\u6551'};
+  var html='<div class="ee-progress-content"><h3>\u{1f50d} \u9648\u9ed8\u7684\u6545\u4e8b</h3><div style="font-size:10px;color:var(--tc-sm);margin-bottom:8px;">\u5df2\u53d1\u73b0 '+p.found+'/'+p.total+' \u4e2a\u7ebf\u7d22 ('+pct+'%)</div><div class="ee-progress-bar-wrap"><div class="ee-progress-bar-fill" style="width:'+pct+'%"></div></div>';
+  var cc=0;for(var i=0;i<EE_CHAPTERS.length;i++){var ch=EE_CHAPTERS[i];
+    if(ch.chapter!==cc){cc=ch.chapter;html+='<div class="ee-chapter-group"><div class="ee-chapter-title">\u7b2c'+cc+'\u7ae0\uff1a'+cn[cc]+'</div>';}
+    var f=this.isFound(ch.id);
+    html+='<div class="ee-chapter-entry '+(f?'found':'locked')+'"><span class="ee-entry-icon">'+(f?ch.icon:'\u{1f512}')+'</span><span>'+(f?ch.title:'???')+'</span></div>';
+    if(i<EE_CHAPTERS.length-1&&EE_CHAPTERS[i+1].chapter!==cc)html+='</div>';}
+  html+='<div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(196,163,90,.1);"><div style="font-size:11px;color:var(--amber);margin-bottom:4px;">\u{1f4dd} \u751f\u5b58\u6807\u8bb0\uff1a'+this.state.dayMarkers.length+'/30</div><div class="ee-progress-bar-wrap"><div class="ee-progress-bar-fill" style="width:'+Math.round(this.state.dayMarkers.length/30*100)+'%"></div></div></div>';
+  if(p.dreamUnlocked)html+='<div style="margin-top:12px;font-size:11px;color:rgba(180,160,220,.7);">\u{1f319} Level Dream \u5df2\u89e3\u9501\u3002\u5728\u4e3b\u83dc\u5355\u8f93\u5165\u4ee3\u7801\u8fdb\u5165\u3002</div>';
+  html+='<button class="ee-diary-close" onclick="document.getElementById(\'ee-progress-panel\').classList.remove(\'open\')">\u5173\u95ed</button></div>';
+  panel.innerHTML=html;panel.classList.add('open');
+};
+EasterEggSystem.prototype.playRecording=function(text){
+  var ui=document.getElementById('ee-recording-ui');
+  if(!ui){ui=document.createElement('div');ui.id='ee-recording-ui';ui.className='ee-recording-ui';document.body.appendChild(ui);}
+  ui.innerHTML='<div class="ee-rec-icon">\u{1f399}\u{fe0f}</div><div class="ee-rec-text">'+text+'</div><div class="ee-rec-wave"><div class="ee-rec-bar-item"></div><div class="ee-rec-bar-item"></div><div class="ee-rec-bar-item"></div><div class="ee-rec-bar-item"></div><div class="ee-rec-bar-item"></div></div>';
+  ui.classList.add('playing');setTimeout(function(){ui.classList.remove('playing');},8000);
+};
+EasterEggSystem.prototype.tryDreamEntry=function(code){
+  if(!this.state.dreamUnlocked)return false;
+  if(code.toUpperCase()===EE_DREAM_CODE){this._enterLevelDream();return true;}
+  return false;
+};
+EasterEggSystem.prototype._enterLevelDream=function(){
+  var overlay=document.createElement('div');overlay.className='ee-dream-overlay';
+  overlay.innerHTML='<div class="ee-dream-text">Level Dream<br><span style="font-size:11px;opacity:.5;">\u9648\u9ed8\u7684\u5669\u68a6\u4e16\u754c</span></div>';
+  document.body.appendChild(overlay);
+  var self=this;setTimeout(function(){overlay.classList.add('active');},100);
+  setTimeout(function(){overlay.classList.remove('active');
+    setTimeout(function(){overlay.remove();
+      if(window.game&&typeof window.game.startLevel==='function'){
+        var dl={id:99,code:'LEVEL DREAM',name:'\u9648\u9ed8\u7684\u68a6',en:'CHENMO DREAM',
+          intro:'\u8fd9\u4e0d\u662f\u4f60\u7684\u68a6\u3002\u8fd9\u662f\u9648\u9ed8\u6b7b\u540e\u7684\u5669\u68a6\u3002',
+          gen:'grid',genOpts:{},size:[35,35],wallTex:'wallpaper',floorTex:'carpet',ceilTex:'panel',
+          objRoomP:0,ambient:0.05,fog:0.15,lampColor:0x6040a0,fogColor:0x100020,
+          hemiSky:0x2a1050,hemiGround:0x050010,ceilingH:2.0,lampStep:6,lampSkip:0.2,flickerChance:0.4,
+          decor:{type:'office',density:0.04},pipes:0,vents:0,
+          entities:[{type:'hound',count:2,minDist:15},{type:'stalker',count:1,minDist:20},{type:'dream_chaser',count:1,minDist:25}],
+          objective:{name:'\u9648\u9ed8\u7684\u7075\u9b42',count:1},biscuits:5,waters:3,batteries:4,navP:0,
+          speedMul:1.0,sanityDrain:2.0,sanityGain:0.2,
+          hint:'Level Dream \u2014\u2014 \u627e\u5230\u4ed6\u7684\u7075\u9b42\u3002\u505a\u51fa\u4f60\u7684\u9009\u62e9\u3002',
+          isEasterEgg:true,isDream:true};
+        window.game._tempLevelIndex=LEVELS.length;LEVELS.push(dl);
+        window.game.startLevel(LEVELS.length-1);
+      }
+    },2000);
+  },3000);
+};
+EasterEggSystem.prototype.triggerSoulRelease=function(choice){
+  var overlay=document.createElement('div');overlay.className='ee-soul-release';
+  var ph='<div class="ee-soul-particles">';
+  for(var i=0;i<30;i++){ph+='<div class="ee-soul-particle" style="left:'+Math.random()*100+'%;bottom:0;animation-delay:'+Math.random()*3+'s;animation-duration:'+(3+Math.random()*3)+'s;"></div>';}
+  ph+='</div>';
+  var texts={
+    release:'<div class="ee-soul-text"><p>\u4f60\u9009\u62e9\u4e86\u7834\u574f\u6838\u5fc3\u3002</p><p>\u6570\u5343\u4e2a\u7075\u9b42\u7684\u5149\u8292\u4ece\u5bb9\u5668\u4e2d\u5347\u8d77\u3002</p><p>\u4f60\u770b\u5230\u4e86\u9648\u9ed8\u3002\u4ed6\u5fae\u7b11\u7740\u3002</p><p style="color:rgba(200,180,240,.9);">\u201c\u8c22\u8c22\u4f60\u3002\u6211\u7ec8\u4e8e\u53ef\u4ee5\u5b89\u606f\u4e86\u3002\u201d</p><p style="font-size:12px;color:rgba(180,160,220,.5);margin-top:20px;">\u2014\u2014 \u7ed3\u5c40\uff1a\u7075\u9b42\u81ea\u7531 \u2014\u2014</p></div>',
+    power:'<div class="ee-soul-text"><p>\u4f60\u9009\u62e9\u4e86\u5229\u7528\u6838\u5fc3\u3002</p><p>\u65e0\u7a77\u7684\u80fd\u91cf\u6d8c\u5165\u4f60\u7684\u8eab\u4f53\u3002</p><p>\u4f60\u53d8\u5f97\u5f3a\u5927\u4e86\u3002\u4f46\u4f60\u4e5f\u53d8\u5f97\u5b64\u72ec\u4e86\u3002</p><p style="color:rgba(200,100,100,.9);">\u201c\u4f60\u548c\u5b83\u4eec\u4e00\u6837\u4e86\u3002\u201d</p><p style="font-size:12px;color:rgba(200,100,100,.5);margin-top:20px;">\u2014\u2014 \u7ed3\u5c40\uff1a\u6c38\u6052\u56da\u7b3c \u2014\u2014</p></div>',
+    leave:'<div class="ee-soul-text"><p>\u4f60\u9009\u62e9\u4e86\u79bb\u5f00\u3002</p><p>\u4f60\u542c\u5230\u8eab\u540e\u4f20\u6765\u5fae\u5f31\u7684\u58f0\u97f3\u3002</p><p style="color:rgba(180,180,180,.7);">\u201c\u2026\u2026\u6211\u5c31\u77e5\u9053\u3002\u201d</p><p style="font-size:12px;color:rgba(150,150,150,.5);margin-top:20px;">\u2014\u2014 \u7ed3\u5c40\uff1a\u9057\u5fd8 \u2014\u2014</p></div>'
+  };
+  overlay.innerHTML=ph+(texts[choice]||texts.release);document.body.appendChild(overlay);overlay.classList.add('active');
+  this.state.ending=choice;this._save();
+  var cb=document.createElement('button');
+  cb.style.cssText='position:fixed;bottom:10%;left:50%;transform:translateX(-50%);z-index:9001;padding:10px 30px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);font-family:var(--font);font-size:12px;cursor:pointer;border-radius:4px;';
+  cb.textContent='\u8fd4\u56de\u4e3b\u83dc\u5355';
+  cb.onclick=function(){overlay.remove();if(window.game&&typeof window.game.showScreen==='function'){window.game.showScreen('menu');}};
+  overlay.appendChild(cb);
+};
+EasterEggSystem.prototype.checkLevelTriggers=function(levelIndex){
+  var t=[];for(var i=0;i<EE_CHAPTERS.length;i++){if(EE_CHAPTERS[i].level===levelIndex&&!this.isFound(EE_CHAPTERS[i].id))t.push(EE_CHAPTERS[i]);}return t;
+};
+EasterEggSystem.prototype.getMarkersForLevel=function(levelIndex){
+  var ranges=[[0,[0,1,2]],[1,[3,4]],[2,[5,6]],[3,[7,8,9]],[4,[10]],[5,[11,12]],[6,[13,14]],[7,[15,16,17]],[8,[18,19]],[9,[20]],[10,[21]],[11,[22,23,24]],[12,[25]],[13,[26]],[15,[27,28]],[16,[29]]];
+  var markers=[];
+  for(var i=0;i<ranges.length;i++){if(ranges[i][0]===levelIndex){for(var j=0;j<ranges[i][1].length;j++){var idx=ranges[i][1][j];if(this.state.dayMarkers.indexOf(idx)<0)markers.push({index:idx,data:EE_DAY_MARKERS[idx]});}break;}}
+  return markers;
+};
+EasterEggSystem.prototype.bindMenuTrigger=function(){
+  var self=this;var clickCount=0;var clickTimer=null;
+  var titleEl=document.querySelector('.pubg-title-block .title');
+  if(titleEl){titleEl.style.pointerEvents='auto';titleEl.style.cursor='default';
+    titleEl.addEventListener('click',function(){clickCount++;if(clickTimer)clearTimeout(clickTimer);clickTimer=setTimeout(function(){clickCount=0;},2000);if(clickCount>=5){clickCount=0;self.showProgress();}});}
+  var diagInput=document.getElementById('diag-input');var diagSubmit=document.getElementById('diag-submit');
+  if(diagInput){var handler=function(){var v=diagInput.value.trim();if(v.length>0&&self.tryDreamEntry(v)){diagInput.value='';}};
+    if(diagSubmit)diagSubmit.addEventListener('click',handler);
+    diagInput.addEventListener('keydown',function(e){if(e.key==='Enter')handler();});}
+};
+EasterEggSystem.prototype.init=function(){
+  if(this._uiCreated)return;this._uiCreated=true;this.bindMenuTrigger();
+  console.log('[EasterEgg] \u9648\u9ed8\u5f69\u86cb\u7cfb\u7edf\u5df2\u52a0\u8f7d - '+EE_CHAPTERS.length+'\u7ae0\u8282 + '+EE_DAY_MARKERS.length+'\u5929\u6570\u6807\u8bb0 + Level Dream + 3\u79cd\u7ed3\u5c40');
+  console.log('[EasterEgg] \u5df2\u53d1\u73b0: '+this.state.totalFound+'/'+EE_CHAPTERS.length);
+};
+var eeSystem=new EasterEggSystem();
+window.EasterEggSystem=eeSystem;
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){eeSystem.init();});}else{eeSystem.init();}
+window.eeDiscover=function(id){return eeSystem.discover(id);};
+window.eeDiscoverDay=function(idx){return eeSystem.discoverDayMarker(idx);};
+window.eeShowDiary=function(){eeSystem.showDiary();};
+window.eeShowProgress=function(){eeSystem.showProgress();};
+window.eePlayRecording=function(txt){eeSystem.playRecording(txt);};
+window.eeGetTriggers=function(lvl){return eeSystem.checkLevelTriggers(lvl);};
+window.eeGetMarkers=function(lvl){return eeSystem.getMarkersForLevel(lvl);};
+window.eeSoulRelease=function(choice){eeSystem.triggerSoulRelease(choice);};
+})();
+
 /* ==================== 迭代1-100: 恐怖主菜单系统 ==================== */
 (function(){
   'use strict';
