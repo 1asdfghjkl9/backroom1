@@ -9150,7 +9150,7 @@ class AudioEngine {
     lp.connect(g); g.connect(this.ambientGroup || this.master);
     o1.start(); o2.start();
 
-    this.humNodes = { o1, o2, lp };
+    this.humNodes = { o1, o2, lp, g2 };
     this.humGain = g;
   }
 
@@ -9800,6 +9800,7 @@ class AudioEngine {
         this.humNodes.o1.disconnect();
         this.humNodes.o2.disconnect();
         this.humNodes.lp.disconnect();
+        if (this.humNodes.g2) { try { this.humNodes.g2.disconnect(); } catch(e) {} }
       } catch(e) { /* ignore */ }
       this.humNodes = null;
     }
@@ -20459,7 +20460,7 @@ class ThreeJSRendererBridge {
         this.scene.fog.color.setHex(_theme.fog);
         this._fogBase = _theme.fogDensity * 0.7;
       }
-      this.scene.background = new THREE.Color(_theme.fog);
+      if (this.scene.background) this.scene.background.set(_theme.fog); else this.scene.background = new THREE.Color(_theme.fog);
       this.hemi.color.setHex(_theme.hemiSky);
       this.hemi.groundColor.setHex(_theme.hemiGround);
       /* 更新灯光池颜色 */
@@ -20537,8 +20538,9 @@ class ThreeJSRendererBridge {
     this.overlay.height = h;
     this.renderer.setSize(w, h, false);
     if (this.ue5Renderer) this.ue5Renderer.onResize(w, h);
-    this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
-    this.handCam.aspect = w / h; this.handCam.updateProjectionMatrix();
+    const safeH = Math.max(1, h);
+    this.camera.aspect = w / safeH; this.camera.updateProjectionMatrix();
+    this.handCam.aspect = w / safeH; this.handCam.updateProjectionMatrix();
     const pr = this.renderer.getPixelRatio();
     /* Cap RT dimensions to GPU max texture size (mobile GPUs often limited to 4096) */
     const maxTex = (this.renderer.capabilities && this.renderer.capabilities.maxTextureSize) || 4096;
@@ -25886,7 +25888,7 @@ class ThreeJSRendererBridge {
     /* Update fog based on world (创作者模式/官方除雾) */
     if (window.game && (window.game.creativeMode || window.game._adminFogOff || window.game.noFog)) {
       if (this.scene.fog) this.scene.fog.density = 0;
-      this.scene.background = new THREE.Color(0x000000);
+      if (this.scene.background) this.scene.background.set(0x000000); else this.scene.background = new THREE.Color(0x000000);
     } else if (world.fog && this.scene.fog) {
       /* 雾气呼吸效果：缓慢正弦波动 ±15% */
       /* 迭代41-43: 使用关卡专属fogDensity */
@@ -25905,7 +25907,7 @@ class ThreeJSRendererBridge {
       this.scene.fog.density = this._fogBase * fogMul;
       if (world.fogColor !== undefined) {
         this.scene.fog.color.setHex(world.fogColor);
-        this.scene.background = new THREE.Color(world.fogColor);
+        if (this.scene.background) this.scene.background.set(world.fogColor); else this.scene.background = new THREE.Color(world.fogColor);
       }
     }
 
@@ -25969,7 +25971,7 @@ class ThreeJSRendererBridge {
       }
       if (this.scene.fog) {
         this.scene.fog.color.setHex(h.fog);
-        this.scene.background = new THREE.Color(h.fog);
+        if (this.scene.background) this.scene.background.set(h.fog); else this.scene.background = new THREE.Color(h.fog);
       }
       this.hemi.color.setHex(h.hemiSky);
       this.hemi.groundColor.setHex(h.hemiGround);
@@ -25985,7 +25987,7 @@ class ThreeJSRendererBridge {
       }
       if (this.scene.fog) {
         this.scene.fog.color.setHex(flash ? 0x330000 : 0x000033);
-        this.scene.background = new THREE.Color(flash ? 0x220000 : 0x000022);
+        if (this.scene.background) this.scene.background.set(flash ? 0x220000 : 0x000022); else this.scene.background = new THREE.Color(flash ? 0x220000 : 0x000022);
       }
       this.hemi.color.setHex(flash ? 0x440000 : 0x000044);
       this.hemi.intensity = flash ? 0.6 : 0.3;
@@ -29887,12 +29889,12 @@ class Game {
         if (code.length < 6) code += k;
         display.dataset.code = code;
         display.textContent = '•'.repeat(code.length);
-        this.audio.clank();
+        if (this.audio) this.audio.clank();
       });
     });
 
     this.canvas.addEventListener('click', () => {
-      this.audio.init();
+      if (this.audio) this.audio.init();
       if (this.state === 'playing' && !this.input.locked && !this.input.touchMode && !this._tutorialActive) {
         this.input.requestLock();
       }
@@ -30237,7 +30239,7 @@ class Game {
     this.input.exitLock();
     this.hud.hide();
     this.hud.setPrompt(null);
-    this.audio.setHum(0);
+    if (this.audio) this.audio.setHum(0);
     this.refreshMenu();
     showScreen('menu');
   }
@@ -30500,9 +30502,11 @@ class Game {
     this.renderer.bindWorld(world);
 
     /* 关卡环境音：先停旧的再启动新的 */
-    this.audio.stopAmbient();
-    this.audio.stopChaseMusic();
-    this.audio.startAmbient(level);
+    if (this.audio) {
+      this.audio.stopAmbient();
+      this.audio.stopChaseMusic();
+      this.audio.startAmbient(level);
+    }
 
     /* 迭代18：环境白噪声循环 */
     this._stopWhiteNoise();
@@ -30870,9 +30874,9 @@ class Game {
 
     this.state = 'playing';
     showScreen(null);
-    this.audio.init();
-    this.audio.setVolume(this.settings.volume);
-    this.audio.setHum(0.5 + (1 - level.ambient) * 0.5);
+    if (this.audio) this.audio.init();
+    if (this.audio) this.audio.setVolume(this.settings.volume);
+    if (this.audio) this.audio.setHum(0.5 + (1 - level.ambient) * 0.5);
 
     this.fadeIn();
     this.hud.toast(level.intro, 5);
@@ -31312,8 +31316,10 @@ class Game {
       } catch(e) { /* ignore */ }
     }
 
-    this.audio.gameOver();
-    this.audio.setHum(0);
+    if (this.audio) {
+      this.audio.gameOver();
+      this.audio.setHum(0);
+    }
     this._stopWhiteNoise(); /* 迭代18：死亡时停止白噪声 */
     this.input.exitLock();
     this.hud.setPrompt(null);
@@ -32215,7 +32221,7 @@ class Game {
           p.x = tx; p.y = ty;
           this._tpCooldown = 3;
           this.hud.toast('⚡ 传送！', 2);
-          this.audio.clank();
+          if (this.audio) this.audio.clank();
           if (w.ensure(p.x, p.y)) this.refreshContent();
           break;
         }
@@ -32782,6 +32788,14 @@ class Game {
       const e = this.entities[j];
       // 极端情况下（窗口刚重建）实体可能落在窗口外，先别让它按错位的距离场走
       if (idx(w, e.x, e.y) < 0) continue;
+      /* 死亡动画播放完毕后移除实体（必须在LOD之前，否则远距离死亡实体永远不被清理） */
+      if (e.isDead && e.deathAnim >= 1) {
+        this.entities.splice(j, 1);
+        continue;
+      }
+      /* 已死亡的实体不参与更新 */
+      if (e.isDead) continue;
+
       /* 迭代47: LOD — 距离>40格的entity降低AI更新频率（每0.5秒更新一次） */
       const _eDist = Math.hypot(e.x - p.x, e.y - p.y);
       if (_eDist > 40) {
@@ -32815,14 +32829,6 @@ class Game {
         }
       }
 
-      /* 死亡动画播放完毕后移除实体 */
-      if (e.isDead && e.deathAnim >= 1) {
-        this.entities.splice(j, 1);
-        continue;
-      }
-      /* 已死亡的实体不参与碰撞 */
-      if (e.isDead) continue;
-
       const d = Math.hypot(e.x - p.x, e.y - p.y);
       if (d < 12 && (e.state === 'chase' || e.state === 'stare')) anyNear = true;
 
@@ -32852,7 +32858,7 @@ class Game {
           const ax = p.x + Math.cos(behindAng + (Math.random() - 0.5) * 0.6) * dist;
           const ay = p.y + Math.sin(behindAng + (Math.random() - 0.5) * 0.6) * dist;
           if (cellHeightAt(w, ax, ay) !== 1) {
-            const eType = this.level.entities[Math.floor(Math.random() * this.level.entities.length)];
+            const eType = this.level.entities.length > 0 ? this.level.entities[Math.floor(Math.random() * this.level.entities.length)] : 'hound';
             const spec = { key: 'ambush_' + Date.now(), type: eType, x: ax, y: ay, z: 0 };
             const ambEnt = new Entity(spec, w, 9999 + Math.floor(ax * 97 + ay * 13));
             ambEnt.speedMul = this.level.speedMul || 1.0;
@@ -33002,6 +33008,13 @@ class Game {
   updateAudioCues(dt) {
     const p = this.player;
     const sanity = p.sanity / p.maxSanity;
+    /* [Check62] 同步 AudioListener 位置到玩家，使空间音效正确 */
+    if (this.audio && this.audio.ctx) {
+      const _alc = this.audio.ctx.listener;
+      const _px = p.x * 4, _pz = p.y * 4, _py = (p.camZ || 0.5) * 4;
+      try { if (_alc.positionX) { _alc.positionX.value = _px; _alc.positionY.value = _py; _alc.positionZ.value = _pz; } else { _alc.setPosition(_px, _py, _pz); } } catch(e) {}
+      try { const _ang = -Math.PI/2 - (p.angle||0); const _fx=Math.cos(_ang), _fz=Math.sin(_ang); if (_alc.forwardX) { _alc.forwardX.value=_fx; _alc.forwardY.value=0; _alc.forwardZ.value=_fz; _alc.upX.value=0; _alc.upY.value=1; _alc.upZ.value=0; } else { _alc.setOrientation(_fx,0,_fz,0,1,0); } } catch(e) {}
+    }
 
     // 心跳加速系统：基于最近实体距离
     let nearest = 999;
@@ -33044,7 +33057,7 @@ class Game {
       this.whisperTimer -= dt;
       if (this.whisperTimer <= 0) {
         this.whisperTimer = 7 + Math.random() * 12 - (1 - sanity) * 4;
-        this.audio.whisper();
+        if (this.audio) this.audio.whisper();
         if (sanity < 0.3 && Math.random() < 0.4) {
           this.hud.toast(['……你听见了吗', '有人在你左边', '别回头', '这里不是真的'][(Math.random() * 4) | 0], 2.2);
         }
@@ -33813,22 +33826,22 @@ class Game {
           best.it.stock--;
           if (p.addItem('biscuit')) { this.hud.toast(`售货机 · 压缩饼干（剩余 ${best.it.stock}）`, 3); }
           else { this.hud.toast('背包已满！', 2); best.it.stock++; }
-          this.audio.pickup();
+          if (this.audio) this.audio.pickup();
         } else {
-          this.audio.clank();
+          if (this.audio) this.audio.clank();
           this.hud.toast('售货机空了', 2);
         }
         return;
       }
       // 电车（家用电动车）：展示牌照，不可拾取
       if (best.it.type === 'evCar') {
-        this.audio.clank();
+        if (this.audio) this.audio.clank();
         this.hud.toast('一辆白色电动车停在房间中央 · 牌照：苏 12356 · 它不该出现在这里', 4);
         return;
       }
       // 办公室彩蛋
       if (best.it.type === 'egg') {
-        this.audio.pickup();
+        if (this.audio) this.audio.pickup();
         this.hud.toast(best.it.eggMsg || '一个奇怪的物品...', 4);
         best.it.taken = true;
         if (best.it.key) this.taken.add(best.it.key);
@@ -33856,23 +33869,23 @@ class Game {
       if (hd.secret) {
         const allCleared = this.progress.cleared.length >= LEVELS.filter(l => !l.isHub && !l.isEasterEgg).length;
         if (allCleared) {
-          this.audio.door();
+          if (this.audio) this.audio.door();
           this.hud.toast(`进入 ${hd.icon} ???...`, 2);
           this.clearRun();
           this.startLevel(hd.target);
         } else {
-          this.audio.clank();
+          if (this.audio) this.audio.clank();
           this.hud.toast('??? · 通关全部关卡后解锁', 3);
         }
       } else {
         const unlocked = hd.target <= this.progress.maxUnlocked;
         if (unlocked) {
-          this.audio.door();
+          if (this.audio) this.audio.door();
           this.hud.toast(`进入 ${hd.icon} ${hd.label}...`, 2);
           this.clearRun();
           this.startLevel(hd.target);
         } else {
-          this.audio.clank();
+          if (this.audio) this.audio.clank();
           this.hud.toast(`门被锁住了 · ${hd.label} 尚未解锁`, 3);
         }
       }
@@ -33886,10 +33899,10 @@ class Game {
         return;
       }
       if (this.floodActive || (this.objectiveCount > 0 && p.collected >= this.objectiveCount) || this.altClearMet || this.creativeMode || this.checkEscapeRoute()) {
-        this.audio.door();
+        if (this.audio) this.audio.door();
         this.completeLevel();
       } else {
-        this.audio.clank();
+        if (this.audio) this.audio.clank();
         if (this.switches && this.switches.filter(s => s.pulled).length < this.switches.length) {
           const pulled = this.switches.filter(s => s.pulled).length;
           this.hud.toast(`门被锁住 · 先拉下全部电闸 (${pulled}/${this.switches.length})`, 3);
@@ -33983,7 +33996,7 @@ class Game {
         vh.discovered = true;
         /* 通风口传送到出口附近 */
         this.hud.toast('钻入通风口…', 2);
-        this.audio.clank();
+        if (this.audio) this.audio.clank();
         if (this.world && this.world.exitX != null) {
           p.x = this.world.exitX + (Math.random() - 0.5) * 4;
           p.y = this.world.exitY + (Math.random() - 0.5) * 4;
@@ -34399,7 +34412,7 @@ class Game {
     const p = this.player;
     it.taken = true;
     if (it.key) this.taken.add(it.key);
-    this.audio.pickup();
+    if (this.audio) this.audio.pickup();
     this.levelItemsCollected = (this.levelItemsCollected || 0) + 1;
     if (this.levelItemsCollected >= 10) this.unlockAchievement('collect_all');
     /* 迭代31：追踪收集的不同道具类型，解锁收藏家成就 */
@@ -34473,7 +34486,7 @@ class Game {
       if (it.key) this.taken.add(it.key);
       p.collected++;
       this.hud.toast(`拾取签名 · ${it.sigName}（${p.collected}/${this.objectiveCount}）`, 3);
-      this.audio.pickup();
+      if (this.audio) this.audio.pickup();
       if (p.collected >= this.objectiveCount) {
         this.hud.banner('全部签名收集完毕！找到出口离开', 3);
       }
@@ -34544,7 +34557,7 @@ class Game {
     if (this.holdItem !== it) {
       this.holdItem = it;
       it.hold = 0;
-      this.audio.clank();
+      if (this.audio) this.audio.clank();
     }
     it.hold = (it.hold || 0) + dt;
     if (it.hold >= HOLD_TIME) {
@@ -35241,7 +35254,7 @@ class Game {
       if (this.player.hasKeycard) {
         pz.solved = true;
         this.hud.banner('门禁解锁', 2);
-        this.audio.door();
+        if (this.audio) this.audio.door();
       } else {
         this.hud.toast('需要钥匙卡', 2);
       }
@@ -35347,7 +35360,7 @@ class Game {
     if (input === pz.code) {
       pz.solved = true;
       this.hud.banner('解锁成功', 2);
-      this.audio.door();
+      if (this.audio) this.audio.door();
       this.closeKeypad();
     } else {
       display.classList.add('shake');
@@ -35996,7 +36009,11 @@ class PlayerModel {
     document.body.appendChild(this.labelEl);
   }
   update(data, dt) {
-    this.targetPos.set(data.x, data.y - 0.0, data.z);
+    /* [Check74] 防止NaN位置传播 */
+    const dx = isFinite(data.x) ? data.x : 0;
+    const dy = isFinite(data.y) ? data.y : 0;
+    const dz = isFinite(data.z) ? data.z : 0;
+    this.targetPos.set(dx, dy - 0.0, dz);
     this.targetRotY = data.rotY || 0;
     this.animState = data.animState || 'idle';
     this.isDead = !!data.isDead;
@@ -36072,6 +36089,7 @@ const MPManager = {
   _roomListRefreshTimer: null,
   _spectatorMode: false,
   _disconnectedPlayers: new Set(),
+  _disconnectTimers: {},
 
   init() {
     try {
@@ -36248,7 +36266,8 @@ const MPManager = {
       case 'player-state':
         if (data.id && this.players[data.id] && typeof data.x === 'number') {
           var pl = this.players[data.id];
-          pl.x = data.x; pl.y = data.y; pl.z = data.z;
+          /* [Check74] 验证y/z为数字，防止NaN传播 */
+          pl.x = data.x; pl.y = typeof data.y === 'number' ? data.y : 0; pl.z = typeof data.z === 'number' ? data.z : 0;
           pl.rotY = data.rotY || 0;
           pl.animState = data.animState || 'idle';
           pl.isDead = !!data.isDead;
@@ -36295,6 +36314,8 @@ const MPManager = {
       this.players[pid].name = name;
       this.players[pid].conn = conn;
       this._disconnectedPlayers.delete(pid);
+      /* [Check78] 清除断连超时 */
+      if (this._disconnectTimers[pid]) { clearTimeout(this._disconnectTimers[pid]); delete this._disconnectTimers[pid]; }
       this._broadcastRoomState();
       this._updateRoomUI();
       this._addChatMsg(null, name + ' 重新加入了房间', true);
@@ -36332,17 +36353,22 @@ const MPManager = {
     const pid = conn.peer;
     this._disconnectedPlayers.add(pid);
     this._addChatMsg(null, (this.players[pid] ? this.players[pid].name : '???') + ' 连接断开，等待重连...', true);
-    setTimeout(() => {
+    /* [Check78] 存储超时句柄，重连时可清除 */
+    this._disconnectTimers[pid] = setTimeout(() => {
       if (this._disconnectedPlayers.has(pid)) {
         this._removePlayer(pid);
         this._disconnectedPlayers.delete(pid);
       }
+      delete this._disconnectTimers[pid];
     }, 10000);
   },
 
   _onDisconnect() {
     if (this._mpActive) {
       this._addChatMsg(null, '与房主断开连接，游戏继续（离线模式）', true);
+      /* [Check79] 断连后停止同步循环，避免向空连接发送数据 */
+      this._stopSync();
+      this._mpActive = false;
       return;
     }
     this._addChatMsg(null, '与房主断开连接', true);
@@ -36641,6 +36667,8 @@ const MPManager = {
     this._mpActive = false;
     this._spectatorMode = false;
     this._disconnectedPlayers.clear();
+    Object.values(this._disconnectTimers).forEach(t => clearTimeout(t));
+    this._disconnectTimers = {};
     this._ensurePeerRetries = 0;
     this._reconnectAttempts = 0;
     this._connFailCount = 0;
@@ -38125,10 +38153,10 @@ function regenerateFloor(){if(typeof world!=='undefined'&&world.level){var fs=(w
 function placeFloorStairs(){stairUpPos=null;stairDownPos=null;if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];if(currentFloor>1){stairDownPos={x:sr.x+2,y:sr.y+2};var ux=sr.x+10+(currentFloor*3),uy=sr.y+10+(currentFloor*3);if(world.level&&typeof world.isWall==='function'&&world.isWall(Math.floor(ux),Math.floor(uy))){ux=sr.x+5;uy=sr.y+5;}stairUpPos={x:ux,y:uy};}}
 function initSavePoint(){if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];savePointPos={x:sr.x+1,y:sr.y+1};}
 function checkSavePointProximity(px,py){if(!savePointPos)return false;var dx=px-savePointPos.x,dy=py-savePointPos.y;return(dx*dx+dy*dy<SAVE_DETECT_DIST*SAVE_DETECT_DIST);}
-function saveGame(){if(typeof localStorage==='undefined')return false;var now=Date.now();if(now-lastSaveTime<SAVE_COOLDOWN)return false;lastSaveTime=now;var sd={version:2,floor:currentFloor,px:typeof G!=='undefined'&&G.player?G.player.x:0,py:typeof G!=='undefined'&&G.player?G.player.y:0,sanity:typeof G!=='undefined'&&G.player?G.player.sanity:100,stamina:typeof G!=='undefined'&&G.player?G.player.stamina:100,levelIndex:typeof G!=='undefined'?G.levelIndex:0,inventory:typeof G!=='undefined'&&G.inventory?JSON.parse(JSON.stringify(G.inventory)):{},discoveredEggs:typeof getDiscoveredEasterEggs==='function'?getDiscoveredEasterEggs():[],timestamp:now};try{localStorage.setItem('backrooms_save',JSON.stringify(sd));var el=document.getElementById('save-confirm');if(el){el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2000);}if(typeof G!=='undefined'&&G.hud)G.hud.toast('进度已保存',2);return true;}catch(e){console.warn('Save failed:',e);return false;}}
-function loadGame(){if(typeof localStorage==='undefined')return null;try{var r=localStorage.getItem('backrooms_save');if(!r)return null;var d=JSON.parse(r);if(!d||typeof d.floor!=='number'||typeof d.px!=='number'||typeof d.py!=='number')return null;if(d.timestamp&&(Date.now()-d.timestamp)>30*24*3600*1000){localStorage.removeItem('backrooms_save');return null;}d.floor=Math.max(1,Math.min(d.floor,MAX_FLOOR||5));d.sanity=Math.max(0,Math.min(100,d.sanity||100));d.stamina=Math.max(0,Math.min(100,d.stamina||100));if(!d.inventory||typeof d.inventory!=='object')d.inventory={};return d;}catch(e){return null;}}
+function saveGame(){if(typeof localStorage==='undefined')return false;var now=Date.now();if(now-lastSaveTime<SAVE_COOLDOWN)return false;lastSaveTime=now;var _sg=typeof window.game!=='undefined'?window.game:null;var sd={version:2,floor:currentFloor,px:_sg&&_sg.player?_sg.player.x:0,py:_sg&&_sg.player?_sg.player.y:0,sanity:_sg&&_sg.player?_sg.player.sanity:100,stamina:_sg&&_sg.player?_sg.player.stamina:100,levelIndex:_sg?_sg.levelIndex:0,inventory:_sg&&_sg.inventory?JSON.parse(JSON.stringify(_sg.inventory)):{},discoveredEggs:typeof getDiscoveredEasterEggs==='function'?getDiscoveredEasterEggs():[],totalTime:typeof GameStats!=='undefined'&&typeof GameStats.getStats==='function'?(GameStats.getStats().totalTime||0):(_sg&&typeof _sg.totalPlayTime==='number'?_sg.totalPlayTime:0),timestamp:now};try{localStorage.setItem('backrooms_save',JSON.stringify(sd));var el=document.getElementById('save-confirm');if(el){el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2000);}if(_sg&&_sg.hud)_sg.hud.toast('进度已保存',2);return true;}catch(e){console.warn('Save failed:',e);return false;}}
+function loadGame(){if(typeof localStorage==='undefined')return null;try{var r=localStorage.getItem('backrooms_save');if(!r)return null;var d=JSON.parse(r);if(!d||typeof d.floor!=='number'||typeof d.px!=='number'||typeof d.py!=='number')return null;if(d.timestamp&&(Date.now()-d.timestamp)>30*24*3600*1000){localStorage.removeItem('backrooms_save');return null;}d.floor=Math.max(1,Math.min(d.floor,MAX_FLOOR||5));d.sanity=typeof d.sanity==='number'&&!isNaN(d.sanity)?Math.max(0,Math.min(100,d.sanity)):100;d.stamina=typeof d.stamina==='number'&&!isNaN(d.stamina)?Math.max(0,Math.min(100,d.stamina)):100;if(!d.inventory||typeof d.inventory!=='object')d.inventory={};return d;}catch(e){return null;}}
 function hasSaveData(){if(typeof localStorage==='undefined')return false;try{var r=localStorage.getItem('backrooms_save');if(!r)return false;var d=JSON.parse(r);return typeof d.floor==='number'&&typeof d.px==='number';}catch(e){return false;}}
-function respawnFromSave(){var sv=loadGame();if(!sv||typeof G==='undefined')return false;currentFloor=sv.floor||1;if(!G.player)return false;if(typeof G.player.x!=='number')G.player.x=0;if(typeof G.player.y!=='number')G.player.y=0;G.player.x=sv.px;G.player.y=sv.py;G.player.sanity=Math.max(sv.sanity||100,30);G.player.stamina=Math.max(sv.stamina||100,30);if(sv.inventory&&G.inventory){for(var k in sv.inventory){if(sv.inventory.hasOwnProperty(k)){G.inventory[k]=JSON.parse(JSON.stringify(sv.inventory[k]));}}}if(Array.isArray(sv.discoveredEggs)&&typeof _easterEggState!=='undefined'){for(var i=0;i<sv.discoveredEggs.length;i++){_easterEggState.discovered[sv.discoveredEggs[i]]=true;}}getFloorIndicator();regenerateFloor();var ds=document.getElementById('screen-dead');if(ds)ds.classList.remove('active');if(G.hud)G.hud.toast('从存档点复活...',3);return true;}
+function respawnFromSave(){var sv=loadGame();if(!sv)return false;var _rg=typeof window.game!=='undefined'?window.game:null;if(!_rg)return false;currentFloor=sv.floor||1;if(!_rg.player)return false;if(typeof _rg.player.x!=='number')_rg.player.x=0;if(typeof _rg.player.y!=='number')_rg.player.y=0;_rg.player.x=sv.px;_rg.player.y=sv.py;_rg.player.sanity=Math.max(sv.sanity||100,30);_rg.player.stamina=Math.max(sv.stamina||100,30);if(sv.inventory&&_rg.inventory){for(var k in sv.inventory){if(sv.inventory.hasOwnProperty(k)){_rg.inventory[k]=JSON.parse(JSON.stringify(sv.inventory[k]));}}}if(Array.isArray(sv.discoveredEggs)&&typeof _easterEggState!=='undefined'){for(var i=0;i<sv.discoveredEggs.length;i++){_easterEggState.discovered[sv.discoveredEggs[i]]=true;}}getFloorIndicator();regenerateFloor();var ds=document.getElementById('screen-dead');if(ds)ds.classList.remove('active');if(_rg.hud)_rg.hud.toast('从存档点复活...',3);return true;}
 function initNPC(){if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];npcPos={x:sr.x+3,y:sr.y+3};}
 function checkNPCProximity(px,py){if(!npcPos)return false;var dx=px-npcPos.x,dy=py-npcPos.y;return(dx*dx+dy*dy<NPC_DETECT_DIST*NPC_DETECT_DIST);}
 function openNPCDialog(){if(npcDialogOpen)return;npcDialogOpen=true;var dlg=document.getElementById('npc-dialog');var ne=document.getElementById('npc-name');var te=document.getElementById('npc-text');var oe=document.getElementById('npc-options');if(!dlg)return;ne.textContent='\ud83e\uddd1 幸存者';te.textContent=NPC_DIALOGUES.greeting[Math.floor(Math.random()*NPC_DIALOGUES.greeting.length)];var oh='';oh+='<button class="npc-opt" onclick="npcAction(\'hint\')">\ud83d\udca1 有什么提示吗？</button>';oh+='<button class="npc-opt" onclick="npcAction(\'upgrade\')">\u2b06\ufe0f 升级道具（需要材料）</button>';for(var i=0;i<NPC_DIALOGUES.trade.length;i++){(function(idx){oh+='<button class="npc-opt" onclick="npcAction(\'trade\','+idx+')">'+NPC_DIALOGUES.trade[idx].text+'</button>';})(i);}oh+='<button class="npc-opt" onclick="npcAction(\'leave\')">\ud83d\udeaa 离开</button>';oe.innerHTML=oh;dlg.classList.add('show');var pr=document.getElementById('npc-prompt');if(pr)pr.classList.remove('show');}
@@ -40345,7 +40373,7 @@ function getEffectiveVolume(type) {
 // ========== 迭代86-90: 自动存档、怪物阵营、随机迷宫、道具耐久、快捷使用 ==========
 
 // --- 迭代86: 自动存档系统 ---
-var AUTO_SAVE_INTERVAL = 60; // 每60秒自动存档
+var AUTO_SAVE_INTERVAL_MS = 60000; // 每60秒自动存档（仅用于注释参考，实际由迭代194的AUTO_SAVE_INTERVAL控制）
 var AUTO_SAVE_KEY = 'backrooms_autosave_v1';
 var autoSaveTimer = 0;
 function autoSave(gameState) {
@@ -44673,7 +44701,7 @@ var SettingsSystem = {
   init: function() {
     try {
       var saved = typeof localStorage !== 'undefined' ? localStorage.getItem('backrooms_settings') : null;
-      this.current = saved ? JSON.parse(saved) : Object.assign({}, this.defaults);
+      this.current = Object.assign({}, this.defaults, saved ? JSON.parse(saved) : {});
     } catch(e) {
       this.current = Object.assign({}, this.defaults);
     }
@@ -45152,7 +45180,7 @@ var AchievementSystem = {
     for (var id in this._achievements) {
       if (this._unlocked.indexOf(id) >= 0) continue;
       var ach = this._achievements[id];
-      if (ach.check) continue;
+      if (ach.checked) continue;
       // 根据条件检查
       var unlocked = false;
       switch(id) {
@@ -45174,7 +45202,7 @@ var AchievementSystem = {
       }
     }
   },
-  getUnlocked: function() { return this._unlocked; },
+  getUnlocked: function() { return this._unlocked.slice(); },
   save: function() {
     try { localStorage.setItem('backrooms_achievements', JSON.stringify(this._unlocked)); } catch(e) {}
   },
@@ -45335,6 +45363,8 @@ var FinalCleanup = {
     GameStats.save();
   },
   onGameEnd: function(player, gameState) {
+    if (!player || !gameState) return;
+    var gs = gameState.stats || {};
     // 保存最终统计
     GameStats.update('totalPlayTime', gameState.timePlayed || 0);
     GameStats.update('totalDistanceWalked', player.walkedDist || 0);
@@ -45342,15 +45372,15 @@ var FinalCleanup = {
     // 检查成就
     AchievementSystem.check(null, {
       levelComplete: gameState.levelsCompleted,
-      totalMonstersKilled: gameState.stats.monstersKilled,
-      monstersDetected: gameState.stats.monstersDetected || 0,
+      monstersKilled: gs.monstersKilled,
+      monstersDetected: gs.monstersDetected || 0,
       escapedWithLowSanity: player.sanity < 10 && gameState.levelsCompleted > 0,
       levelTime: gameState.levelTime,
       totalTime: gameState.timePlayed,
-      itemsCollected: gameState.stats.itemsCollected,
-      secretRooms: gameState.stats.secretRoomsFound,
+      itemsCollected: gs.itemsCollected,
+      secretRooms: gs.secretRoomsFound,
       allLevelsComplete: gameState.allLevelsComplete,
-      darkTime: gameState.stats.darkTime
+      darkTime: gs.darkTime
     });
     AchievementSystem.save();
   }
@@ -50490,8 +50520,9 @@ function EasterEggSystem(){
   this._uiCreated=false;
 }
 EasterEggSystem.prototype._load=function(){
-  try{var r=localStorage.getItem(this.STATE_KEY);if(r)return JSON.parse(r);}catch(e){}
-  return{found:{},dayMarkers:[],dreamUnlocked:false,dreamCompleted:false,ending:null,totalFound:0};
+  var def={found:{},dayMarkers:[],dreamUnlocked:false,dreamCompleted:false,ending:null,totalFound:0};
+  try{var r=localStorage.getItem(this.STATE_KEY);if(r){var d=JSON.parse(r);if(d&&typeof d==='object'){if(!d.found||typeof d.found!=='object')d.found={};if(!Array.isArray(d.dayMarkers))d.dayMarkers=[];if(typeof d.totalFound!=='number')d.totalFound=Object.keys(d.found).length;return d;}}}catch(e){}
+  return def;
 };
 EasterEggSystem.prototype._save=function(){
   try{localStorage.setItem(this.STATE_KEY,JSON.stringify(this.state));}catch(e){}
@@ -50511,6 +50542,7 @@ EasterEggSystem.prototype.discover=function(id){
     var self=this;
     setTimeout(function(){self._showToast({icon:'\u{1f319}',title:'隐藏要素解锁',text:'你感觉到了一扇门的存在……在主菜单输入特殊代码也许能打开它。',chapter:''},'unlock');},4500);
   }
+  if(typeof window.nestedEE!=='undefined'&&window.nestedEE){window.nestedEE.checkCrossTrigger('ee',ch.chapter);}
   return true;
 };
 EasterEggSystem.prototype.discoverDayMarker=function(idx){
@@ -50519,7 +50551,7 @@ EasterEggSystem.prototype.discoverDayMarker=function(idx){
   var m=EE_DAY_MARKERS[idx];
   if(m){
     var icons={calm:'\u{1f4dd}',uneasy:'\u{1f630}',scared:'\u{1f628}',curious:'\u{1f50d}',determined:'\u{1f4aa}',analytical:'\u{1f9e0}',horrified:'\u{1f631}',existential:'\u{1f300}',desperate:'\u{1f198}',hopeful:'\u{1f31f}',empathy:'\u{1f499}',acceptance:'\u{1f54a}\u{fe0f}',peace:'\u{262e}\u{fe0f}'};
-    this._showToast({icon:icons[m.mood]||'\u{1f4dd}',title:'\u7b2c'+m.day+'\u5929',text:m.text,chapter:'\u9648\u9ed8\u7684\u751f\u5b58\u6807\u8bb0 ('+this.state.dayMarkers.length+'/30)'},'day');
+    this._showToast({icon:icons[m.mood]||'\u{1f4dd}',title:'\u7b2c'+m.day+'\u5929',text:m.text,chapter:'\u9648\u9ed8\u7684\u751f\u5b58\u6807\u8bb0 ('+this.state.dayMarkers.length+'/'+EE_DAY_MARKERS.length+')'},'day');
   }
   return true;
 };
@@ -50532,6 +50564,7 @@ EasterEggSystem.prototype._showToast=function(data,type){
   if(!el){el=document.createElement('div');el.id='ee-toast';el.className='ee-discovery-toast';document.body.appendChild(el);}
   el.innerHTML='<span class="ee-toast-icon">'+data.icon+'</span><div class="ee-toast-title">'+data.title+'</div><div class="ee-toast-text">'+data.text+'</div>'+(data.chapter?'<div class="ee-toast-chapter">'+data.chapter+'</div>':'');
   if(this._toastTimer)clearTimeout(this._toastTimer);
+  el.classList.remove('show');void el.offsetWidth;
   el.classList.add('show');
   this._toastTimer=setTimeout(function(){el.classList.remove('show');},type==='unlock'?5000:4000);
 };
@@ -50556,7 +50589,7 @@ EasterEggSystem.prototype.showProgress=function(){
     var f=this.isFound(ch.id);
     html+='<div class="ee-chapter-entry '+(f?'found':'locked')+'"><span class="ee-entry-icon">'+(f?ch.icon:'\u{1f512}')+'</span><span>'+(f?ch.title:'???')+'</span></div>';
     if(i<EE_CHAPTERS.length-1&&EE_CHAPTERS[i+1].chapter!==cc)html+='</div>';}
-  html+='<div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(196,163,90,.1);"><div style="font-size:11px;color:var(--amber);margin-bottom:4px;">\u{1f4dd} \u751f\u5b58\u6807\u8bb0\uff1a'+this.state.dayMarkers.length+'/30</div><div class="ee-progress-bar-wrap"><div class="ee-progress-bar-fill" style="width:'+Math.round(this.state.dayMarkers.length/30*100)+'%"></div></div></div>';
+  html+='<div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(196,163,90,.1);"><div style="font-size:11px;color:var(--amber);margin-bottom:4px;">\u{1f4dd} \u751f\u5b58\u6807\u8bb0\uff1a'+this.state.dayMarkers.length+'/'+EE_DAY_MARKERS.length+'</div><div class="ee-progress-bar-wrap"><div class="ee-progress-bar-fill" style="width:'+Math.round(this.state.dayMarkers.length/EE_DAY_MARKERS.length*100)+'%"></div></div></div>';
   if(p.dreamUnlocked)html+='<div style="margin-top:12px;font-size:11px;color:rgba(180,160,220,.7);">\u{1f319} Level Dream \u5df2\u89e3\u9501\u3002\u5728\u4e3b\u83dc\u5355\u8f93\u5165\u4ee3\u7801\u8fdb\u5165\u3002</div>';
   html+='<button class="ee-diary-close" onclick="document.getElementById(\'ee-progress-panel\').classList.remove(\'open\')">\u5173\u95ed</button></div>';
   panel.innerHTML=html;panel.classList.add('open');
@@ -50591,13 +50624,15 @@ EasterEggSystem.prototype._enterLevelDream=function(){
           speedMul:1.0,sanityDrain:2.0,sanityGain:0.2,
           hint:'Level Dream \u2014\u2014 \u627e\u5230\u4ed6\u7684\u7075\u9b42\u3002\u505a\u51fa\u4f60\u7684\u9009\u62e9\u3002',
           isEasterEgg:true,isDream:true};
-        window.game._tempLevelIndex=LEVELS.length;LEVELS.push(dl);
-        window.game.startLevel(LEVELS.length-1);
+        var existIdx=-1;for(var _di=0;_di<LEVELS.length;_di++){if(LEVELS[_di].isDream){existIdx=_di;break;}}
+        if(existIdx>=0){LEVELS[existIdx]=dl;window.game.startLevel(existIdx);}
+        else{window.game._tempLevelIndex=LEVELS.length;LEVELS.push(dl);window.game.startLevel(LEVELS.length-1);}
       }
     },2000);
   },3000);
 };
 EasterEggSystem.prototype.triggerSoulRelease=function(choice){
+  var oldOv=document.querySelector('.ee-soul-release');if(oldOv)oldOv.remove();
   var overlay=document.createElement('div');overlay.className='ee-soul-release';
   var ph='<div class="ee-soul-particles">';
   for(var i=0;i<30;i++){ph+='<div class="ee-soul-particle" style="left:'+Math.random()*100+'%;bottom:0;animation-delay:'+Math.random()*3+'s;animation-duration:'+(3+Math.random()*3)+'s;"></div>';}
@@ -50681,8 +50716,9 @@ function TimeTravelerSystem(){
   this._visionTimer=null;
 }
 TimeTravelerSystem.prototype._load=function(){
-  try{var r=localStorage.getItem(this.STATE_KEY);if(r)return JSON.parse(r);}catch(e){}
-  return{found:{},totalFound:0,dreamUnlocked:false,dreamCompleted:false,ending:null,fragments:0,timeLoops:0};
+  var def={found:{},totalFound:0,dreamUnlocked:false,dreamCompleted:false,ending:null,fragments:0,timeLoops:0};
+  try{var r=localStorage.getItem(this.STATE_KEY);if(r){var d=JSON.parse(r);if(d&&typeof d==='object'){if(!d.found||typeof d.found!=='object')d.found={};if(typeof d.totalFound!=='number')d.totalFound=Object.keys(d.found).length;if(typeof d.fragments!=='number')d.fragments=0;if(typeof d.timeLoops!=='number')d.timeLoops=0;return d;}}}catch(e){}
+  return def;
 };
 TimeTravelerSystem.prototype._save=function(){
   try{localStorage.setItem(this.STATE_KEY,JSON.stringify(this.state));}catch(e){}
@@ -50716,6 +50752,7 @@ TimeTravelerSystem.prototype._showToast=function(data,type){
   if(!el){el=document.createElement('div');el.id='tt-toast';el.className='tt-discovery-toast';document.body.appendChild(el);}
   el.innerHTML='<span class="tt-toast-icon">'+data.icon+'</span><div class="tt-toast-title">'+data.title+'</div><div class="tt-toast-text">'+data.text+'</div>'+(data.chapter?'<div class="tt-toast-chapter">'+data.chapter+'</div>':'');
   if(this._toastTimer)clearTimeout(this._toastTimer);
+  el.classList.remove('show');void el.offsetWidth;
   el.classList.add('show');
   this._toastTimer=setTimeout(function(){el.classList.remove('show');},type==='unlock'?5000:4000);
 };
@@ -50776,13 +50813,15 @@ TimeTravelerSystem.prototype._enterTimeDream=function(){
           speedMul:1.0,sanityDrain:1.5,sanityGain:0.3,
           hint:'Time Dream — 找到时间核心。做出你的选择。',
           isEasterEgg:true,isTimeDream:true};
-        window.game._tempLevelIndex=LEVELS.length;LEVELS.push(dl);
-        window.game.startLevel(LEVELS.length-1);
+        var existIdx=-1;for(var _di=0;_di<LEVELS.length;_di++){if(LEVELS[_di].isTimeDream){existIdx=_di;break;}}
+        if(existIdx>=0){LEVELS[existIdx]=dl;window.game.startLevel(existIdx);}
+        else{window.game._tempLevelIndex=LEVELS.length;LEVELS.push(dl);window.game.startLevel(LEVELS.length-1);}
       }
     },2000);
   },3000);
 };
 TimeTravelerSystem.prototype.triggerTimeEnding=function(choice){
+  var oldOv=document.querySelector('.tt-ending-overlay');if(oldOv)oldOv.remove();
   var overlay=document.createElement('div');overlay.className='tt-ending-overlay';
   var ph='<div class="tt-ending-particles">';
   for(var i=0;i<25;i++){var angle=Math.random()*Math.PI*2;var dist=100+Math.random()*200;ph+='<div class="tt-ending-particle" style="left:50%;top:50%;--dx:'+Math.cos(angle)*dist+'px;--dy:'+Math.sin(angle)*dist+'px;animation-delay:'+Math.random()*2+'s;"></div>';}
@@ -50836,8 +50875,9 @@ function NestedEasterEggSystem(){
   this.state=this._load();
 }
 NestedEasterEggSystem.prototype._load=function(){
-  try{var r=localStorage.getItem(this.STATE_KEY);if(r)return JSON.parse(r);}catch(e){}
-  return{unlocked:{},crossTriggers:{}};
+  var def={unlocked:{},crossTriggers:{}};
+  try{var r=localStorage.getItem(this.STATE_KEY);if(r){var d=JSON.parse(r);if(d&&typeof d==='object'){if(!d.unlocked||typeof d.unlocked!=='object')d.unlocked={};if(!d.crossTriggers||typeof d.crossTriggers!=='object')d.crossTriggers={};return d;}}}catch(e){}
+  return def;
 };
 NestedEasterEggSystem.prototype._save=function(){
   try{localStorage.setItem(this.STATE_KEY,JSON.stringify(this.state));}catch(e){}
@@ -50850,8 +50890,10 @@ NestedEasterEggSystem.prototype.checkCrossTrigger=function(system,chapter){
   this._checkAllConditions();
 };
 NestedEasterEggSystem.prototype._checkAllConditions=function(){
-  var eeState=typeof eeSystem!=='undefined'?eeSystem.state:null;
-  var ttState=typeof ttSystem!=='undefined'?ttSystem.state:null;
+  var eeSys=typeof window.EasterEggSystem!=='undefined'?window.EasterEggSystem:null;
+  var ttSys=typeof window.TimeTravelerSystem!=='undefined'?window.TimeTravelerSystem:null;
+  var eeState=eeSys?eeSys.state:null;
+  var ttState=ttSys?ttSys.state:null;
   if(!eeState||!ttState)return;
   var eeFound=function(id){return !!eeState.found[id];};
   var ttFound=function(id){return !!ttState.found[id];};
