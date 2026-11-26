@@ -21620,7 +21620,8 @@ class ThreeJSRendererBridge {
     /* 节日装饰：仅 Hub 关卡 + 节日窗口期 */
     this._holiday = (world.level && world.level.isHub) ? this._getHoliday() : null;
     if (this._holiday) {
-      this._buildHolidayDecor(world);
+      try { this._buildHolidayDecor(world); }
+      catch(e) { console.error('[holiday] 装饰构建失败:', e); this._holiday = null; }
     } else if (this._holidayDecor || this._holidayParticles) {
       this._disposeHolidayDecor();
     }
@@ -27164,7 +27165,7 @@ class ThreeJSRendererBridge {
     this._updateHand(time, player);
 
     /* 节日装饰动画 */
-    if (this._holidayDecor) this._updateHolidayDecor(time, camX, camZ);
+    if (this._holidayDecor) { try { this._updateHolidayDecor(time, camX, camZ); } catch(e) { console.error('[holiday] 装饰更新失败:', e); } }
 
     /* UE5 rendering system update */
     if (this.ue5Renderer && this.ue5Renderer.enabled) this.ue5Renderer.update(time);
@@ -31547,23 +31548,25 @@ class Game {
 
     /* 🎂 生日主题：在Hub关卡放置生日蛋糕道具（增强：5个蛋糕+多距离环分布）*/
     if (level.isHub) {
-      const holiday = this.renderer ? this.renderer._getHoliday() : null;
-      if (holiday && holiday.id === 'birthday') {
-        const sx = world.start.x, sy = world.start.y;
-        const cakeCount = 5;
-        const cakeRadii = [2, 3, 4];
-        let placed = 0;
-        for (let i = 0; i < cakeCount && placed < cakeCount; i++) {
-          const ang = (i / cakeCount) * Math.PI * 2 + 0.4;
-          const radius = cakeRadii[i % cakeRadii.length];
-          const ix = Math.floor(sx + Math.cos(ang) * radius);
-          const iy = Math.floor(sy + Math.sin(ang) * radius);
-          if (!world.isWall(ix, iy)) {
-            this.items.push({ x: ix + 0.5, y: iy + 0.5, type: 'birthdaycake', taken: false });
-            placed++;
+      try {
+        const holiday = this.renderer ? this.renderer._getHoliday() : null;
+        if (holiday && holiday.id === 'birthday') {
+          const sx = world.start.x, sy = world.start.y;
+          const cakeCount = 5;
+          const cakeRadii = [2, 3, 4];
+          let placed = 0;
+          for (let i = 0; i < cakeCount && placed < cakeCount; i++) {
+            const ang = (i / cakeCount) * Math.PI * 2 + 0.4;
+            const radius = cakeRadii[i % cakeRadii.length];
+            const ix = Math.floor(sx + Math.cos(ang) * radius);
+            const iy = Math.floor(sy + Math.sin(ang) * radius);
+            if (!world.isWall(ix, iy)) {
+              this.items.push({ x: ix + 0.5, y: iy + 0.5, type: 'birthdaycake', taken: false });
+              placed++;
+            }
           }
         }
-      }
+      } catch(e) { console.error('[birthday] 蛋糕道具生成失败:', e); }
     }
 
     /* altClear：替代通关方式 */
@@ -32003,8 +32006,8 @@ class Game {
     if (this.creativeMode) this.hud.toast('创作者模式 · 无敌/穿墙/飞行 · G刷怪器 · H除雾', 5);
     /* 节日装饰期间 Hub 入口提示 */
     if (level.isHub && this.renderer._getHoliday) {
-      const h = this.renderer._getHoliday();
-      if (h) this.hud.toast(h.toast, 6);
+      try { const h = this.renderer._getHoliday(); if (h) this.hud.toast(h.toast, 6); }
+      catch(e) { console.error('[holiday] toast失败:', e); }
     }
     /* 首次进入游戏时显示新手引导 */
     if (index === 0 && !run && !localStorage.getItem('backrooms_tutorial_seen')) {
