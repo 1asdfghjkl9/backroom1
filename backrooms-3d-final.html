@@ -28658,7 +28658,7 @@ class ThreeJSRendererBridge {
         m._itemGlow.intensity = _glowI * (0.7 + Math.sin(time * 2) * 0.3);
       } else if (m._itemGlow) {
         m.remove(m._itemGlow);
-        m._itemGlow.dispose();
+        if (typeof m._itemGlow.dispose === 'function') m._itemGlow.dispose();
         m._itemGlow = null;
       }
     }
