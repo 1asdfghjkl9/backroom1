@@ -31434,6 +31434,14 @@ class Game {
     this._pathShiftCooldown = 0;
     this._lightsOutActive = false;
     this._monsterRageActive = false;
+    /* FIX: 数组必须在 initHiddenPassages 之前初始化，否则 push 时报 TypeError */
+    this._hiddenWalls = [];
+    this._secretRooms = [];
+    this._darkDoors = [];
+    this._hidingSpots = [];
+    this._deadEnds = [];
+    this._pathShifts = [];
+    this._soundLures = [];
     this.initHiddenPassages(world, level);
     /* 用新背包系统初始化物品 */
     this.player.inventory = [];
@@ -31599,14 +31607,7 @@ class Game {
         this._ventHoles.push({ x: vx + 0.5, y: vy + 0.5, discovered: false });
       }
     }
-    /* 迭代11-15：隐藏通道系统 */
-    this._hiddenWalls = [];
-    this._secretRooms = [];
-    this._darkDoors = [];
-    this._hidingSpots = [];
-    this._deadEnds = [];
-    this._pathShifts = [];
-    this._soundLures = [];
+    /* 迭代11-15：隐藏通道系统（数组已在前面初始化） */
     /* 迭代16-20：动态事件系统 */
     this._dynamicEvents = {
       lightsOut: { active: false, timer: 0, nextEvent: 60 + Math.random() * 90, warning: false },
