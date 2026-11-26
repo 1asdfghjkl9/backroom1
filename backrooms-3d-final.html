@@ -1383,7 +1383,7 @@ input[type="range"]::-moz-range-thumb {
 #npc-prompt{position:fixed;bottom:30%;left:50%;transform:translateX(-50%);z-index:85;font-family:'Courier New',monospace;font-size:13px;color:#e6c87c;background:rgba(20,18,12,.8);border:1px solid rgba(180,140,60,.3);padding:8px 20px;border-radius:4px;pointer-events:none;display:none;}
 #npc-prompt.show{display:block;}
 /* ========== 迭代49: 陷阱提示 ========== */
-#trap-warning{position:fixed;bottom:18%;left:50%;transform:translateX(-50%);z-index:85;font-family:'Courier New',monospace;font-size:12px;color:#c44;background:rgba(20,10,10,.8);border:1px solid rgba(200,60,60,.3);padding:6px 16px;border-radius:3px;pointer-events:none;display:none;transition:opacity .3s;}
+#trap-warning{position:fixed;bottom:18%;left:50%;transform:translateX(-50%);z-index:90;font-family:'Courier New',monospace;font-size:12px;color:#c44;background:rgba(20,10,10,.8);border:1px solid rgba(200,60,60,.3);padding:6px 16px;border-radius:3px;pointer-events:none;display:none;transition:opacity .3s;}
 #trap-warning.show{display:block;}
 #wave-display.show{display:block;}
 #event-notify.show{opacity:1;}
@@ -1398,7 +1398,7 @@ input[type="range"]::-moz-range-thumb {
 #quest-toast{position:fixed;top:40%;left:50%;transform:translate(-50%,-50%);z-index:220;font-family:'Courier New',monospace;font-size:14px;color:#6b6;background:rgba(20,30,20,.9);border:1px solid rgba(100,180,100,.3);padding:12px 24px;border-radius:4px;pointer-events:none;display:none;text-align:center;}
 #quest-toast.show{display:block;}
 /* ========== 迭代59: Boss血条 ========== */
-#boss-hud{position:fixed;top:42px;left:50%;transform:translateX(-50%);z-index:75;width:320px;max-width:80vw;display:none;text-align:center;font-family:var(--font);pointer-events:none;}
+#boss-hud{position:fixed;top:42px;left:50%;transform:translateX(-50%);z-index:76;width:320px;max-width:80vw;display:none;text-align:center;font-family:var(--font);pointer-events:none;}
 #boss-hud.show{display:block;}
 #boss-hud .boss-name{font-size:11px;color:#e44;letter-spacing:.15em;text-shadow:0 0 8px rgba(200,40,40,.5);margin-bottom:4px;font-weight:700;}
 #boss-hud .boss-bar{width:100%;height:8px;background:rgba(255,255,255,.08);border:1px solid rgba(200,40,40,.3);border-radius:2px;overflow:hidden;}
@@ -2681,6 +2681,20 @@ input[type="range"]::-moz-range-thumb {
 .ut-text .ut-line:nth-child(6){animation-delay:8.5s;}
 @keyframes utLineAppear{0%{opacity:0;transform:translateY(10px);}100%{opacity:1;transform:translateY(0);}}
 
+
+/* === OPT#496-500: Birthday CSS animations === */
+@keyframes _bdayFlash {
+  0% { opacity: 0.5; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+@keyframes _bdaySparkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.2); }
+}
+@keyframes _bdayFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
 </style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
@@ -9086,8 +9100,8 @@ class AudioEngine {
 
   init() {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') this.ctx.resume();
-      return;
+      if (this.ctx.state === 'closed') { this.ctx = null; }
+      else { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
@@ -16125,13 +16139,45 @@ class Player {
       this.heldItem = this.heldItem === 'radio' ? null : 'radio';
       return true;
     }
-    /* 🎂 生日蛋糕：回满体力和理智 */
+    /* === OPT#401-420: 🎂 生日蛋糕：回满体力+理智+全屏特效+生日歌 === */
     if (t === 'birthdaycake') {
       this.sanity = this.maxSanity;
       this.stamina = this.maxStamina || 100;
       this.hp = this.maxHp || 100;
       this.thirst = 100;
+      /* === OPT#402-410: 生日歌音效 - Web Audio API合成 === */
+      try {
+        const _bdayCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const _bNotes = [262,262,294,262,349,330, 262,262,294,262,392,349, 262,262,523,440,349,330,294, 466,466,440,349,392,349];
+        const _bNoteLen = 0.22;
+        _bNotes.forEach((freq, idx2) => {
+          const osc = _bdayCtx.createOscillator();
+          const gain = _bdayCtx.createGain();
+          osc.type = 'sine'; osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.12, _bdayCtx.currentTime + idx2 * _bNoteLen);
+          gain.gain.exponentialRampToValueAtTime(0.01, _bdayCtx.currentTime + (idx2 + 0.9) * _bNoteLen);
+          osc.connect(gain); gain.connect(_bdayCtx.destination);
+          osc.start(_bdayCtx.currentTime + idx2 * _bNoteLen);
+          osc.stop(_bdayCtx.currentTime + (idx2 + 1) * _bNoteLen);
+        });
+      } catch(e) { /* audio may fail */ }
       if (audio && audio.chime) audio.chime();
+      /* === OPT#411-415: 全屏彩色闪光 === */
+      const _bFlash = document.createElement('div');
+      _bFlash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;';
+      _bFlash.style.background = 'radial-gradient(circle, rgba(255,182,193,0.4) 0%, rgba(135,206,235,0.3) 50%, rgba(255,215,0,0.2) 100%)';
+      document.body.appendChild(_bFlash);
+      /* === OPT#416-418: 特效文字弹出 === */
+      const _bText = document.createElement('div');
+      _bText.style.cssText = 'position:fixed;top:40%;left:50%;transform:translate(-50%,-50%);font-size:42px;font-weight:bold;color:#ff69b4;text-shadow:0 0 20px #ffd700,0 0 40px #ff69b4;pointer-events:none;z-index:10000;transition:all 2s ease-out;';
+      _bText.textContent = '\u{1F382} \u751F\u65E5\u5FEB\u4E50\uFF01\u{1F389}';
+      document.body.appendChild(_bText);
+      setTimeout(() => { _bText.style.top = '20%'; _bText.style.opacity = '0'; }, 100);
+      setTimeout(() => { _bFlash.remove(); _bText.remove(); }, 3000);
+      /* === OPT#419-420: HUD提示 === */
+      if (this.hud && this.hud.toast) {
+        this.hud.toast('\u{1F382} \u751F\u65E5\u5FEB\u4E50\uFF01\u4F53\u529B\u3001\u7406\u667A\u3001\u751F\u547D\u5DF2\u6062\u590D\uFF01', 5);
+      }
       this.removeFromInventory(this.mainHand.uid);
       this.mainHand = null; this.heldItem = null;
       return true;
@@ -19381,7 +19427,7 @@ const LEVEL_COLOR_THEME = {
   windows:   { fog: 0x1a2a30, hemiSky: 0xa0c0d0, hemiGround: 0x0a1418, lampColor: 0xffffff, ambient: 0.8,  fogDensity: 0.04 },
   finale:    { fog: 0x1a0a1a, hemiSky: 0x602050, hemiGround: 0x100410, lampColor: 0xc040a0, ambient: 0.45, fogDensity: 0.10 },
   grid:      { fog: 0x141820, hemiSky: 0x708898, hemiGround: 0x0a0e14, lampColor: 0xd0e0f0, ambient: 0.6,  fogDensity: 0.08 },
-  hub:       { fog: 0x1a1810, hemiSky: 0xb09878, hemiGround: 0x18140a, lampColor: 0xffd080, ambient: 0.75, fogDensity: 0.05 },
+  hub:       { fog: 0x1a0a1a, hemiSky: 0xffdab9, hemiGround: 0x4a2840, lampColor: 0xff88cc, ambient: 0.80, fogDensity: 0.04 }, /* OPT#491-495: Birthday warm tones */
   rooms:     { fog: 0x221e16, hemiSky: 0x988a60, hemiGround: 0x141008, lampColor: 0xfff0d0, ambient: 0.55, fogDensity: 0.07 },
   supply:    { fog: 0x14110b, hemiSky: 0x6a5a40, hemiGround: 0x100a06, lampColor: 0xc0a060, ambient: 0.4,  fogDensity: 0.10 }
 };
@@ -19703,32 +19749,63 @@ class ThreeJSRendererBridge {
 
   _createBirthdayCakeTex() {
     const THREE = window.THREE;
+    /* === OPT#201-210: 精致蛋糕道具图标（64x64高分辨率+多层+渐变+光晕）=== */
     const c = document.createElement('canvas');
-    c.width = 32; c.height = 32;
+    c.width = 64; c.height = 64;
     const g = c.getContext('2d');
-    g.clearRect(0, 0, 32, 32);
-    /* 蛋糕底层 */
-    g.fillStyle = '#ffb0c8';
-    g.fillRect(8, 18, 16, 8);
-    /* 中层 */
-    g.fillStyle = '#ffc8d8';
-    g.fillRect(10, 12, 12, 6);
-    /* 顶层 */
-    g.fillStyle = '#ffd8e8';
-    g.fillRect(12, 8, 8, 4);
-    /* 蜡烛 */
-    g.fillStyle = '#ff4444';
-    g.fillRect(15, 4, 2, 4);
-    /* 火焰 */
-    g.fillStyle = '#ffdd44';
-    g.fillRect(15, 2, 2, 2);
-    /* 奶油点 */
+    g.clearRect(0, 0, 64, 64);
+    /* 光晕背景 */
+    const glow = g.createRadialGradient(32, 32, 4, 32, 32, 30);
+    glow.addColorStop(0, 'rgba(255,215,0,0.3)');
+    glow.addColorStop(1, 'rgba(255,215,0,0)');
+    g.fillStyle = glow;
+    g.fillRect(0, 0, 64, 64);
+    /* 底层蛋糕（粉色渐变）*/
+    const cakeGrad1 = g.createLinearGradient(12, 40, 52, 48);
+    cakeGrad1.addColorStop(0, '#ffb0c8');
+    cakeGrad1.addColorStop(1, '#ff80a0');
+    g.fillStyle = cakeGrad1;
+    g.beginPath(); g.roundRect(12, 38, 40, 14, 3); g.fill();
+    /* 中层蛋糕 */
+    const cakeGrad2 = g.createLinearGradient(16, 28, 48, 38);
+    cakeGrad2.addColorStop(0, '#ffc8d8');
+    cakeGrad2.addColorStop(1, '#ffa0c0');
+    g.fillStyle = cakeGrad2;
+    g.beginPath(); g.roundRect(16, 26, 32, 12, 2); g.fill();
+    /* 顶层蛋糕 */
+    const cakeGrad3 = g.createLinearGradient(20, 18, 44, 26);
+    cakeGrad3.addColorStop(0, '#ffd8e8');
+    cakeGrad3.addColorStop(1, '#ffb8d0');
+    g.fillStyle = cakeGrad3;
+    g.beginPath(); g.roundRect(20, 18, 24, 8, 2); g.fill();
+    /* 奶油裱花 */
     g.fillStyle = '#fff8f0';
-    g.fillRect(9, 17, 2, 2); g.fillRect(14, 17, 2, 2); g.fillRect(20, 17, 2, 2);
-    g.fillRect(11, 11, 2, 2); g.fillRect(18, 11, 2, 2);
+    for (let i = 0; i < 5; i++) {
+      g.beginPath(); g.arc(14 + i * 8, 38, 2.5, 0, Math.PI * 2); g.fill();
+    }
+    for (let i = 0; i < 4; i++) {
+      g.beginPath(); g.arc(18 + i * 8, 26, 2, 0, Math.PI * 2); g.fill();
+    }
+    /* 蜡烛（彩色条纹）*/
+    const candleColors = ['#ff4444', '#44cc44', '#4488ff', '#ffaa00', '#ff66cc'];
+    for (let i = 0; i < 3; i++) {
+      const cx = 24 + i * 8;
+      g.fillStyle = candleColors[i];
+      g.fillRect(cx - 1, 10, 3, 8);
+      g.fillStyle = '#ffffff';
+      g.fillRect(cx - 1, 13, 3, 2);
+      /* 火焰（双层）*/
+      g.fillStyle = '#ffdd44';
+      g.beginPath(); g.arc(cx + 0.5, 8, 3, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#ffffff';
+      g.beginPath(); g.arc(cx + 0.5, 8, 1.5, 0, Math.PI * 2); g.fill();
+    }
+    /* 金色底盘 */
+    g.fillStyle = '#daa520';
+    g.beginPath(); g.ellipse(32, 53, 22, 3, 0, 0, Math.PI * 2); g.fill();
     const tex = new THREE.CanvasTexture(c);
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
     return tex;
   }
 
@@ -19832,7 +19909,7 @@ class ThreeJSRendererBridge {
       lampA: 0x44aa44, lampB: 0xcc8800, fog: 0x0a1a0a, hemiSky: 0x335544, hemiGround: 0x1a2a1a,
       decor: 'dragonboat', particle: 'leaves' },
     /* 生日主题：作者的朋友过生日，持续5天（11月25-29日） */
-    { id: 'birthday', name: '生日庆典', icon: '🎂', toast: '🎂 生日快乐！中枢已装点生日庆典装饰 🎉\n一位朋友正在庆祝生日——大蛋糕在中央等你！',
+    { id: 'birthday', name: '生日庆典', icon: '🎂', toast: '🎂 生日快乐！中枢已装点生日庆典装饰 🎉🎈\n一位朋友正在庆祝生日——大蛋糕在中央等你！\n🎁 蛋糕可以回满体力、理智、HP和口渴！',
       test: (m,d) => m===11 && d>=25 && d<=29,
       lampA: 0xff69b4, lampB: 0xffd700, fog: 0x1a0a1a, hemiSky: 0x6b4c8a, hemiGround: 0x2a1a3a,
       decor: 'birthdaycake', particle: 'confetti' },
@@ -19893,16 +19970,27 @@ class ThreeJSRendererBridge {
       this.scene.remove(this._holidayDecor);
       this._holidayDecor.traverse(c => {
         if (c.geometry) c.geometry.dispose();
-        if (c.material) { Array.isArray(c.material) ? c.material.forEach(m => m.dispose()) : c.material.dispose(); }
+        if (c.material) {
+          if (Array.isArray(c.material)) { c.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); }
+          else { if (c.material.map) c.material.map.dispose(); c.material.dispose(); }
+        }
+        /* === OPT#470: 清理光源 === */
+        if (c.isLight) { c.intensity = 0; }
       });
       this._holidayDecor = null;
     }
     if (this._holidayParticles) {
       this.scene.remove(this._holidayParticles);
       this._holidayParticles.geometry.dispose();
+      if (this._holidayParticles.material.map) this._holidayParticles.material.map.dispose();
       this._holidayParticles.material.dispose();
       this._holidayParticles = null;
     }
+    /* === OPT#471: 清理性能监控状态 === */
+    this._fpsSamples251 = null;
+    this._holidayParticleSkip251 = undefined;
+    this._birthdayProxShown251 = false;
+    this._lastFrameTime251 = undefined;
   }
 
   /* ─── 圣诞树 ─── */
@@ -20165,124 +20253,751 @@ class ThreeJSRendererBridge {
   _buildBirthdayCake(g, cx, cz, bulbs, spinItems) {
     const THREE = window.THREE;
 
-    /* 三层蛋糕 */
-    const cakeLayer1 = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.7, 0.75, 0.35, 24),
-      new THREE.MeshLambertMaterial({ color: 0xffe0e8 })
+    /* === OPT#1-8: 蛋糕底座：木质托盘+金边 === */
+    const trayGeo = new THREE.CylinderGeometry(0.95, 1.0, 0.06, 32);
+    const trayMat = new THREE.MeshLambertMaterial({ color: 0x5c3a1e });
+    const tray = new THREE.Mesh(trayGeo, trayMat);
+    tray.position.set(cx, 0.03, cz); g.add(tray);
+    const trayRim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.97, 0.025, 8, 32),
+      new THREE.MeshLambertMaterial({ color: 0xdaa520, emissive: 0xdaa520, emissiveIntensity: 0.2 })
     );
-    cakeLayer1.position.set(cx, 0.175, cz); g.add(cakeLayer1);
+    trayRim.rotation.x = Math.PI / 2; trayRim.position.set(cx, 0.06, cz); g.add(trayRim);
 
-    const cakeLayer2 = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.5, 0.55, 0.3, 20),
-      new THREE.MeshLambertMaterial({ color: 0xffc0d0 })
-    );
-    cakeLayer2.position.set(cx, 0.55, cz); g.add(cakeLayer2);
+    /* === OPT#9-16: 三层蛋糕（带渐变色调、纹理感）=== */
+    const cakeColors = [0xffe0e8, 0xffc0d0, 0xff90b0];
+    const cakeRadii = [0.7, 0.55, 0.36];
+    const cakeHeights = [0.35, 0.3, 0.25];
+    const cakeYs = [0.175, 0.55, 0.825];
+    const cakeLayers = [];
+    for (let li = 0; li < 3; li++) {
+      const layerGeo = new THREE.CylinderGeometry(cakeRadii[li], cakeRadii[li] + 0.05, cakeHeights[li], 24);
+      const layerMat = new THREE.MeshLambertMaterial({ color: cakeColors[li] });
+      const layer = new THREE.Mesh(layerGeo, layerMat);
+      layer.position.set(cx, cakeYs[li], cz); g.add(layer);
+      cakeLayers.push(layer);
+    }
 
-    const cakeLayer3 = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.32, 0.36, 0.25, 16),
-      new THREE.MeshLambertMaterial({ color: 0xff90b0 })
-    );
-    cakeLayer3.position.set(cx, 0.825, cz); g.add(cakeLayer3);
+    /* === OPT#17-24: 每层蛋糕间夹心层（白色奶油条纹）=== */
+    const fillingMat = new THREE.MeshLambertMaterial({ color: 0xfff8f0 });
+    for (let fi = 0; fi < 2; fi++) {
+      const fillR = cakeRadii[fi] + 0.02;
+      const fillY = cakeYs[fi] + cakeHeights[fi] / 2 + 0.015;
+      const fillRing = new THREE.Mesh(
+        new THREE.CylinderGeometry(fillR, fillR, 0.03, 24),
+        fillingMat
+      );
+      fillRing.position.set(cx, fillY, cz); g.add(fillRing);
+    }
 
-    /* 奶油花边 */
+    /* === OPT#25-35: 奶油裱花（更精细的玫瑰花形装饰）=== */
     const creamMat = new THREE.MeshLambertMaterial({ color: 0xfffff0 });
+    const creamPinkMat = new THREE.MeshLambertMaterial({ color: 0xffb6c1 });
     for (let layer = 0; layer < 3; layer++) {
       const r = [0.75, 0.55, 0.36][layer];
       const y = [0.35, 0.7, 0.95][layer];
-      const count = [12, 10, 8][layer];
+      const count = [16, 12, 10][layer];
       for (let i = 0; i < count; i++) {
         const ang = (i / count) * Math.PI * 2;
-        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), creamMat);
+        /* 交替白色和粉色奶油花 */
+        const mat = (i % 2 === 0) ? creamMat : creamPinkMat;
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), mat);
         dot.position.set(cx + Math.cos(ang) * r, y, cz + Math.sin(ang) * r);
+        dot.scale.set(1, 0.7, 1);
         g.add(dot);
       }
     }
 
-    /* 蜡烛 */
+    /* === OPT#36-45: 蜡烛（条纹蜡烛+火焰粒子+光晕）=== */
     const candleColors = [0xff4444, 0x44ff44, 0x4444ff, 0xffaa00, 0xff66cc];
+    const candleFlames = [];
+    const candleLights = [];
     for (let i = 0; i < 5; i++) {
       const ang = (i / 5) * Math.PI * 2;
       const cr = 0.15;
-      /* 蜡烛体 */
-      const candle = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.025, 0.025, 0.18, 6),
+      const candleX = cx + Math.cos(ang) * cr;
+      const candleZ = cz + Math.sin(ang) * cr;
+      /* 条纹蜡烛体（双色拼接模拟条纹）*/
+      const candleGroup = new THREE.Group();
+      const candleBase = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.025, 0.12, 8),
         new THREE.MeshLambertMaterial({ color: candleColors[i] })
       );
-      candle.position.set(cx + Math.cos(ang) * cr, 1.04, cz + Math.sin(ang) * cr);
-      g.add(candle);
-      /* 火焰 */
-      const flame = new THREE.Mesh(
-        new THREE.ConeGeometry(0.03, 0.08, 6),
-        new THREE.MeshBasicMaterial({ color: 0xffdd44 })
+      candleBase.position.y = 0;
+      candleGroup.add(candleBase);
+      const candleStripe = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.026, 0.026, 0.06, 8),
+        new THREE.MeshLambertMaterial({ color: 0xffffff })
       );
-      flame.position.set(cx + Math.cos(ang) * cr, 1.17, cz + Math.sin(ang) * cr);
-      flame.userData._isFlame = true;
-      g.add(flame);
-      /* 火焰点光源 */
-      const fLight = new THREE.PointLight(0xffaa33, 0.5, 2.5);
-      fLight.position.set(cx + Math.cos(ang) * cr, 1.17, cz + Math.sin(ang) * cr);
+      candleStripe.position.y = 0.03;
+      candleGroup.add(candleStripe);
+      candleGroup.position.set(candleX, 1.0, candleZ);
+      g.add(candleGroup);
+
+      /* 火焰（双层：内核黄色+外圈橙色透明）*/
+      const flameInner = new THREE.Mesh(
+        new THREE.ConeGeometry(0.018, 0.07, 6),
+        new THREE.MeshBasicMaterial({ color: 0xffffaa })
+      );
+      flameInner.position.set(candleX, 1.15, candleZ);
+      flameInner.userData._isFlame = true;
+      flameInner.userData._flameIdx = i;
+      g.add(flameInner);
+      candleFlames.push(flameInner);
+
+      const flameOuter = new THREE.Mesh(
+        new THREE.ConeGeometry(0.03, 0.09, 6),
+        new THREE.MeshBasicMaterial({ color: 0xffaa33, transparent: true, opacity: 0.5 })
+      );
+      flameOuter.position.set(candleX, 1.15, candleZ);
+      flameOuter.userData._isFlameOuter = true;
+      flameOuter.userData._flameIdx = i;
+      g.add(flameOuter);
+
+      /* 火焰点光源（暖色调+衰减）*/
+      const fLight = new THREE.PointLight(0xffaa33, 0.6, 3.0, 2.0);
+      fLight.position.set(candleX, 1.17, candleZ);
       g.add(fLight);
-      bulbs.push({ material: flame.material, userData: { _blinkPhase: i * 0.8, _blinkSpeed: 5, _baseR: 1, _baseG: 0.87, _baseB: 0.27 } });
+      candleLights.push(fLight);
+
+      bulbs.push({ material: flameInner.material, userData: { _blinkPhase: i * 0.8, _blinkSpeed: 6, _baseR: 1, _baseG: 0.95, _baseB: 0.6 } });
     }
 
-    /* 顶部装饰星 */
+    /* === OPT#46-50: 蛋糕中心暖色聚光灯+顶部装饰 === */
+    const cakeSpotLight = new THREE.PointLight(0xffcc88, 0.8, 5.0, 1.5);
+    cakeSpotLight.position.set(cx, 1.5, cz);
+    g.add(cakeSpotLight);
+
+    /* 顶部装饰星（双层旋转）*/
     const topStar = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.1, 0),
       new THREE.MeshBasicMaterial({ color: 0xffd700 })
     );
     topStar.position.set(cx, 1.3, cz); g.add(topStar);
     spinItems.push(topStar);
+    const topStarRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.14, 0.012, 6, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.7 })
+    );
+    topStarRing.position.set(cx, 1.3, cz);
+    topStarRing.userData._isStarRing = true;
+    g.add(topStarRing);
+    spinItems.push(topStarRing);
 
-    /* "Happy Birthday" 文字牌 */
-    const signGeo = new THREE.PlaneGeometry(1.5, 0.35);
+    /* === OPT#47-50: "Happy Birthday" 文字牌（增强版）=== */
+    const signGeo = new THREE.PlaneGeometry(1.8, 0.4);
     const signCanvas = document.createElement('canvas');
-    signCanvas.width = 256; signCanvas.height = 64;
+    signCanvas.width = 512; signCanvas.height = 128;
     const sctx = signCanvas.getContext('2d');
-    sctx.fillStyle = 'rgba(255,255,255,0.92)';
-    sctx.fillRect(0, 0, 256, 64);
+    /* 渐变背景 */
+    const signGrad = sctx.createLinearGradient(0, 0, 512, 0);
+    signGrad.addColorStop(0, 'rgba(255,182,193,0.95)');
+    signGrad.addColorStop(0.5, 'rgba(255,255,255,0.97)');
+    signGrad.addColorStop(1, 'rgba(255,182,193,0.95)');
+    sctx.fillStyle = signGrad;
+    sctx.fillRect(0, 0, 512, 128);
+    /* 金色边框 */
+    sctx.strokeStyle = '#daa520';
+    sctx.lineWidth = 4;
+    sctx.strokeRect(4, 4, 504, 120);
+    /* 文字 */
     sctx.fillStyle = '#ff3399';
-    sctx.font = 'bold 28px sans-serif';
+    sctx.font = 'bold 42px sans-serif';
     sctx.textAlign = 'center';
-    sctx.fillText('🎂 Happy Birthday!', 128, 42);
+    sctx.fillText('🎂 Happy Birthday!', 256, 72);
+    sctx.font = '18px sans-serif';
+    sctx.fillStyle = '#cc6699';
+    sctx.fillText('✨ 祝你生日快乐 ✨', 256, 108);
     const signTex = new THREE.CanvasTexture(signCanvas);
     const signMat = new THREE.MeshBasicMaterial({ map: signTex, transparent: true });
     const sign = new THREE.Mesh(signGeo, signMat);
-    sign.position.set(cx, 1.55, cz);
+    sign.position.set(cx, 1.65, cz);
+    sign.userData._isSign = true;
     g.add(sign);
 
-    /* 气球装饰 */
-    const balloonColors = [0xff3366, 0x33ccff, 0xffcc33, 0x66ff66, 0xcc66ff];
-    for (let i = 0; i < 8; i++) {
-      const ang = (i / 8) * Math.PI * 2;
-      const r = 1.2 + Math.random() * 0.3;
-      const by = 1.0 + Math.random() * 0.8;
+    /* === OPT#51-60: 气球装饰（多样化+物理动画）=== */
+    const balloonColors = [0xff3366, 0x33ccff, 0xffcc33, 0x66ff66, 0xcc66ff, 0xff6699, 0x66ccff, 0xffaa55, 0xaa66ff, 0x55ffcc];
+    for (let i = 0; i < 10; i++) {
+      const ang = (i / 10) * Math.PI * 2 + (i % 2) * 0.15;
+      const r = 1.2 + (i % 3) * 0.2;
+      const by = 1.2 + (i % 4) * 0.25;
+      const bColor = balloonColors[i % balloonColors.length];
+      /* 气球主体（略椭圆形）*/
       const balloon = new THREE.Mesh(
-        new THREE.SphereGeometry(0.12, 12, 10),
-        new THREE.MeshLambertMaterial({ color: balloonColors[i % 5], emissive: balloonColors[i % 5], emissiveIntensity: 0.15 })
+        new THREE.SphereGeometry(0.13, 14, 12),
+        new THREE.MeshPhongMaterial({ color: bColor, emissive: bColor, emissiveIntensity: 0.1, shininess: 80, specular: 0x444444, transparent: true, opacity: 0.92 })
       );
+      balloon.scale.set(0.9, 1.2, 0.9);
       balloon.position.set(cx + Math.cos(ang) * r, by, cz + Math.sin(ang) * r);
-      balloon.userData._floatPhase = i * 0.7;
+      balloon.userData._floatPhase = i * 0.65;
+      balloon.userData._floatSpeed = 1.2 + (i % 3) * 0.3;
       balloon.userData._isBalloon = true;
+      balloon.userData._baseY = by;
       g.add(balloon);
-      /* 气球线 */
-      const lineGeo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(cx + Math.cos(ang) * r, by, cz + Math.sin(ang) * r),
-        new THREE.Vector3(cx + Math.cos(ang) * r * 0.5, by - 0.6, cz + Math.sin(ang) * r * 0.5)
-      ]);
-      const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0x888888 }));
+      /* 气球底部小三角 */
+      const balloonTip = new THREE.Mesh(
+        new THREE.ConeGeometry(0.02, 0.04, 5),
+        new THREE.MeshLambertMaterial({ color: bColor })
+      );
+      balloonTip.position.set(cx + Math.cos(ang) * r, by - 0.16, cz + Math.sin(ang) * r);
+      balloonTip.rotation.x = Math.PI;
+      g.add(balloonTip);
+      /* 气球线（弯曲效果）*/
+      const linePoints = [];
+      const lx = cx + Math.cos(ang) * r, lz = cz + Math.sin(ang) * r;
+      for (let t = 0; t <= 5; t++) {
+        const frac = t / 5;
+        linePoints.push(new THREE.Vector3(
+          lx + Math.sin(frac * Math.PI) * 0.03,
+          by - 0.18 - frac * 0.7,
+          lz + Math.cos(frac * Math.PI * 0.5) * 0.02
+        ));
+      }
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints);
+      const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.6 }));
       g.add(line);
     }
 
-    /* 地面彩带 */
-    const ribbonMat = new THREE.MeshBasicMaterial({ color: 0xff69b4, side: THREE.DoubleSide });
-    for (let i = 0; i < 4; i++) {
-      const ang = (i / 4) * Math.PI * 2;
-      const ribbon = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.04), ribbonMat);
-      ribbon.position.set(cx + Math.cos(ang) * 1.0, 0.01, cz + Math.sin(ang) * 1.0);
+    /* === OPT#61-70: 地面彩带（更多样、带弧度的装饰）=== */
+    const ribbonColors = [0xff69b4, 0xffd700, 0x87ceeb, 0x98fb98, 0xdda0dd];
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      const rMat = new THREE.MeshBasicMaterial({ color: ribbonColors[i % ribbonColors.length], side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+      const ribbon = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.05), rMat);
+      ribbon.position.set(cx + Math.cos(ang) * 1.1, 0.015, cz + Math.sin(ang) * 1.1);
       ribbon.rotation.x = -Math.PI / 2;
-      ribbon.rotation.z = ang;
+      ribbon.rotation.z = ang + Math.PI / 6;
       g.add(ribbon);
     }
+
+    /* === OPT#71-80: 蛋糕周围小星星地面装饰 === */
+    const starDecoMat = new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.7 });
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2 + 0.3;
+      const starDeco = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), starDecoMat);
+      starDeco.position.set(cx + Math.cos(ang) * 1.5, 0.04, cz + Math.sin(ang) * 1.5);
+      starDeco.rotation.x = Math.PI / 4;
+      g.add(starDeco);
+    }
+
+    /* === OPT#81-90: 蛋糕围栏小蜡烛灯（底部环形灯光带）=== */
+    const baseLightCount = 12;
+    for (let i = 0; i < baseLightCount; i++) {
+      const ang = (i / baseLightCount) * Math.PI * 2;
+      const blx = cx + Math.cos(ang) * 0.88;
+      const blz = cz + Math.sin(ang) * 0.88;
+      const miniLight = new THREE.Mesh(
+        new THREE.SphereGeometry(0.02, 6, 4),
+        new THREE.MeshBasicMaterial({ color: 0xffeebb })
+      );
+      miniLight.position.set(blx, 0.08, blz);
+      g.add(miniLight);
+    }
+
+    /* === OPT#91-100: 蛋糕周围悬挂彩旗三角旗 === */
+    const flagColors = [0xff3366, 0x33ccff, 0xffcc33, 0x66ff66, 0xcc66ff, 0xff9900];
+    const flagCount = 12;
+    for (let i = 0; i < flagCount; i++) {
+      const ang = (i / flagCount) * Math.PI * 2;
+      const fx = cx + Math.cos(ang) * 1.6;
+      const fz = cz + Math.sin(ang) * 1.6;
+      const fy = 1.8 + Math.sin(ang * 2) * 0.15;
+      /* 三角旗 */
+      const triShape = new THREE.Shape();
+      triShape.moveTo(-0.06, 0.08);
+      triShape.lineTo(0.06, 0.08);
+      triShape.lineTo(0, -0.06);
+      triShape.closePath();
+      const triGeo = new THREE.ShapeGeometry(triShape);
+      const triMat = new THREE.MeshBasicMaterial({ color: flagColors[i % flagColors.length], side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+      const tri = new THREE.Mesh(triGeo, triMat);
+      tri.position.set(fx, fy, fz);
+      tri.lookAt(cx, fy, cz);
+      g.add(tri);
+    }
+
+    /* === OPT#101-110: 彩旗连接绳 === */
+    const ropePoints2 = [];
+    for (let i = 0; i <= flagCount; i++) {
+      const ang = (i / flagCount) * Math.PI * 2;
+      ropePoints2.push(new THREE.Vector3(
+        cx + Math.cos(ang) * 1.6,
+        1.88 + Math.sin(ang * 2) * 0.15,
+        cz + Math.sin(ang) * 1.6
+      ));
+    }
+    const ropeGeo2 = new THREE.BufferGeometry().setFromPoints(ropePoints2);
+    const rope2 = new THREE.Line(ropeGeo2, new THREE.LineBasicMaterial({ color: 0xdaa520 }));
+    g.add(rope2);
+
+    /* === OPT#111-120: 墙壁装饰 - 生日横幅（前后左右四面）=== */
+    const bannerTexts = ['🎈 Birthday!', '🎉 Party!', '🎁 Gifts!', '⭐ Celebrate!'];
+    const bannerDirs = [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0]];
+    for (let bi = 0; bi < 4; bi++) {
+      const bCanvas = document.createElement('canvas');
+      bCanvas.width = 256; bCanvas.height = 64;
+      const bCtx = bCanvas.getContext('2d');
+      const bGrad = bCtx.createLinearGradient(0, 0, 256, 0);
+      bGrad.addColorStop(0, '#ff69b4');
+      bGrad.addColorStop(0.5, '#ffd700');
+      bGrad.addColorStop(1, '#ff69b4');
+      bCtx.fillStyle = bGrad;
+      bCtx.fillRect(0, 0, 256, 64);
+      bCtx.fillStyle = '#fff';
+      bCtx.font = 'bold 32px sans-serif';
+      bCtx.textAlign = 'center';
+      bCtx.fillText(bannerTexts[bi], 128, 42);
+      const bTex = new THREE.CanvasTexture(bCanvas);
+      const bMat = new THREE.MeshBasicMaterial({ map: bTex, transparent: true });
+      const banner = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.5), bMat);
+      const bd = bannerDirs[bi];
+      banner.position.set(cx + bd[0] * 3.5, 2.2, cz + bd[2] * 3.5);
+      if (bd[0] !== 0) banner.rotation.y = Math.PI / 2;
+      g.add(banner);
+    }
+
+    /* === OPT#121-130: 天花板拉花装饰 === */
+    const garlandRadius = 2.5;
+    const garlandPoints = [];
+    for (let i = 0; i <= 24; i++) {
+      const ang = (i / 24) * Math.PI * 2;
+      const sag = Math.sin(ang * 3) * 0.15;
+      garlandPoints.push(new THREE.Vector3(
+        cx + Math.cos(ang) * garlandRadius,
+        2.8 + sag,
+        cz + Math.sin(ang) * garlandRadius
+      ));
+    }
+    const garlandGeo = new THREE.BufferGeometry().setFromPoints(garlandPoints);
+    const garlandMat = new THREE.LineBasicMaterial({ color: 0xff69b4, linewidth: 2 });
+    const garland = new THREE.Line(garlandGeo, garlandMat);
+    g.add(garland);
+
+    /* === OPT#131-140: 天花板悬挂灯笼 === */
+    const lanternColors = [0xff4444, 0xffaa00, 0xff69b4, 0xff6633, 0xffdd44];
+    for (let i = 0; i < 5; i++) {
+      const ang = (i / 5) * Math.PI * 2 + 0.4;
+      const lr = 2.0;
+      const lantern = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 8, 6),
+        new THREE.MeshLambertMaterial({ color: lanternColors[i], emissive: lanternColors[i], emissiveIntensity: 0.25, transparent: true, opacity: 0.85 })
+      );
+      lantern.scale.set(1, 1.3, 1);
+      lantern.position.set(cx + Math.cos(ang) * lr, 2.6, cz + Math.sin(ang) * lr);
+      g.add(lantern);
+      /* 灯笼穗 */
+      const tassel = new THREE.Mesh(
+        new THREE.ConeGeometry(0.02, 0.08, 4),
+        new THREE.MeshBasicMaterial({ color: lanternColors[i] })
+      );
+      tassel.position.set(cx + Math.cos(ang) * lr, 2.42, cz + Math.sin(ang) * lr);
+      tassel.rotation.x = Math.PI;
+      g.add(tassel);
+    }
+
+    /* === OPT#141-150: 地面星星图案（发光路径引导）=== */
+    const pathStarMat = new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.4 });
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      const pr = 2.5 + (i % 2) * 0.3;
+      const pathStar = new THREE.Mesh(new THREE.CircleGeometry(0.08, 6), pathStarMat);
+      pathStar.position.set(cx + Math.cos(ang) * pr, 0.01, cz + Math.sin(ang) * pr);
+      pathStar.rotation.x = -Math.PI / 2;
+      g.add(pathStar);
+    }
+
+    /* === OPT#151-160: 彩色灯串环绕蛋糕柱 === */
+    const stringLightCount = 16;
+    const stringLights = [];
+    for (let i = 0; i < stringLightCount; i++) {
+      const frac = i / stringLightCount;
+      const ang = frac * Math.PI * 4;
+      const y = 0.1 + frac * 1.4;
+      const slr = 0.6 + Math.sin(frac * Math.PI) * 0.2;
+      const slColors = [0xff3366, 0x33ccff, 0xffcc33, 0x66ff66, 0xcc66ff];
+      const slMat = new THREE.MeshBasicMaterial({ color: slColors[i % 5] });
+      const slBulb = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 4), slMat);
+      slBulb.position.set(cx + Math.cos(ang) * slr, y, cz + Math.sin(ang) * slr);
+      slBulb.userData._blinkPhase = i * 0.5;
+      slBulb.userData._blinkSpeed = 3 + (i % 3);
+      g.add(slBulb);
+      stringLights.push(slBulb);
+    }
+
+    /* === OPT#161-170: 蛋糕周围的礼物盒装饰 === */
+    const giftColors = [0xff3366, 0x3366ff, 0x33cc33, 0xff9900];
+    const ribbonBowColors = [0xffd700, 0xff69b4, 0xffd700, 0xff69b4];
+    for (let i = 0; i < 4; i++) {
+      const ang = (i / 4) * Math.PI * 2 + 0.8;
+      const gr = 1.4;
+      const gx = cx + Math.cos(ang) * gr;
+      const gz = cz + Math.sin(ang) * gr;
+      /* 盒子 */
+      const giftBox = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.14, 0.18),
+        new THREE.MeshLambertMaterial({ color: giftColors[i] })
+      );
+      giftBox.position.set(gx, 0.07, gz);
+      giftBox.rotation.y = ang * 0.5;
+      g.add(giftBox);
+      /* 蝴蝶结丝带 */
+      const bow = new THREE.Mesh(
+        new THREE.TorusGeometry(0.05, 0.015, 4, 8),
+        new THREE.MeshLambertMaterial({ color: ribbonBowColors[i] })
+      );
+      bow.position.set(gx, 0.14, gz);
+      bow.rotation.x = Math.PI / 2;
+      g.add(bow);
+    }
+
+    /* === OPT#171-180: 环境氛围 - Hub整体暖色调灯光 === */
+    const ambientWarmLight = new THREE.PointLight(0xffeedd, 0.4, 8.0, 1.0);
+    ambientWarmLight.position.set(cx, 2.5, cz);
+    g.add(ambientWarmLight);
+    const ambientPinkLight = new THREE.PointLight(0xff88aa, 0.3, 6.0, 1.5);
+    ambientPinkLight.position.set(cx + 2, 1.5, cz + 2);
+    g.add(ambientPinkLight);
+    const ambientGoldLight = new THREE.PointLight(0xffdd88, 0.3, 6.0, 1.5);
+    ambientGoldLight.position.set(cx - 2, 1.5, cz - 2);
+    g.add(ambientGoldLight);
+
+    /* === OPT#181-190: 彩带条垂挂装饰 === */
+    const streamerColors = [0xff3366, 0x33ccff, 0xffcc33, 0x66ff66, 0xcc66ff, 0xff9900];
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * Math.PI * 2;
+      const sr = 2.8;
+      const streamerPoints = [];
+      for (let t = 0; t <= 8; t++) {
+        const frac = t / 8;
+        streamerPoints.push(new THREE.Vector3(
+          cx + Math.cos(ang) * sr + Math.sin(frac * Math.PI * 2 + i) * 0.1,
+          2.8 - frac * 1.2,
+          cz + Math.sin(ang) * sr + Math.cos(frac * Math.PI * 1.5 + i) * 0.08
+        ));
+      }
+      const streamerGeo = new THREE.BufferGeometry().setFromPoints(streamerPoints);
+      const streamerMat = new THREE.LineBasicMaterial({ color: streamerColors[i % streamerColors.length], transparent: true, opacity: 0.7 });
+      const streamer = new THREE.Line(streamerGeo, streamerMat);
+      g.add(streamer);
+    }
+
+    /* === OPT#191-200: 地面大蛋糕盘装饰圆环 === */
+    for (let ri = 0; ri < 3; ri++) {
+      const ringR = 1.0 + ri * 0.25;
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: [0xffd700, 0xff69b4, 0x87ceeb][ri],
+        transparent: true, opacity: 0.3
+      });
+      const ring = new THREE.Mesh(new THREE.RingGeometry(ringR - 0.02, ringR + 0.02, 32), ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(cx, 0.012, cz);
+      g.add(ring);
+    }
+
+    /* === OPT#201-210: 蛋糕顶部樱桃装饰 === */
+    const cherryMat = new THREE.MeshLambertMaterial({ color: 0xcc0033 });
+    for (let i = 0; i < 3; i++) {
+      const ang = (i / 3) * Math.PI * 2;
+      const cherry = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), cherryMat);
+      cherry.position.set(cx + Math.cos(ang) * 0.2, 0.98, cz + Math.sin(ang) * 0.2);
+      g.add(cherry);
+    }
+
+    /* === OPT#211-220: 蛋糕底层巧克力滴落效果 === */
+    const dripMat = new THREE.MeshLambertMaterial({ color: 0x3a1a0a });
+    for (let i = 0; i < 10; i++) {
+      const ang = (i / 10) * Math.PI * 2;
+      const dripLen = 0.08 + Math.random() * 0.12;
+      const drip = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.015, 0.008, dripLen, 5),
+        dripMat
+      );
+      drip.position.set(
+        cx + Math.cos(ang) * 0.72,
+        0.35 - dripLen / 2,
+        cz + Math.sin(ang) * 0.72
+      );
+      g.add(drip);
+    }
+
+    /* === OPT#221-230: 蛋糕盘周围花瓣散布 === */
+    const petalMat = new THREE.MeshBasicMaterial({ color: 0xffb6c1, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * Math.PI * 2 + Math.random() * 0.2;
+      const pr = 0.9 + Math.random() * 0.3;
+      const petal = new THREE.Mesh(new THREE.CircleGeometry(0.04, 5), petalMat);
+      petal.position.set(cx + Math.cos(ang) * pr, 0.013, cz + Math.sin(ang) * pr);
+      petal.rotation.x = -Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+      petal.rotation.z = Math.random() * Math.PI;
+      g.add(petal);
+    }
+
+    /* === OPT#231-240: 将灯光引用存入bulbs以便动画 === */
+    for (const fl of candleFlames) {
+      bulbs.push({ material: fl.material, userData: { _blinkPhase: (fl.userData._flameIdx || 0) * 1.2, _blinkSpeed: 8, _baseR: 1, _baseG: 0.98, _baseB: 0.7 } });
+    }
+    for (const sl of stringLights) {
+      bulbs.push(sl);
+    }
+
+    /* === OPT#241-250: 蛋糕交互区域标记+蛋糕缓慢旋转 === */
+    const cakeBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.0, 1.0, 0.01, 32),
+      new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.08 })
+    );
+    cakeBase.position.set(cx, 0.005, cz);
+    cakeBase.userData._isCakeBase = true;
+    g.add(cakeBase);
+
+    /* 整体装饰组缓慢旋转（仅装饰部分）*/
+    g.userData._cakeRotateCenter = { x: cx, z: cz };
+    g.userData._cakeFlames = candleFlames;
+    g.userData._cakeLights = candleLights;
+    g.userData._starRings = [topStarRing];
+
+    /* === OPT#251-260: 生日横幅系统 === */
+    this._buildBirthdayBanners(g, cx, cz, bulbs, spinItems);
+  }
+
+  /* ─── 生日横幅系统 (OPT#251-300) ─── */
+  _buildBirthdayBanners(g, cx, cz, bulbs, spinItems) {
+    const THREE = window.THREE;
+    /* === OPT#261: 主横幅 - "生日快乐" Canvas纹理 === */
+    const mbCvs = document.createElement('canvas');
+    mbCvs.width = 512; mbCvs.height = 128;
+    const mbCtx = mbCvs.getContext('2d');
+    /* === OPT#262: 横幅渐变背景 === */
+    const bGrad = mbCtx.createLinearGradient(0, 0, 512, 0);
+    bGrad.addColorStop(0, '#ff6b9d'); bGrad.addColorStop(0.3, '#ffa8c5');
+    bGrad.addColorStop(0.5, '#ffffff'); bGrad.addColorStop(0.7, '#a8d8ff'); bGrad.addColorStop(1, '#6bb5ff');
+    mbCtx.fillStyle = bGrad;
+    /* === OPT#263: 圆角背景 === */
+    mbCtx.beginPath(); mbCtx.moveTo(16,0); mbCtx.lineTo(496,0);
+    mbCtx.quadraticCurveTo(512,0,512,16); mbCtx.lineTo(512,112);
+    mbCtx.quadraticCurveTo(512,128,496,128); mbCtx.lineTo(16,128);
+    mbCtx.quadraticCurveTo(0,128,0,112); mbCtx.lineTo(0,16);
+    mbCtx.quadraticCurveTo(0,0,16,0); mbCtx.closePath(); mbCtx.fill();
+    /* === OPT#264: 金色边框 === */
+    mbCtx.strokeStyle = '#ffd700'; mbCtx.lineWidth = 4;
+    mbCtx.beginPath(); mbCtx.moveTo(16,0); mbCtx.lineTo(496,0);
+    mbCtx.quadraticCurveTo(512,0,512,16); mbCtx.lineTo(512,112);
+    mbCtx.quadraticCurveTo(512,128,496,128); mbCtx.lineTo(16,128);
+    mbCtx.quadraticCurveTo(0,128,0,112); mbCtx.lineTo(0,16);
+    mbCtx.quadraticCurveTo(0,0,16,0); mbCtx.closePath(); mbCtx.stroke();
+    /* === OPT#265: 主文字+阴影 === */
+    mbCtx.shadowColor = 'rgba(255,20,147,0.4)'; mbCtx.shadowBlur = 10;
+    mbCtx.fillStyle = '#ff1493'; mbCtx.font = 'bold 42px sans-serif'; mbCtx.textAlign = 'center';
+    mbCtx.fillText('\u{1F389} \u751F\u65E5\u5FEB\u4E50 \u{1F389}', 256, 72);
+    mbCtx.shadowBlur = 0;
+    /* === OPT#266: 副标题 === */
+    mbCtx.fillStyle = '#ff69b4'; mbCtx.font = '20px sans-serif';
+    mbCtx.fillText('Happy Birthday!', 256, 108);
+    const mainBannerTex = new THREE.CanvasTexture(mbCvs);
+    /* === OPT#267: 主横幅Mesh === */
+    const mainBanner = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.0, 0.75),
+      new THREE.MeshBasicMaterial({ map: mainBannerTex, transparent: true, side: THREE.DoubleSide })
+    );
+    mainBanner.position.set(cx, 2.5, cz - 5.5);
+    mainBanner.userData._isBanner = true; mainBanner.userData._bannerPhase = 0;
+    g.add(mainBanner);
+    /* === OPT#268: 左墙竖幅 === */
+    const lbCvs = document.createElement('canvas');
+    lbCvs.width = 128; lbCvs.height = 256;
+    const lbCtx = lbCvs.getContext('2d');
+    lbCtx.fillStyle = 'rgba(255,192,203,0.9)'; lbCtx.fillRect(0, 0, 128, 256);
+    lbCtx.strokeStyle = '#ff69b4'; lbCtx.lineWidth = 4; lbCtx.strokeRect(2, 2, 124, 252);
+    lbCtx.fillStyle = '#ff1493'; lbCtx.font = 'bold 32px sans-serif'; lbCtx.textAlign = 'center';
+    lbCtx.fillText('\u{1F382}', 64, 45);
+    const chars1 = ['\u751F','\u65E5','\u5FEB','\u4E50'];
+    chars1.forEach((ch, i) => lbCtx.fillText(ch, 64, 90 + i * 42));
+    const leftBannerTex = new THREE.CanvasTexture(lbCvs);
+    const leftBanner = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.6, 1.2),
+      new THREE.MeshBasicMaterial({ map: leftBannerTex, transparent: true, side: THREE.DoubleSide })
+    );
+    leftBanner.position.set(cx - 5.5, 2.0, cz);
+    leftBanner.rotation.y = Math.PI / 2;
+    leftBanner.userData._isBanner = true; leftBanner.userData._bannerPhase = 1.2;
+    g.add(leftBanner);
+    /* === OPT#269: 右墙竖幅 === */
+    const rbCvs = document.createElement('canvas');
+    rbCvs.width = 128; rbCvs.height = 256;
+    const rbCtx = rbCvs.getContext('2d');
+    rbCtx.fillStyle = 'rgba(173,216,230,0.9)'; rbCtx.fillRect(0, 0, 128, 256);
+    rbCtx.strokeStyle = '#87ceeb'; rbCtx.lineWidth = 4; rbCtx.strokeRect(2, 2, 124, 252);
+    rbCtx.fillStyle = '#1e90ff'; rbCtx.font = 'bold 32px sans-serif'; rbCtx.textAlign = 'center';
+    rbCtx.fillText('\u{1F388}', 64, 45);
+    const chars2 = ['H','a','p','p','y'];
+    chars2.forEach((ch, i) => rbCtx.fillText(ch, 64, 90 + i * 35));
+    const rightBannerTex = new THREE.CanvasTexture(rbCvs);
+    const rightBanner = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.6, 1.2),
+      new THREE.MeshBasicMaterial({ map: rightBannerTex, transparent: true, side: THREE.DoubleSide })
+    );
+    rightBanner.position.set(cx + 5.5, 2.0, cz);
+    rightBanner.rotation.y = -Math.PI / 2;
+    rightBanner.userData._isBanner = true; rightBanner.userData._bannerPhase = 2.4;
+    g.add(rightBanner);
+    /* === OPT#270: 后墙横幅 "Party Time" === */
+    const bbCvs = document.createElement('canvas');
+    bbCvs.width = 512; bbCvs.height = 128;
+    const bbCtx = bbCvs.getContext('2d');
+    const bbGrad = bbCtx.createLinearGradient(0, 0, 512, 0);
+    bbGrad.addColorStop(0, '#ffd700'); bbGrad.addColorStop(0.5, '#ff8c00'); bbGrad.addColorStop(1, '#ffd700');
+    bbCtx.fillStyle = bbGrad; bbCtx.fillRect(0, 0, 512, 128);
+    bbCtx.strokeStyle = '#ff4500'; bbCtx.lineWidth = 4; bbCtx.strokeRect(2, 2, 508, 124);
+    bbCtx.fillStyle = '#fff'; bbCtx.font = 'bold 38px sans-serif'; bbCtx.textAlign = 'center';
+    bbCtx.shadowColor = 'rgba(0,0,0,0.5)'; bbCtx.shadowBlur = 6;
+    bbCtx.fillText('\u{1F38A} Party Time! \u{1F38A}', 256, 78);
+    const backBannerTex = new THREE.CanvasTexture(bbCvs);
+    const backBanner = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.0, 0.75),
+      new THREE.MeshBasicMaterial({ map: backBannerTex, transparent: true, side: THREE.DoubleSide })
+    );
+    backBanner.position.set(cx, 2.5, cz + 5.5);
+    backBanner.rotation.y = Math.PI;
+    backBanner.userData._isBanner = true; backBanner.userData._bannerPhase = 3.6;
+    g.add(backBanner);
+    /* === OPT#271-275: 彩色三角旗串(四面) === */
+    const buntColors = [0xff3366, 0x33ccff, 0xffcc33, 0x66ff66, 0xcc66ff, 0xff9900, 0xff69b4, 0x87ceeb];
+    for (let side = 0; side < 4; side++) {
+      const baseAng = (side / 4) * Math.PI * 2 + Math.PI / 4;
+      for (let i = 0; i < 8; i++) {
+        const t = i / 7;
+        const fx = cx + Math.cos(baseAng) * (2.0 + t * 2.0);
+        const fz = cz + Math.sin(baseAng) * (2.0 + t * 2.0);
+        const fy = 2.8 - Math.sin(t * Math.PI) * 0.3;
+        const fgeo = new THREE.BufferGeometry();
+        const fv = new Float32Array([
+          fx, fy, fz,
+          fx + 0.075, fy - 0.15, fz,
+          fx - 0.075, fy - 0.15, fz
+        ]);
+        fgeo.setAttribute('position', new THREE.BufferAttribute(fv, 3));
+        fgeo.computeVertexNormals();
+        const flag = new THREE.Mesh(fgeo,
+          new THREE.MeshBasicMaterial({ color: buntColors[(side * 8 + i) % buntColors.length], side: THREE.DoubleSide }));
+        flag.userData._isFlag = true; flag.userData._flagPhase = side * 2 + i * 0.3;
+        g.add(flag);
+      }
+    }
+    /* === OPT#276-280: 墙壁装饰星星 === */
+    for (let i = 0; i < 12; i++) {
+      const wAng = (i / 12) * Math.PI * 2;
+      const starDeco = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.08, 0),
+        new THREE.MeshBasicMaterial({ color: buntColors[i % buntColors.length] })
+      );
+      starDeco.position.set(cx + Math.cos(wAng) * 5.8, 1.5 + Math.sin(i * 0.8) * 0.7 + 0.7, cz + Math.sin(wAng) * 5.8);
+      starDeco.userData._wallDeco = true; starDeco.userData._decoPhase = i * 0.5;
+      g.add(starDeco);
+    }
+    /* === OPT#281-285: 数字气球 === */
+    const emojiTexts = ['\u{1F388}', '\u{1F381}', '\u{1F380}', '\u{1F38A}', '\u{1F389}'];
+    const ebColors = ['rgba(255,51,102,0.9)', 'rgba(51,204,255,0.9)', 'rgba(255,204,51,0.9)', 'rgba(102,255,102,0.9)', 'rgba(204,102,255,0.9)'];
+    for (let i = 0; i < 5; i++) {
+      const eAng = (i / 5) * Math.PI * 2 + 0.3;
+      const eCvs = document.createElement('canvas');
+      eCvs.width = 64; eCvs.height = 64;
+      const eCtx = eCvs.getContext('2d');
+      eCtx.fillStyle = ebColors[i];
+      eCtx.beginPath(); eCtx.arc(32, 32, 28, 0, Math.PI * 2); eCtx.fill();
+      eCtx.fillStyle = '#fff'; eCtx.font = 'bold 28px sans-serif'; eCtx.textAlign = 'center';
+      eCtx.fillText(emojiTexts[i], 32, 42);
+      const eTex = new THREE.CanvasTexture(eCvs);
+      const eBalloon = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.3, 0.3),
+        new THREE.MeshBasicMaterial({ map: eTex, transparent: true, side: THREE.DoubleSide })
+      );
+      eBalloon.position.set(cx + Math.cos(eAng) * 2.5, 2.2 + Math.sin(i * 1.3) * 0.3 + 0.3, cz + Math.sin(eAng) * 2.5);
+      eBalloon.userData._isBanner = true; eBalloon.userData._bannerPhase = i * 1.3;
+      g.add(eBalloon);
+    }
+    /* === OPT#286: 迎宾垫 === */
+    const wmCvs = document.createElement('canvas');
+    wmCvs.width = 256; wmCvs.height = 128;
+    const wmCtx = wmCvs.getContext('2d');
+    wmCtx.fillStyle = '#8b0000'; wmCtx.fillRect(0, 0, 256, 128);
+    wmCtx.strokeStyle = '#ffd700'; wmCtx.lineWidth = 4; wmCtx.strokeRect(4, 4, 248, 120);
+    wmCtx.fillStyle = '#ffd700'; wmCtx.font = 'bold 22px sans-serif'; wmCtx.textAlign = 'center';
+    wmCtx.fillText('Welcome to', 128, 45); wmCtx.fillText('the Party!', 128, 80);
+    const wmTex = new THREE.CanvasTexture(wmCvs);
+    const wmMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.5, 0.75),
+      new THREE.MeshBasicMaterial({ map: wmTex })
+    );
+    wmMesh.position.set(cx, 0.015, cz - 3.5); wmMesh.rotation.x = -Math.PI / 2;
+    g.add(wmMesh);
+    /* === OPT#287-290: 天花板吊饰 === */
+    for (let i = 0; i < 8; i++) {
+      const hAng = (i / 8) * Math.PI * 2;
+      const hR = 2.0 + Math.sin(i * 2.1) * 0.7 + 0.7;
+      const hLen = 0.3 + Math.sin(i * 1.7) * 0.2 + 0.2;
+      const sPts = [
+        new THREE.Vector3(cx + Math.cos(hAng) * hR, 3.2, cz + Math.sin(hAng) * hR),
+        new THREE.Vector3(cx + Math.cos(hAng) * hR, 3.2 - hLen, cz + Math.sin(hAng) * hR)
+      ];
+      const sGeo = new THREE.BufferGeometry().setFromPoints(sPts);
+      g.add(new THREE.Line(sGeo, new THREE.LineBasicMaterial({ color: 0xcccccc })));
+      const hDeco = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.06, 0),
+        new THREE.MeshLambertMaterial({ color: buntColors[i % buntColors.length], emissive: buntColors[i % buntColors.length], emissiveIntensity: 0.1 })
+      );
+      hDeco.position.set(cx + Math.cos(hAng) * hR, 3.2 - hLen - 0.06, cz + Math.sin(hAng) * hR);
+      hDeco.userData._hangDeco = true; hDeco.userData._hangPhase = i * 0.8;
+      g.add(hDeco);
+    }
+    /* === OPT#291-295: 柱子螺旋彩带 === */
+    for (let pillar = 0; pillar < 4; pillar++) {
+      const pAng = (pillar / 4) * Math.PI * 2 + Math.PI / 4;
+      const pR = 4.5;
+      const px = cx + Math.cos(pAng) * pR;
+      const pz = cz + Math.sin(pAng) * pR;
+      const spiralPts = [];
+      for (let s = 0; s <= 20; s++) {
+        const t = s / 20;
+        const sAng = t * Math.PI * 4;
+        spiralPts.push(new THREE.Vector3(px + Math.cos(sAng) * 0.15, t * 3.0 + 0.1, pz + Math.sin(sAng) * 0.15));
+      }
+      const spiralGeo = new THREE.BufferGeometry().setFromPoints(spiralPts);
+      g.add(new THREE.Line(spiralGeo, new THREE.LineBasicMaterial({ color: buntColors[pillar % buntColors.length] })));
+    }
+    /* === OPT#296-300: 生日灯光系统 === */
+    const bdayLights = [];
+    /* #296 粉色聚光灯 */
+    const pinkSpot = new THREE.SpotLight(0xff69b4, 0.6, 8, Math.PI / 6, 0.5);
+    pinkSpot.position.set(cx, 3.5, cz - 3); pinkSpot.target.position.set(cx, 0.5, cz);
+    g.add(pinkSpot); g.add(pinkSpot.target); bdayLights.push(pinkSpot);
+    /* #297 蓝色聚光灯 */
+    const blueSpot = new THREE.SpotLight(0x87ceeb, 0.5, 8, Math.PI / 6, 0.5);
+    blueSpot.position.set(cx + 3, 3.5, cz); blueSpot.target.position.set(cx, 0.5, cz);
+    g.add(blueSpot); g.add(blueSpot.target); bdayLights.push(blueSpot);
+    /* #298 黄色聚光灯 */
+    const yellowSpot = new THREE.SpotLight(0xffd700, 0.5, 8, Math.PI / 6, 0.5);
+    yellowSpot.position.set(cx, 3.5, cz + 3); yellowSpot.target.position.set(cx, 0.5, cz);
+    g.add(yellowSpot); g.add(yellowSpot.target); bdayLights.push(yellowSpot);
+    /* #299 紫色聚光灯 */
+    const purpleSpot = new THREE.SpotLight(0xcc66ff, 0.4, 8, Math.PI / 6, 0.5);
+    purpleSpot.position.set(cx - 3, 3.5, cz); purpleSpot.target.position.set(cx, 0.5, cz);
+    g.add(purpleSpot); g.add(purpleSpot.target); bdayLights.push(purpleSpot);
+    /* #300 灯光数据存储 */
+    g.userData._birthdayLights = bdayLights;
+    g.userData._lightRotAngle = 0;
+    g.userData._lightColorSeq = [0xff69b4, 0x87ceeb, 0xffd700, 0xcc66ff, 0x66ff66, 0xff6633];
+    g.userData._lightColorIdx = 0;
+    g.userData._lightBaseIntensity = bdayLights.map(l => l.intensity);
+    /* Disco ball */
+    const discoG = new THREE.Group(); discoG.position.set(cx, 3.0, cz);
+    const discoBall = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9, roughness: 0.1 }));
+    discoG.add(discoBall);
+    const discoStr = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.4, 4),
+      new THREE.MeshBasicMaterial({ color: 0x888888 }));
+    discoStr.position.y = 0.2; discoG.add(discoStr);
+    discoG.userData._isDisco = true;
+    g.add(discoG);
+    g.userData._discoBall = discoG;
   }
 
   /* ─── 粒子系统 ─── */
@@ -20329,20 +21044,36 @@ class ThreeJSRendererBridge {
       const mat = new THREE.PointsMaterial({ color: 0x4a8a3a, size: 0.07, transparent: true, opacity: 0.6, sizeAttenuation: true, depthWrite: false });
       this._holidayParticles = new THREE.Points(geo, mat);
     } else if (type === 'confetti') {
-      /* 彩纸：多色、旋转下落 */
-      for (let i = 0; i < count; i++) {
-        pos[i*3] = cx + (Math.random()-0.5)*22; pos[i*3+1] = Math.random()*4+0.5; pos[i*3+2] = cz + (Math.random()-0.5)*22;
-        vel[i*3] = (Math.random()-0.5)*0.5; vel[i*3+1] = -(0.15+Math.random()*0.35); vel[i*3+2] = (Math.random()-0.5)*0.5;
+      /* === OPT#101-150: 增强彩纸粒子系统（更多颜色、多尺寸、旋转飘动、粒子池）=== */
+      const confettiCount = 300;
+      const cPos = new Float32Array(confettiCount * 3);
+      const cVel = new Float32Array(confettiCount * 3);
+      const cSizes = new Float32Array(confettiCount);
+      const cColors = new Float32Array(confettiCount * 3);
+      const confettiPalette = [0xff3366, 0x33ccff, 0xffcc33, 0x66ff66, 0xcc66ff, 0xff9900, 0xff69b4, 0x00ffcc, 0xff4444, 0x44aaff, 0xffdd00, 0xff66aa];
+      for (let i = 0; i < confettiCount; i++) {
+        cPos[i*3] = cx + (Math.random()-0.5)*24;
+        cPos[i*3+1] = Math.random()*5+0.5;
+        cPos[i*3+2] = cz + (Math.random()-0.5)*24;
+        cVel[i*3] = (Math.random()-0.5)*0.6;
+        cVel[i*3+1] = -(0.1+Math.random()*0.4);
+        cVel[i*3+2] = (Math.random()-0.5)*0.6;
+        cSizes[i] = 0.06 + Math.random() * 0.1;
+        const cc = new THREE.Color(confettiPalette[Math.floor(Math.random() * confettiPalette.length)]);
+        cColors[i*3] = cc.r; cColors[i*3+1] = cc.g; cColors[i*3+2] = cc.b;
       }
-      const confettiColors = [0xff3366, 0x33ccff, 0xffcc33, 0x66ff66, 0xcc66ff, 0xff9900];
-      const mat = new THREE.PointsMaterial({ vertexColors: true, size: 0.09, transparent: true, opacity: 0.9, sizeAttenuation: true, depthWrite: false });
-      const colors = new Float32Array(count * 3);
-      for (let i = 0; i < count; i++) {
-        const c = new THREE.Color(confettiColors[Math.floor(Math.random() * confettiColors.length)]);
-        colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
-      }
-      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-      this._holidayParticles = new THREE.Points(geo, mat);
+      const confMat = new THREE.PointsMaterial({ vertexColors: true, size: 0.1, transparent: true, opacity: 0.92, sizeAttenuation: true, depthWrite: false });
+      geo.setAttribute('position', new THREE.BufferAttribute(cPos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(cColors, 3));
+      geo.userData._vel = cVel;
+      geo.userData._sizes = cSizes;
+      geo.userData._confettiCount = confettiCount;
+      this._holidayParticles = new THREE.Points(geo, confMat);
+      geo.userData._cx = cx;
+      geo.userData._cz = cz;
+      geo.userData._type = type;
+      this.scene.add(this._holidayParticles);
+      return; /* confetti 使用独立缓冲区，不走通用覆写路径 */
     } else {
       return; /* 无粒子 */
     }
@@ -20359,27 +21090,147 @@ class ThreeJSRendererBridge {
   _updateHolidayDecor(time, camX, camZ) {
     if (!this._holidayDecor) return;
     const ud = this._holidayDecor.userData;
+    /* === OPT#301-310: 帧率追踪和自适应 === */
+    if (this._lastFrameTime251 !== undefined) { this._lastFrameDelta251 = time * 1000 - this._lastFrameTime251; }
+    this._lastFrameTime251 = time * 1000;
+    if (!this._fpsSamples251) { this._fpsSamples251 = []; this._fpsCheckTime251 = 0; }
+    if (time - this._fpsCheckTime251 > 1.0) {
+      this._fpsCheckTime251 = time;
+      const fps = 1000 / (this._lastFrameDelta251 || 16.67);
+      this._fpsSamples251.push(fps);
+      if (this._fpsSamples251.length > 5) this._fpsSamples251.shift();
+      const avgFps = this._fpsSamples251.reduce((a, b) => a + b, 0) / this._fpsSamples251.length;
+      /* === OPT#351: 自适应粒子密度 === */
+      if (avgFps < 25) { this._holidayParticleSkip251 = 2; }
+      else if (avgFps > 45) { this._holidayParticleSkip251 = 0; }
+    }
     /* 旋转项（星星、月亮等） */
     if (ud._spinItems) {
       for (const s of ud._spinItems) {
-        s.rotation.y = time * 1.5;
-        const pulse = 0.8 + Math.sin(time * 4) * 0.2;
-        s.scale.setScalar(pulse);
+        /* === OPT#302: Banner billboard/摆动 === */
+        if (s.userData && s.userData._isBanner) {
+          const bp = s.userData._bannerPhase || 0;
+          s.rotation.z = Math.sin(time * 0.8 + bp) * 0.04;
+          s.rotation.x = Math.sin(time * 0.6 + bp + 1) * 0.02;
+        } else {
+          s.rotation.y = time * 1.5;
+          const pulse = 0.8 + Math.sin(time * 4) * 0.2;
+          s.scale.setScalar(pulse);
+        }
       }
     }
-    /* 气球浮动 */
+    /* 气球浮动（增强：基于baseY的正弦波动+不同速度+水平微摆）*/
+    /* === OPT#311-320: 增强遍历动画 === */
     this._holidayDecor.traverse(c => {
       if (c.userData && c.userData._isBalloon) {
         const ph = c.userData._floatPhase || 0;
-        c.position.y += Math.sin(time * 1.5 + ph) * 0.0015;
-        c.rotation.z = Math.sin(time * 0.8 + ph) * 0.1;
+        const spd = c.userData._floatSpeed || 1.5;
+        const baseY = c.userData._baseY || c.position.y;
+        c.position.y = baseY + Math.sin(time * spd + ph) * 0.08;
+        c.rotation.z = Math.sin(time * 0.8 + ph) * 0.12;
+        c.rotation.x = Math.sin(time * 0.6 + ph * 0.7) * 0.06;
       }
       if (c.userData && c.userData._isFlame) {
-        /* 火焰摇曳 */
-        const s = 0.9 + Math.sin(time * 12 + (c.position.x + c.position.z) * 5) * 0.15;
-        c.scale.set(s, s * 1.2, s);
+        /* 火焰摇曳（增强：不规则缩放+颜色脉动）*/
+        const idx = c.userData._flameIdx || 0;
+        const flicker = Math.sin(time * 14 + idx * 2.1) * 0.5 + Math.sin(time * 7.3 + idx * 1.3) * 0.3;
+        const s = 0.85 + flicker * 0.15;
+        c.scale.set(s, s * 1.3, s);
+        c.rotation.z = Math.sin(time * 9 + idx) * 0.15;
+      }
+      if (c.userData && c.userData._isFlameOuter) {
+        /* 外层火焰：更柔和的脉动+透明度变化 */
+        const idx = c.userData._flameIdx || 0;
+        const s2 = 0.8 + Math.sin(time * 8 + idx * 1.7) * 0.2;
+        c.scale.set(s2, s2 * 1.1, s2);
+        c.material.opacity = 0.35 + Math.sin(time * 10 + idx * 2.3) * 0.15;
+      }
+      if (c.userData && c.userData._isStarRing) {
+        /* 星环旋转 */
+        c.rotation.x = time * 2.0;
+        c.rotation.y = time * 1.3;
+      }
+      if (c.userData && c.userData._isSign) {
+        /* 文字牌微微摆动 */
+        c.rotation.z = Math.sin(time * 0.5) * 0.03;
+      }
+      /* === OPT#321: 旗帜飘动 === */
+      if (c.userData && c.userData._isFlag) {
+        const fp = c.userData._flagPhase || 0;
+        c.rotation.z = Math.sin(time * 2 + fp) * 0.15;
+      }
+      /* === OPT#322: 墙壁装饰闪烁 === */
+      if (c.userData && c.userData._wallDeco) {
+        const dp = c.userData._decoPhase || 0;
+        const dv = 0.5 + 0.5 * Math.sin(time * 3 + dp);
+        c.scale.setScalar(0.8 + dv * 0.4);
+      }
+      /* === OPT#323: 吊饰摆动 === */
+      if (c.userData && c.userData._hangDeco) {
+        const hp = c.userData._hangPhase || 0;
+        c.rotation.z = Math.sin(time * 1.5 + hp) * 0.2;
+        c.rotation.x = Math.sin(time * 1.2 + hp + 0.5) * 0.15;
       }
     });
+    /* === OPT#324-340: 生日灯光旋转/颜色循环 === */
+    if (ud._birthdayLights && this._holiday && this._holiday.id === 'birthday') {
+      ud._lightRotAngle = (ud._lightRotAngle || 0) + 0.005;
+      const rotAng = ud._lightRotAngle;
+      for (let i = 0; i < Math.min(4, ud._birthdayLights.length); i++) {
+        const light = ud._birthdayLights[i];
+        if (light.isSpotLight) {
+          const baseAng = (i / 4) * Math.PI * 2 + rotAng;
+          const cakeCx = (ud._cakeRotateCenter && ud._cakeRotateCenter.x) || 0;
+          const cakeCz = (ud._cakeRotateCenter && ud._cakeRotateCenter.z) || 0;
+          light.position.x = cakeCx + Math.cos(baseAng) * 3;
+          light.position.z = cakeCz + Math.sin(baseAng) * 3;
+          const baseI = (ud._lightBaseIntensity && ud._lightBaseIntensity[i]) || 0.5;
+          light.intensity = baseI * (0.8 + 0.2 * Math.sin(time * 2 + i * 1.5));
+        }
+      }
+      /* === OPT#327: 颜色循环(每5秒) === */
+      const colorCycleTime = Math.floor(time / 5) % (ud._lightColorSeq ? ud._lightColorSeq.length : 1);
+      if (colorCycleTime !== ud._lightColorIdx) {
+        ud._lightColorIdx = colorCycleTime;
+        const seq = ud._lightColorSeq;
+        if (seq && seq.length > 0) {
+          for (let i = 0; i < Math.min(4, ud._birthdayLights.length); i++) {
+            ud._birthdayLights[i].color.setHex(seq[(colorCycleTime + i) % seq.length]);
+          }
+        }
+      }
+      /* === OPT#328: Disco ball旋转 === */
+      if (ud._discoBall) { ud._discoBall.rotation.y = time * 2; }
+    }
+    /* === OPT#341-350: 蛋糕接近检测 === */
+    if (this._holiday && this._holiday.id === 'birthday' && ud._cakeRotateCenter) {
+      const cakeDx = camX - ud._cakeRotateCenter.x;
+      const cakeDz = camZ - ud._cakeRotateCenter.z;
+      const cakeDist = Math.sqrt(cakeDx * cakeDx + cakeDz * cakeDz);
+      if (!this._birthdayProxShown251 && cakeDist < 3) {
+        this._birthdayProxShown251 = true;
+        if (typeof game !== 'undefined' && game && game.hud && game.hud.toast) {
+          game.hud.toast('\u{1F382} \u751F\u65E5\u5927\u86CB\u7CD5\u5C31\u5728\u773C\u524D\uFF01', 4);
+        }
+      } else if (this._birthdayProxShown251 && cakeDist > 5) {
+        this._birthdayProxShown251 = false;
+      }
+      /* === OPT#350: 靠近时灯光增强 === */
+      if (ud._birthdayLights) {
+        const boost = cakeDist < 2 ? 1.3 : (cakeDist < 4 ? 1.1 : 1.0);
+        for (let i = 0; i < ud._birthdayLights.length; i++) {
+          const baseI = (ud._lightBaseIntensity && ud._lightBaseIntensity[i]) || 0.4;
+          ud._birthdayLights[i].intensity = baseI * boost;
+        }
+      }
+    }
+    /* 蛋糕火焰灯光闪烁 */
+    if (ud._cakeLights) {
+      for (let li = 0; li < ud._cakeLights.length; li++) {
+        const cl = ud._cakeLights[li];
+        cl.intensity = 0.4 + Math.sin(time * 10 + li * 1.5) * 0.2 + Math.sin(time * 6.7 + li * 0.9) * 0.1;
+      }
+    }
     /* 彩灯闪烁 */
     if (ud._bulbs) {
       for (const b of ud._bulbs) {
@@ -20393,15 +21244,35 @@ class ThreeJSRendererBridge {
         );
       }
     }
-    /* 粒子动画 */
+    /* === OPT#472-480: 粒子动画+性能控制 === */
     if (this._holidayParticles) {
-      const geo = this._holidayParticles.geometry;
-      const pos = geo.attributes.position.array;
-      const vel = geo.userData._vel;
-      const pcx = geo.userData._cx, pcz = geo.userData._cz;
-      const ptype = geo.userData._type;
-      const n = pos.length / 3;
-      for (let i = 0; i < n; i++) {
+      /* === OPT#473: 帧跳过(低FPS时) === */
+      if (this._holidayParticleSkip251 > 0) {
+        this._holidayParticleFrame251 = (this._holidayParticleFrame251 || 0) + 1;
+        if (this._holidayParticleFrame251 % (this._holidayParticleSkip251 + 1) !== 0) {
+          /* Skip this frame for particles */
+        } else {
+          this._updateParticlesInner251(time);
+        }
+      } else {
+        this._updateParticlesInner251(time);
+      }
+    }
+  }
+
+  /* === OPT#475: 粒子更新内部函数 === */
+  _updateParticlesInner251(time) {
+    if (!this._holidayParticles) return;
+    const geo = this._holidayParticles.geometry;
+    const pos = geo.attributes.position.array;
+    const vel = geo.userData._vel;
+    const pcx = geo.userData._cx, pcz = geo.userData._cz;
+    const ptype = geo.userData._type;
+    const n = pos.length / 3;
+    /* === OPT#476: 摄像机位置 === */
+    const _camX251 = this.camera ? this.camera.position.x : pcx;
+    const _camZ251 = this.camera ? this.camera.position.z : pcz;
+    for (let i = 0; i < n; i++) {
         pos[i*3] += vel[i*3] * 0.016;
         pos[i*3+1] += vel[i*3+1] * 0.016;
         pos[i*3+2] += vel[i*3+2] * 0.016;
@@ -20410,6 +21281,31 @@ class ThreeJSRendererBridge {
             pos[i*3] = pcx + (Math.random()-0.5)*30;
             pos[i*3+1] = 3.5 + Math.random()*0.5;
             pos[i*3+2] = pcz + (Math.random()-0.5)*30;
+          }
+        } else if (ptype === 'confetti') {
+          /* === OPT#481-490: 彩纸增强(螺旋+摆动+距离剔除+密度控制) === */
+          const swirlPhase = i * 0.37 + time * 2.0;
+          /* OPT#482: 螺旋下落增强 */
+          pos[i*3] += Math.sin(swirlPhase) * 0.004;
+          pos[i*3+2] += Math.cos(swirlPhase * 0.7) * 0.004;
+          /* OPT#483: 增强水平飘动 */
+          pos[i*3] += Math.sin(time * 0.5 + i * 0.1) * 0.002;
+          pos[i*3+2] += Math.cos(time * 0.4 + i * 0.15) * 0.002;
+          /* OPT#484: 触底回收(缩小范围) */
+          if (pos[i*3+1] < 0.05) {
+            pos[i*3] = pcx + (Math.random()-0.5)*15;
+            pos[i*3+1] = 3.5 + Math.random()*1.0;
+            pos[i*3+2] = pcz + (Math.random()-0.5)*15;
+            vel[i*3+1] = -(0.12 + Math.random()*0.35);
+          }
+          /* OPT#485: 距离剔除 */
+          const _camX251 = this.camera ? this.camera.position.x : pcx;
+          const _camZ251 = this.camera ? this.camera.position.z : pcz;
+          const _pdx2 = pos[i*3] - _camX251, _pdz2 = pos[i*3+2] - _camZ251;
+          if (_pdx2 * _pdx2 + _pdz2 * _pdz2 > 225) {
+            pos[i*3] = pcx + (Math.random()-0.5)*10;
+            pos[i*3+1] = Math.random()*3+0.5;
+            pos[i*3+2] = pcz + (Math.random()-0.5)*10;
           }
         } else if (ptype === 'bats') {
           /* 蝙蝠在范围内随机飞，碰边界反弹 */
@@ -20434,7 +21330,6 @@ class ThreeJSRendererBridge {
       }
       geo.attributes.position.needsUpdate = true;
     }
-  }
 
   bindWorld(world) {
     this._world = world;
@@ -27750,7 +28645,7 @@ class ThreeJSRendererBridge {
       else if (_tk === 'tt_easter_egg') { _glowI = 0.6; _glowC = 0x38bdf8; }
       else if (_tk === 'easter_egg') { _glowI = 0.4; _glowC = 0xa855f7; }
       else if (_tk === 'ee_day_marker') { _glowI = 0.3; _glowC = 0x60a5fa; }
-      else if (_tk === 'birthdaycake') { _glowI = 0.6; _glowC = 0xff69b4; }
+      else if (_tk === 'birthdaycake') { _glowI = 1.0; _glowC = 0xff69b4; /* OPT#431: Enhanced glow */ }
       if (_glowI > 0) {
         if (!m._itemGlow) {
           const gl = new THREE.PointLight(_glowC, _glowI, 2);
@@ -30650,18 +31545,22 @@ class Game {
     this.refreshContent();
     this.objectiveCount = level.objective.count;
 
-    /* 🎂 生日主题：在Hub关卡放置生日蛋糕道具 */
+    /* 🎂 生日主题：在Hub关卡放置生日蛋糕道具（增强：5个蛋糕+多距离环分布）*/
     if (level.isHub) {
       const holiday = this.renderer ? this.renderer._getHoliday() : null;
       if (holiday && holiday.id === 'birthday') {
-        /* 在起始点附近放置3个生日蛋糕 */
         const sx = world.start.x, sy = world.start.y;
-        for (let i = 0; i < 3; i++) {
-          const ang = (i / 3) * Math.PI * 2 + 0.5;
-          const ix = Math.floor(sx + Math.cos(ang) * 2);
-          const iy = Math.floor(sy + Math.sin(ang) * 2);
+        const cakeCount = 5;
+        const cakeRadii = [2, 3, 4];
+        let placed = 0;
+        for (let i = 0; i < cakeCount && placed < cakeCount; i++) {
+          const ang = (i / cakeCount) * Math.PI * 2 + 0.4;
+          const radius = cakeRadii[i % cakeRadii.length];
+          const ix = Math.floor(sx + Math.cos(ang) * radius);
+          const iy = Math.floor(sy + Math.sin(ang) * radius);
           if (!world.isWall(ix, iy)) {
             this.items.push({ x: ix + 0.5, y: iy + 0.5, type: 'birthdaycake', taken: false });
+            placed++;
           }
         }
       }
@@ -31471,6 +32370,7 @@ class Game {
 
     /* 迭代42: 死亡画面升级 — 2秒fade to black */
     this.state = 'dead';
+    this._activeInteraction = null; this._interactionTarget = null; this._npcDialogOpen = false;
     /* v13.0 迭代38: 死亡场景增强 — 恐怖描述 */
     const HORROR_DEATH_DESC = {
       hound: '猎犬撕裂了你的喉咙——你感觉它的牙齿在数你的脊椎骨。',
@@ -31746,6 +32646,7 @@ class Game {
     }
 
     const isLast = this.levelIndex >= LEVELS.filter(l => !l.isEasterEgg).length - 1;
+    if(typeof recordGameCompletion==='function'){var _eggResult=recordGameCompletion();if(_eggResult&&this.hud)this.hud.toast('🥚 隐藏结局解锁: '+_eggResult,5);}
 
     /* === 成就触发 === */
     // 关卡通关成就
@@ -34657,10 +35558,17 @@ class Game {
       else { p.battery = Math.min(100, p.battery + 60); this.hud.toast('背包已满 · 直接使用电池 +60%', 2.4); }
       return;
     }
-    /* 🎂 生日蛋糕：拾取后放入背包 */
+    /* === OPT#421-430: 🎂 生日蛋糕：拾取+视觉反馈 === */
     if (it.type === 'birthdaycake') {
-      if (p.addItem('birthdaycake')) { this.hud.toast('🎂 拾取 生日蛋糕 · 使用后回满体力和理智！', 4); }
-      else { this.hud.toast('背包已满！', 2); it.taken = false; if(it.key) this.taken.delete(it.key); return; }
+      if (p.addItem('birthdaycake')) {
+        this.hud.toast('\u{1F382} \u62FE\u53D6 \u751F\u65E5\u86CB\u7CD5 \u00B7 \u4F7F\u7528\u540E\u56DE\u6EE1\u4F53\u529B\u548C\u7406\u667A\uFF01', 5);
+        /* === OPT#422: 拾取闪光 === */
+        const _pFlash = document.createElement('div');
+        _pFlash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9998;background:radial-gradient(circle,rgba(255,105,180,0.2) 0%,transparent 70%);animation:_bdayFlash 0.5s ease-out forwards;';
+        document.body.appendChild(_pFlash);
+        setTimeout(() => _pFlash.remove(), 600);
+      }
+      else { this.hud.toast('\u{1F392} \u80CC\u5305\u5DF2\u6EE1\uFF01', 3); it.taken = false; if(it.key) this.taken.delete(it.key); return; }
       return;
     }
     if (it.type === 'navigator') {
@@ -38378,14 +39286,14 @@ function getFloorIndicator(){var el=document.getElementById('floor-indicator');v
 function hideFloorIndicator(){var el=document.getElementById('floor-indicator');if(el)el.classList.remove('show');}
 function checkStairProximity(px,py){var ns=null,minDist=Infinity;if(stairUpPos){var dx=px-stairUpPos.x,dy=py-stairUpPos.y;var d2=dx*dx+dy*dy;if(d2<STAIR_DETECT_DIST*STAIR_DETECT_DIST&&d2<minDist){ns='up';minDist=d2;}}if(stairDownPos){var dx2=px-stairDownPos.x,dy2=py-stairDownPos.y;var d2b=dx2*dx2+dy2*dy2;if(d2b<STAIR_DETECT_DIST*STAIR_DETECT_DIST&&d2b<minDist){ns='down';}}return ns;}
 function changeFloor(dir){if(dir==='up'&&currentFloor>1){currentFloor--;if(typeof G!=='undefined')G.currentFloor=currentFloor;getFloorIndicator();if(typeof G!=='undefined'&&G.hud)G.hud.toast('上楼 -> B'+currentFloor,2);regenerateFloor();}else if(dir==='down'&&currentFloor<MAX_FLOOR){currentFloor++;if(typeof G!=='undefined')G.currentFloor=currentFloor;getFloorIndicator();if(typeof G!=='undefined'&&G.hud)G.hud.toast('下楼 -> B'+currentFloor,2);regenerateFloor();}}
-function regenerateFloor(){if(typeof world!=='undefined'&&world.level){var fs=(world.level.seed||42)*1000+currentFloor*7919;if(!floorSeeds[currentFloor])floorSeeds[currentFloor]=fs;if(typeof fillWindow==='function')fillWindow(world.ox,world.oy);placeFloorStairs();trapEffects.length=0;npcDialogOpen=false;if(typeof closeNPCDialog==='function')closeNPCDialog();if(typeof initNPC==='function')initNPC();if(typeof initSavePoint==='function')initSavePoint();if(typeof generateTraps==='function')generateTraps();if(typeof G!=='undefined'){if(G.enemies)G.enemies.length=0;if(G.items)G.items.length=0;if(typeof spawnEnemiesForLevel==='function')spawnEnemiesForLevel();if(typeof spawnItems==='function')spawnItems();}}}
+function regenerateFloor(){if(typeof world!=='undefined'&&world.level){var fs=(world.level.seed||42)*1000+currentFloor*7919;if(!floorSeeds[currentFloor])floorSeeds[currentFloor]=fs;if(typeof fillWindow==='function')fillWindow(world.ox,world.oy);placeFloorStairs();trapEffects.length=0;activeTraps.length=0;npcDialogOpen=false;if(typeof closeNPCDialog==='function')closeNPCDialog();if(typeof initNPC==='function')initNPC();if(typeof initSavePoint==='function')initSavePoint();if(typeof generateTraps==='function')generateTraps();if(typeof G!=='undefined'){if(G.enemies)G.enemies.length=0;if(G.items)G.items.length=0;if(typeof spawnEnemiesForLevel==='function')spawnEnemiesForLevel();if(typeof spawnItems==='function')spawnItems();}}}
 function placeFloorStairs(){stairUpPos=null;stairDownPos=null;if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];if(currentFloor>1){stairDownPos={x:sr.x+2,y:sr.y+2};var ux=sr.x+10+(currentFloor*3),uy=sr.y+10+(currentFloor*3);if(world.level&&typeof world.isWall==='function'&&world.isWall(Math.floor(ux),Math.floor(uy))){ux=sr.x+5;uy=sr.y+5;}stairUpPos={x:ux,y:uy};}}
 function initSavePoint(){if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];savePointPos={x:sr.x+1,y:sr.y+1};}
 function checkSavePointProximity(px,py){if(!savePointPos)return false;var dx=px-savePointPos.x,dy=py-savePointPos.y;return(dx*dx+dy*dy<SAVE_DETECT_DIST*SAVE_DETECT_DIST);}
 function saveGame(){if(typeof localStorage==='undefined')return false;var now=Date.now();if(now-lastSaveTime<SAVE_COOLDOWN)return false;lastSaveTime=now;var _sg=typeof window.game!=='undefined'?window.game:null;var sd={version:2,floor:currentFloor,px:_sg&&_sg.player?_sg.player.x:0,py:_sg&&_sg.player?_sg.player.y:0,sanity:_sg&&_sg.player?_sg.player.sanity:100,stamina:_sg&&_sg.player?_sg.player.stamina:100,levelIndex:_sg?_sg.levelIndex:0,inventory:_sg&&_sg.inventory?JSON.parse(JSON.stringify(_sg.inventory)):{},discoveredEggs:typeof getDiscoveredEasterEggs==='function'?getDiscoveredEasterEggs():[],totalTime:typeof GameStats!=='undefined'&&typeof GameStats.getStats==='function'?(GameStats.getStats().totalTime||0):(_sg&&typeof _sg.totalPlayTime==='number'?_sg.totalPlayTime:0),timestamp:now};try{localStorage.setItem('backrooms_save',JSON.stringify(sd));var el=document.getElementById('save-confirm');if(el){el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2000);}if(_sg&&_sg.hud)_sg.hud.toast('进度已保存',2);return true;}catch(e){console.warn('Save failed:',e);return false;}}
-function loadGame(){if(typeof localStorage==='undefined')return null;try{var r=localStorage.getItem('backrooms_save');if(!r)return null;var d=JSON.parse(r);if(!d||typeof d.floor!=='number'||typeof d.px!=='number'||typeof d.py!=='number')return null;if(d.timestamp&&(Date.now()-d.timestamp)>30*24*3600*1000){localStorage.removeItem('backrooms_save');return null;}d.floor=Math.max(1,Math.min(d.floor,MAX_FLOOR||5));d.sanity=typeof d.sanity==='number'&&!isNaN(d.sanity)?Math.max(0,Math.min(100,d.sanity)):100;d.stamina=typeof d.stamina==='number'&&!isNaN(d.stamina)?Math.max(0,Math.min(100,d.stamina)):100;if(!d.inventory||typeof d.inventory!=='object')d.inventory={};return d;}catch(e){return null;}}
+function loadGame(){if(typeof localStorage==='undefined')return null;try{var r=localStorage.getItem('backrooms_save');if(!r)return null;var d=JSON.parse(r);if(!d||typeof d.floor!=='number'||typeof d.px!=='number'||typeof d.py!=='number')return null;if(d.timestamp&&(Date.now()-d.timestamp)>30*24*3600*1000){localStorage.removeItem('backrooms_save');return null;}d.floor=Math.max(1,Math.min(d.floor,MAX_FLOOR||5));d.sanity=typeof d.sanity==='number'&&!isNaN(d.sanity)?Math.max(0,Math.min(100,d.sanity)):100;d.stamina=typeof d.stamina==='number'&&!isNaN(d.stamina)?Math.max(0,Math.min(100,d.stamina)):100;if(!d.inventory||typeof d.inventory!=='object')d.inventory={};lastSaveTime=0;return d;}catch(e){return null;}}
 function hasSaveData(){if(typeof localStorage==='undefined')return false;try{var r=localStorage.getItem('backrooms_save');if(!r)return false;var d=JSON.parse(r);return typeof d.floor==='number'&&typeof d.px==='number';}catch(e){return false;}}
-function respawnFromSave(){var sv=loadGame();if(!sv)return false;var _rg=typeof window.game!=='undefined'?window.game:null;if(!_rg)return false;currentFloor=sv.floor||1;if(!_rg.player)return false;if(typeof _rg.player.x!=='number')_rg.player.x=0;if(typeof _rg.player.y!=='number')_rg.player.y=0;_rg.player.x=sv.px;_rg.player.y=sv.py;_rg.player.sanity=Math.max(sv.sanity||100,30);_rg.player.stamina=Math.max(sv.stamina||100,30);if(sv.inventory&&_rg.inventory){for(var k in sv.inventory){if(sv.inventory.hasOwnProperty(k)){_rg.inventory[k]=JSON.parse(JSON.stringify(sv.inventory[k]));}}}if(Array.isArray(sv.discoveredEggs)&&typeof _easterEggState!=='undefined'){for(var i=0;i<sv.discoveredEggs.length;i++){_easterEggState.discovered[sv.discoveredEggs[i]]=true;}}getFloorIndicator();regenerateFloor();var ds=document.getElementById('screen-dead');if(ds)ds.classList.remove('active');if(_rg.hud)_rg.hud.toast('从存档点复活...',3);return true;}
+function respawnFromSave(){var sv=loadGame();if(!sv)return false;var _rg=typeof window.game!=='undefined'?window.game:null;if(!_rg)return false;currentFloor=sv.floor||1;if(typeof sv.levelIndex==='number')_rg.levelIndex=Math.max(0,Math.min(sv.levelIndex,99));if(!_rg.player)return false;if(typeof _rg.player.x!=='number')_rg.player.x=0;if(typeof _rg.player.y!=='number')_rg.player.y=0;_rg.player.x=sv.px;_rg.player.y=sv.py;if(typeof world!=='undefined'&&world&&typeof world.isWall==='function'&&world.isWall(Math.floor(_rg.player.x),Math.floor(_rg.player.y))){var sr=world.safeRooms&&world.safeRooms[0];if(sr){_rg.player.x=sr.x+2;_rg.player.y=sr.y+2;}}_rg.player.sanity=Math.max(sv.sanity||100,30);_rg.player.stamina=Math.max(sv.stamina||100,30);if(sv.inventory&&_rg.inventory){for(var k in sv.inventory){if(sv.inventory.hasOwnProperty(k)){_rg.inventory[k]=JSON.parse(JSON.stringify(sv.inventory[k]));}}}if(Array.isArray(sv.discoveredEggs)&&typeof _easterEggState!=='undefined'){for(var i=0;i<sv.discoveredEggs.length;i++){_easterEggState.discovered[sv.discoveredEggs[i]]=true;}}getFloorIndicator();regenerateFloor();var ds=document.getElementById('screen-dead');if(ds)ds.classList.remove('active');var dfo=document.getElementById('death-face-overlay');if(dfo)dfo.remove();_rg.state='playing';if(_rg.input)_rg.input.exitLock();if(_rg.player)_rg.player.angle=0;if(_rg.audio){_rg.audio.start();_rg.audio.setHum(0.1);}if(_rg.hud)_rg.hud.toast('从存档点复活...',3);return true;}
 function initNPC(){if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];npcPos={x:sr.x+3,y:sr.y+3};}
 function checkNPCProximity(px,py){if(!npcPos)return false;var dx=px-npcPos.x,dy=py-npcPos.y;return(dx*dx+dy*dy<NPC_DETECT_DIST*NPC_DETECT_DIST);}
 function openNPCDialog(){if(npcDialogOpen)return;npcDialogOpen=true;var dlg=document.getElementById('npc-dialog');var ne=document.getElementById('npc-name');var te=document.getElementById('npc-text');var oe=document.getElementById('npc-options');if(!dlg)return;ne.textContent='\ud83e\uddd1 幸存者';te.textContent=NPC_DIALOGUES.greeting[Math.floor(Math.random()*NPC_DIALOGUES.greeting.length)];var oh='';oh+='<button class="npc-opt" onclick="npcAction(\'hint\')">\ud83d\udca1 有什么提示吗？</button>';oh+='<button class="npc-opt" onclick="npcAction(\'upgrade\')">\u2b06\ufe0f 升级道具（需要材料）</button>';for(var i=0;i<NPC_DIALOGUES.trade.length;i++){(function(idx){oh+='<button class="npc-opt" onclick="npcAction(\'trade\','+idx+')">'+NPC_DIALOGUES.trade[idx].text+'</button>';})(i);}oh+='<button class="npc-opt" onclick="npcAction(\'leave\')">\ud83d\udeaa 离开</button>';oe.innerHTML=oh;dlg.classList.add('show');var pr=document.getElementById('npc-prompt');if(pr)pr.classList.remove('show');}
@@ -39327,7 +40235,7 @@ function triggerDarknessHallucination(player) {
     toast(msgs[type] || '黑暗中似乎有什么...', 3);
   }
   if (player.sanity !== undefined) {
-    player.sanity -= 2;
+    player.sanity = Math.max(0, player.sanity - 2);
   }
 }
 function getDarknessFearLevel() {
@@ -43780,6 +44688,7 @@ function _saveEasterEggState() {
 }
 function updateEasterEggs(dt, entity, playerX, playerY) {
   if (!_easterEggState._loaded) _loadEasterEggState();
+  if (!entity || typeof entity.x !== 'number' || typeof entity.y !== 'number') return null;
   var dx = entity.x - playerX, dy = entity.y - playerY;
   var dist = Math.sqrt(dx * dx + dy * dy);
   /* secret_room_0: stand still near entity for 10s (proximity + no movement) */
