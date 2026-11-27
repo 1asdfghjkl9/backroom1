@@ -17979,7 +17979,7 @@ class Entity {
     }
 
     /* 迭代12：听觉感知 — 玩家跑步噪音吸引怪物 */
-    if (!this.chasing && this.state !== 'chase' && player.sprinting) {
+    if (this.state !== 'chase' && player.sprinting) {
       const noiseDist = 8; /* 跑步噪音传播距离 */
       const ndx = this.x - player.x, ndy = this.y - player.y;
       if (ndx * ndx + ndy * ndy < noiseDist * noiseDist) {
@@ -34036,13 +34036,8 @@ class Game {
               e.x += Math.cos(retreatAng) * 2 * dt;
               e.y += Math.sin(retreatAng) * 2 * dt;
             } else if (e.type === 'watcher') {
-              /* watcher受伤（已有机制增强） */
-              e.hp -= 15 * dt;
+              /* FIX v29: 伤害已由 Entity.update 处理，这里仅标记 */
               e.litUp = true;
-              if (e.hp <= 0 && !e.isDead) {
-                e.isDead = true;
-                e.deathAnim = 0;
-              }
             } else if (e.type === 'partygoer') {
               /* partygoer不被冻结但减速50% */
               e._litSlow = 0.5;
