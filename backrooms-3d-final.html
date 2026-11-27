@@ -2922,7 +2922,7 @@ input[type="range"]::-moz-range-thumb {
           <div class="title-sub">FORM 0-A · SITE BRIEFING</div>
           <h1 class="title">THE BACKROOMS</h1>
           <div class="title-cn">逃离后室</div>
-          <div style="font-size:10px;color:#555;margin-top:2px;">v29.1</div>
+          <div style="font-size:10px;color:#555;margin-top:2px;">v29.3</div>
           <div id="menu-level-cards" class="menu-level-cards"></div>
         </div>
 
@@ -33426,11 +33426,12 @@ class Game {
           }
         } else {
           /* FIX v29: 迭代46-50交互 — 楼梯/存档点/NPC */
-          if (typeof handleInteraction46_50 === 'function' && handleInteraction46_50(p.x, p.y)) {
+          try{if (typeof handleInteraction46_50 === 'function' && handleInteraction46_50(p.x, p.y)) {
             /* 已处理迭代46-50交互 */
           } else {
             this.doInteract();
           }
+          }catch(e){console.error('[iter46-50] interact error:',e);this.doInteract();}
         }
       }
     }
@@ -33650,7 +33651,7 @@ class Game {
     if(typeof updateWaveUI==='function')updateWaveUI();
 
     /* FIX v29: 迭代46-50系统更新 — 楼层/NPC/陷阱/存档/任务 */
-    if(typeof updateSystems46_50==='function')updateSystems46_50(dt);
+    try{if(typeof updateSystems46_50==='function')updateSystems46_50(dt);}catch(e){console.error('[iter46-50] update error:',e);}
 
     /* 死亡判定 */
     if (!this.creativeMode && p.sanity <= 0 && this.state === 'playing') {
@@ -39307,7 +39308,7 @@ function hideFloorIndicator(){var el=document.getElementById('floor-indicator');
 function checkStairProximity(px,py){var ns=null,minDist=Infinity;if(stairUpPos){var dx=px-stairUpPos.x,dy=py-stairUpPos.y;var d2=dx*dx+dy*dy;if(d2<STAIR_DETECT_DIST*STAIR_DETECT_DIST&&d2<minDist){ns='up';minDist=d2;}}if(stairDownPos){var dx2=px-stairDownPos.x,dy2=py-stairDownPos.y;var d2b=dx2*dx2+dy2*dy2;if(d2b<STAIR_DETECT_DIST*STAIR_DETECT_DIST&&d2b<minDist){ns='down';}}return ns;}
 function changeFloor(dir){if(dir==='up'&&currentFloor>1){currentFloor--;if(typeof G!=='undefined')G.currentFloor=currentFloor;getFloorIndicator();if(typeof G!=='undefined'&&G.hud)G.hud.toast('上楼 -> B'+currentFloor,2);regenerateFloor();}else if(dir==='down'&&currentFloor<MAX_FLOOR){currentFloor++;if(typeof G!=='undefined')G.currentFloor=currentFloor;getFloorIndicator();if(typeof G!=='undefined'&&G.hud)G.hud.toast('下楼 -> B'+currentFloor,2);regenerateFloor();}}
 function regenerateFloor(){if(typeof world!=='undefined'&&world.level){var fs=(world.level.seed||42)*1000+currentFloor*7919;if(!floorSeeds[currentFloor])floorSeeds[currentFloor]=fs;placeFloorStairs();trapEffects.length=0;activeTraps.length=0;npcDialogOpen=false;if(typeof closeNPCDialog==='function')closeNPCDialog();if(typeof initNPC==='function')initNPC();if(typeof initSavePoint==='function')initSavePoint();if(typeof generateTraps==='function')generateTraps();if(typeof G!=='undefined'){if(G.entities)G.entities.length=0;if(G.items)G.items.length=0;}}}
-function placeFloorStairs(){stairUpPos=null;stairDownPos=null;if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];if(currentFloor<MAX_FLOOR){stairDownPos={x:sr.x+2,y:sr.y+2};var ux=sr.x+10+(currentFloor*3),uy=sr.y+10+(currentFloor*3);if(world.level&&typeof world.isWall==='function'&&world.isWall(Math.floor(ux),Math.floor(uy))){ux=sr.x+5;uy=sr.y+5;}stairUpPos={x:ux,y:uy};}}
+function placeFloorStairs(){stairUpPos=null;stairDownPos=null;if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];if(currentFloor<MAX_FLOOR){stairDownPos={x:sr.x+2,y:sr.y+2};}if(currentFloor>1){var ux=sr.x+10+(currentFloor*3),uy=sr.y+10+(currentFloor*3);if(world.level&&typeof world.isWall==='function'&&world.isWall(Math.floor(ux),Math.floor(uy))){ux=sr.x+5;uy=sr.y+5;}stairUpPos={x:ux,y:uy};}}
 function initSavePoint(){if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];savePointPos={x:sr.x+1,y:sr.y+1};}
 function checkSavePointProximity(px,py){if(!savePointPos)return false;var dx=px-savePointPos.x,dy=py-savePointPos.y;return(dx*dx+dy*dy<SAVE_DETECT_DIST*SAVE_DETECT_DIST);}
 function saveGame(){if(typeof localStorage==='undefined')return false;var now=Date.now();if(now-lastSaveTime<SAVE_COOLDOWN)return false;lastSaveTime=now;var _sg=typeof window.game!=='undefined'?window.game:null;var sd={version:2,floor:currentFloor,px:_sg&&_sg.player?_sg.player.x:0,py:_sg&&_sg.player?_sg.player.y:0,sanity:_sg&&_sg.player?_sg.player.sanity:100,stamina:_sg&&_sg.player?_sg.player.stamina:100,levelIndex:_sg?_sg.levelIndex:0,inventory:_sg&&_sg.player&&_sg.player.inventory?JSON.parse(JSON.stringify(_sg.player.inventory)):[],discoveredEggs:typeof getDiscoveredEasterEggs==='function'?getDiscoveredEasterEggs():[],totalTime:typeof GameStats!=='undefined'&&typeof GameStats.getStats==='function'?(GameStats.getStats().totalTime||0):(_sg&&typeof _sg.totalPlayTime==='number'?_sg.totalPlayTime:0),timestamp:now};try{localStorage.setItem('backrooms_save',JSON.stringify(sd));var el=document.getElementById('save-confirm');if(el){el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2000);}if(_sg&&_sg.hud)_sg.hud.toast('进度已保存',2);return true;}catch(e){console.warn('Save failed:',e);return false;}}
