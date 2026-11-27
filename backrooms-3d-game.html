@@ -2922,6 +2922,7 @@ input[type="range"]::-moz-range-thumb {
           <div class="title-sub">FORM 0-A · SITE BRIEFING</div>
           <h1 class="title">THE BACKROOMS</h1>
           <div class="title-cn">逃离后室</div>
+          <div style="font-size:10px;color:#555;margin-top:2px;">v28.0</div>
           <div id="menu-level-cards" class="menu-level-cards"></div>
         </div>
 
@@ -31434,7 +31435,7 @@ class Game {
     this._pathShiftCooldown = 0;
     this._lightsOutActive = false;
     this._monsterRageActive = false;
-    /* FIX: 数组必须在 initHiddenPassages 之前初始化，否则 push 时报 TypeError */
+    /* FIX v28: 数组必须在 initHiddenPassages 之前初始化，否则 push 时报 TypeError */
     this._hiddenWalls = [];
     this._secretRooms = [];
     this._darkDoors = [];
@@ -31442,7 +31443,8 @@ class Game {
     this._deadEnds = [];
     this._pathShifts = [];
     this._soundLures = [];
-    this.initHiddenPassages(world, level);
+    try { this.initHiddenPassages(world, level); }
+    catch(e) { console.error('[startLevel] initHiddenPassages error:', e); }
     /* 用新背包系统初始化物品 */
     this.player.inventory = [];
     this.player.mainHand = null;
@@ -35181,8 +35183,9 @@ class Game {
   /* 迭代14-15：隐藏通道接近检测 */
   updateHiddenPassageProximity(dt) {
     const p = this.player;
+    if (!p) return;
     /* 迭代15：接近隐藏通道时画面变化/声音提示 */
-    for (const hw of this._hiddenWalls) {
+    for (const hw of (this._hiddenWalls || [])) {
       if (hw.discovered) continue;
       const dx = p.x - (hw.x + 0.5), dy = p.y - (hw.y + 0.5);
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -35198,7 +35201,7 @@ class Game {
       }
     }
     /* 暗门接近 */
-    for (const dd of this._darkDoors) {
+    for (const dd of (this._darkDoors || [])) {
       if (dd.opened) continue;
       const dx = p.x - (dd.x + 0.5), dy = p.y - (dd.y + 0.5);
       if (Math.sqrt(dx * dx + dy * dy) < 2.0 && !dd._warned) {
@@ -35207,7 +35210,7 @@ class Game {
       }
     }
     /* 密室接近 */
-    for (const sr of this._secretRooms) {
+    for (const sr of (this._secretRooms || [])) {
       if (sr.discovered) continue;
       const dx = p.x - (sr.x + 0.5), dy = p.y - (sr.y + 0.5);
       if (Math.sqrt(dx * dx + dy * dy) < 2.5) {
@@ -37906,6 +37909,17 @@ MPManager.init();
    入口：装配引擎与游戏，启动主循环
    ============================================================ */
 
+/* v28: 全局错误捕获 — 任何未捕获的异常都显示给用户 */
+window.addEventListener('error', function(e) {
+  console.error('[全局错误]', e.error || e.message);
+  var box = document.createElement('div');
+  box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:100001;color:#ff4444;background:rgba(0,0,0,.95);padding:12px 16px;font:13px/1.5 monospace;white-space:pre-wrap;border-bottom:2px solid #ff4444';
+  box.textContent = '⚠ 错误: ' + (e.message || '未知错误') + '\n' +
+    (e.error && e.error.stack ? e.error.stack.split('\n').slice(0,4).join('\n') : '') +
+    '\n\n如果看到此提示，请截图发给开发者。';
+  document.body.appendChild(box);
+  setTimeout(function(){ if(box.parentNode) box.remove(); }, 15000);
+});
 
 const canvas = document.getElementById('view');
 
