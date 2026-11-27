@@ -2922,7 +2922,7 @@ input[type="range"]::-moz-range-thumb {
           <div class="title-sub">FORM 0-A · SITE BRIEFING</div>
           <h1 class="title">THE BACKROOMS</h1>
           <div class="title-cn">逃离后室</div>
-          <div style="font-size:10px;color:#555;margin-top:2px;">v29.0</div>
+          <div style="font-size:10px;color:#555;margin-top:2px;">v29.1</div>
           <div id="menu-level-cards" class="menu-level-cards"></div>
         </div>
 
@@ -16176,7 +16176,7 @@ class Player {
       setTimeout(() => { _bText.style.top = '20%'; _bText.style.opacity = '0'; }, 100);
       setTimeout(() => { _bFlash.remove(); _bText.remove(); }, 3000);
       /* === OPT#419-420: HUD提示 === */
-      if (this.hud && this.hud.toast) {
+      if (window.game && window.game.hud && window.game.hud.toast) {
         this.hud.toast('\u{1F382} \u751F\u65E5\u5FEB\u4E50\uFF01\u4F53\u529B\u3001\u7406\u667A\u3001\u751F\u547D\u5DF2\u6062\u590D\uFF01', 5);
       }
       this.removeFromInventory(this.mainHand.uid);
@@ -16419,8 +16419,7 @@ class Player {
   }
 
   eatBiscuit(audio) {
-    if (this.biscuits <= 0) return false;
-    this.biscuits--;
+    /* FIX v29: 移除旧计数器检查，背包系统由 useMainHandItem 管理 */
     this.stamina = Math.min(this.maxStamina, this.stamina + 38);
     this.sanity = Math.min(this.maxSanity, this.sanity + 5);
     this.exhausted = 0;
@@ -16432,8 +16431,7 @@ class Player {
   }
 
   drinkWater(audio) {
-    if (this.waters <= 0) return false;
-    this.waters--;
+    /* FIX v29: 移除旧计数器检查，背包系统由 useMainHandItem 管理 */
     this.sanity = Math.min(this.maxSanity, this.sanity + 42);
     this.purifyAura = 3; /* 杏仁水净化：3秒内附近实体被驱退 */
     /* 迭代72：短暂致幻 - 视野变暗+扭曲 */
@@ -33377,16 +33375,16 @@ class Game {
             dec.droppedItem = null;
             /* 根据类型处理掉落 */
             if (dropType === 'battery') {
-              p.battery = Math.min(1, p.battery + 0.5);
+              p.battery = Math.min(100, p.battery + 50);
               this.hud.toast('拾取电池 +50%电量', 1.5);
             } else if (dropType === 'almond') {
               p.sanity = Math.min(100, p.sanity + 25);
               this.hud.toast('拾取杏仁水 +25理智', 1.5);
             } else if (dropType === 'biscuit') {
-              p.hp = Math.min(100, p.hp + 10);
+              p.hp = Math.min(p.maxHp || 120, p.hp + 10);
               this.hud.toast('拾取饼干 +10%生命', 1.5);
             } else if (dropType === 'bandage') {
-              p.hp = Math.min(100, p.hp + 20);
+              p.hp = Math.min(p.maxHp || 120, p.hp + 20);
               this.hud.toast('拾取绷带 +20%生命', 1.5);
             }
             if (this.audio) this.audio.pickup && this.audio.pickup();
@@ -39314,7 +39312,7 @@ function hideFloorIndicator(){var el=document.getElementById('floor-indicator');
 function checkStairProximity(px,py){var ns=null,minDist=Infinity;if(stairUpPos){var dx=px-stairUpPos.x,dy=py-stairUpPos.y;var d2=dx*dx+dy*dy;if(d2<STAIR_DETECT_DIST*STAIR_DETECT_DIST&&d2<minDist){ns='up';minDist=d2;}}if(stairDownPos){var dx2=px-stairDownPos.x,dy2=py-stairDownPos.y;var d2b=dx2*dx2+dy2*dy2;if(d2b<STAIR_DETECT_DIST*STAIR_DETECT_DIST&&d2b<minDist){ns='down';}}return ns;}
 function changeFloor(dir){if(dir==='up'&&currentFloor>1){currentFloor--;if(typeof G!=='undefined')G.currentFloor=currentFloor;getFloorIndicator();if(typeof G!=='undefined'&&G.hud)G.hud.toast('上楼 -> B'+currentFloor,2);regenerateFloor();}else if(dir==='down'&&currentFloor<MAX_FLOOR){currentFloor++;if(typeof G!=='undefined')G.currentFloor=currentFloor;getFloorIndicator();if(typeof G!=='undefined'&&G.hud)G.hud.toast('下楼 -> B'+currentFloor,2);regenerateFloor();}}
 function regenerateFloor(){if(typeof world!=='undefined'&&world.level){var fs=(world.level.seed||42)*1000+currentFloor*7919;if(!floorSeeds[currentFloor])floorSeeds[currentFloor]=fs;placeFloorStairs();trapEffects.length=0;activeTraps.length=0;npcDialogOpen=false;if(typeof closeNPCDialog==='function')closeNPCDialog();if(typeof initNPC==='function')initNPC();if(typeof initSavePoint==='function')initSavePoint();if(typeof generateTraps==='function')generateTraps();if(typeof G!=='undefined'){if(G.entities)G.entities.length=0;if(G.items)G.items.length=0;}}}
-function placeFloorStairs(){stairUpPos=null;stairDownPos=null;if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];if(currentFloor>1){stairDownPos={x:sr.x+2,y:sr.y+2};var ux=sr.x+10+(currentFloor*3),uy=sr.y+10+(currentFloor*3);if(world.level&&typeof world.isWall==='function'&&world.isWall(Math.floor(ux),Math.floor(uy))){ux=sr.x+5;uy=sr.y+5;}stairUpPos={x:ux,y:uy};}}
+function placeFloorStairs(){stairUpPos=null;stairDownPos=null;if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];if(currentFloor<MAX_FLOOR){stairDownPos={x:sr.x+2,y:sr.y+2};var ux=sr.x+10+(currentFloor*3),uy=sr.y+10+(currentFloor*3);if(world.level&&typeof world.isWall==='function'&&world.isWall(Math.floor(ux),Math.floor(uy))){ux=sr.x+5;uy=sr.y+5;}stairUpPos={x:ux,y:uy};}}
 function initSavePoint(){if(!world||!world.safeRooms||world.safeRooms.length===0)return;var sr=world.safeRooms[0];savePointPos={x:sr.x+1,y:sr.y+1};}
 function checkSavePointProximity(px,py){if(!savePointPos)return false;var dx=px-savePointPos.x,dy=py-savePointPos.y;return(dx*dx+dy*dy<SAVE_DETECT_DIST*SAVE_DETECT_DIST);}
 function saveGame(){if(typeof localStorage==='undefined')return false;var now=Date.now();if(now-lastSaveTime<SAVE_COOLDOWN)return false;lastSaveTime=now;var _sg=typeof window.game!=='undefined'?window.game:null;var sd={version:2,floor:currentFloor,px:_sg&&_sg.player?_sg.player.x:0,py:_sg&&_sg.player?_sg.player.y:0,sanity:_sg&&_sg.player?_sg.player.sanity:100,stamina:_sg&&_sg.player?_sg.player.stamina:100,levelIndex:_sg?_sg.levelIndex:0,inventory:_sg&&_sg.player&&_sg.player.inventory?JSON.parse(JSON.stringify(_sg.player.inventory)):[],discoveredEggs:typeof getDiscoveredEasterEggs==='function'?getDiscoveredEasterEggs():[],totalTime:typeof GameStats!=='undefined'&&typeof GameStats.getStats==='function'?(GameStats.getStats().totalTime||0):(_sg&&typeof _sg.totalPlayTime==='number'?_sg.totalPlayTime:0),timestamp:now};try{localStorage.setItem('backrooms_save',JSON.stringify(sd));var el=document.getElementById('save-confirm');if(el){el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2000);}if(_sg&&_sg.hud)_sg.hud.toast('进度已保存',2);return true;}catch(e){console.warn('Save failed:',e);return false;}}
@@ -39329,7 +39327,7 @@ function npcAction(type,idx){var te=document.getElementById('npc-text');if(type=
 window.npcAction=npcAction;
 function generateTraps(){activeTraps=[];if(!world||!world.safeRooms||world.safeRooms.length===0)return;var tc=Math.min(3+currentFloor*2,20);for(var i=0;i<tc;i++){var tks=Object.keys(TRAP_TYPES);var tp=tks[Math.floor(Math.random()*tks.length)];var sr=world.safeRooms[0];var tx,ty,att=0;do{tx=(sr?sr.x:0)+Math.floor(Math.random()*40)-10;ty=(sr?sr.y:0)+Math.floor(Math.random()*40)-10;att++;}while(sr&&Math.abs(tx-sr.x)<5&&Math.abs(ty-sr.y)<5&&att<20);activeTraps.push({x:tx+0.5,y:ty+0.5,type:tp,triggered:false});}}
 function checkTraps(px,py){var warned=false;var maxCheckDist=Math.max(TRAP_TRIGGER_DIST,TRAP_DETECT_DIST)*2+2;for(var i=0;i<activeTraps.length;i++){var trap=activeTraps[i];if(trap.triggered)continue;var dx=px-trap.x,dy=py-trap.y;if(Math.abs(dx)>maxCheckDist||Math.abs(dy)>maxCheckDist)continue;var dist=Math.sqrt(dx*dx+dy*dy);if(dist<TRAP_TRIGGER_DIST){triggerTrap(trap);}else if(!warned&&dist<TRAP_DETECT_DIST*2){showTrapWarning(TRAP_TYPES[trap.type].visual);warned=true;}}}
-function triggerTrap(trap){trap.triggered=true;var t=TRAP_TYPES[trap.type];if(!t||typeof G==='undefined')return;var totalLoss=(t.damage||0)+(t.sanityLoss||0);if(totalLoss>0&&G.player)G.player.sanity=Math.max(0,G.player.sanity-totalLoss);if(trap.type==='TELEPORT'&&G.player){var _tx=G.player.x+(Math.random()-0.5)*20;var _ty=G.player.y+(Math.random()-0.5)*20;if(typeof world!=='undefined'&&world&&typeof world.isWall==='function'&&!world.isWall(Math.floor(_tx),Math.floor(_ty))){G.player.x=_tx;G.player.y=_ty;}}if(trap.type==='GAS'&&t.duration)trapEffects.push({type:'gas',endTime:Date.now()+t.duration,tickRate:500,lastTick:0});if(G.hud)G.hud.toast(t.name+'陷阱！',2);if(G.audio&&G.audio.ctx){try{var ctx=G.audio.ctx;var osc=ctx.createOscillator();var gn=ctx.createGain();osc.type='sawtooth';osc.frequency.setValueAtTime(100,ctx.currentTime);osc.frequency.exponentialRampToValueAtTime(40,ctx.currentTime+0.3);gn.gain.setValueAtTime(0.15,ctx.currentTime);gn.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);osc.connect(gn);gn.connect(G.audio.sfxGroup||G.audio.master||ctx.destination);osc.start();osc.stop(ctx.currentTime+0.3);}catch(e){}}}
+function triggerTrap(trap){trap.triggered=true;var t=TRAP_TYPES[trap.type];if(!t||typeof G==='undefined')return;if(G.player){if(t.damage)G.player.hp=Math.max(0,G.player.hp-(t.damage||0));if(t.sanityLoss)G.player.sanity=Math.max(0,G.player.sanity-(t.sanityLoss||0));}if(trap.type==='TELEPORT'&&G.player){var _tx=G.player.x+(Math.random()-0.5)*20;var _ty=G.player.y+(Math.random()-0.5)*20;if(typeof world!=='undefined'&&world&&typeof world.isWall==='function'&&!world.isWall(Math.floor(_tx),Math.floor(_ty))){G.player.x=_tx;G.player.y=_ty;}}if(trap.type==='GAS'&&t.duration)trapEffects.push({type:'gas',endTime:Date.now()+t.duration,tickRate:500,lastTick:0});if(G.hud)G.hud.toast(t.name+'陷阱！',2);if(G.audio&&G.audio.ctx){try{var ctx=G.audio.ctx;var osc=ctx.createOscillator();var gn=ctx.createGain();osc.type='sawtooth';osc.frequency.setValueAtTime(100,ctx.currentTime);osc.frequency.exponentialRampToValueAtTime(40,ctx.currentTime+0.3);gn.gain.setValueAtTime(0.15,ctx.currentTime);gn.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);osc.connect(gn);gn.connect(G.audio.sfxGroup||G.audio.master||ctx.destination);osc.start();osc.stop(ctx.currentTime+0.3);}catch(e){}}}
 function showTrapWarning(text){var el=document.getElementById('trap-warning');if(!el)return;el.textContent=text;el.classList.add('show');clearTimeout(el._ht);el._ht=setTimeout(function(){el.classList.remove('show');},1500);}
 function updateTrapEffects(dt){if(typeof G==='undefined'||!G.player)return;var now=Date.now();for(var i=trapEffects.length-1;i>=0;i--){var eff=trapEffects[i];if(now>=eff.endTime){trapEffects.splice(i,1);continue;}if(eff.type==='gas'&&now-eff.lastTick>eff.tickRate){G.player.sanity=Math.max(0,G.player.sanity-2);eff.lastTick=now;}}}
 function initQuests(){if(typeof QUEST_TEMPLATES==='undefined'||!Array.isArray(QUEST_TEMPLATES))return;questManager.quests=QUEST_TEMPLATES.map(function(q){var nq={};for(var k in q)nq[k]=q[k];nq.progress=0;nq.done=false;return nq;});questManager.activeQuests=questManager.quests.slice(0,2).map(function(q){return q.id;});updateQuestPanel();}
