@@ -2922,7 +2922,7 @@ input[type="range"]::-moz-range-thumb {
           <div class="title-sub">FORM 0-A · SITE BRIEFING</div>
           <h1 class="title">THE BACKROOMS</h1>
           <div class="title-cn">逃离后室</div>
-          <div style="font-size:10px;color:#555;margin-top:2px;">v30.0</div>
+          <div style="font-size:10px;color:#555;margin-top:2px;">v30.1</div>
           <div id="menu-level-cards" class="menu-level-cards"></div>
         </div>
 
@@ -16085,14 +16085,24 @@ class Player {
     if (!this.mainHand) return false;
     const t = this.mainHand.type;
     if (t === 'biscuit') {
-      this.eatBiscuit(audio);
+      this.stamina = Math.min(this.maxStamina, this.stamina + 38);
+      this.sanity = Math.min(this.maxSanity, this.sanity + 5);
+      this.hp = Math.min(this.maxHp || 120, this.hp + 10);
+      this.exhausted = 0;
+      this.staminaDelay = 0;
+      this.noise = Math.max(this.noise, 4.0);
+      if (audio) audio.eat();
+      if (window.game) window.game.stats.biscuits++;
       this.removeFromInventory(this.mainHand.uid);
       this.mainHand = null;
       this.heldItem = null;
       return true;
     }
     if (t === 'water') {
-      this.drinkWater(audio);
+      this.sanity = Math.min(this.maxSanity, this.sanity + 42);
+      this.purifyAura = 3;
+      if (audio) audio.drink();
+      if (window.game) window.game.stats.waters++;
       this.removeFromInventory(this.mainHand.uid);
       this.mainHand = null;
       this.heldItem = null;
@@ -33127,6 +33137,24 @@ class Game {
       grabHeld: inp.down('KeyF') || inp.down('KeyE')
     };
 
+    /* FIX v30.1: 触屏快捷键 — 1=饼干, 2=水, Q=手电筒, R=导航仪 */
+    if (inp.hit('Digit1') && !this.activeAltar) {
+      var _bi = p.inventory.find(function(it){return it.type==='biscuit';});
+      if (_bi) { p.mainHand = _bi; p.useMainHandItem(this.audio); this.showItemEffect('biscuit'); this.renderInventory(); }
+    }
+    if (inp.hit('Digit2') && !this.activeAltar) {
+      var _wi = p.inventory.find(function(it){return it.type==='water';});
+      if (_wi) { p.mainHand = _wi; p.useMainHandItem(this.audio); this.showItemEffect('water'); this.renderInventory(); }
+    }
+    if (inp.hit('KeyQ')) {
+      var _fi = p.inventory.find(function(it){return it.type==='flashlight';});
+      if (_fi) { p.mainHand = _fi; p.useMainHandItem(this.audio); this.renderInventory(); }
+    }
+    if (inp.hit('KeyR')) {
+      var _ni = p.inventory.find(function(it){return it.type==='navigator';});
+      if (_ni) { p.mainHand = _ni; p.heldItem = p.heldItem === 'navigator' ? null : 'navigator'; this.renderInventory(); }
+    }
+
     /* 快捷键已移除 - 使用背包系统（Tab键打开背包，左键装备到主手，右键装备到副手，点击主手使用） */
     /* 鼠标左键或V键攻击（有武器用武器，没武器出拳） */
     if (inp.mouseClick() || inp.hit('KeyV')) {
@@ -33662,10 +33690,15 @@ class Game {
     /* FIX v29: 迭代46-50系统更新 — 楼层/NPC/陷阱/存档/任务 */
     try{if(typeof updateSystems46_50==='function')updateSystems46_50(dt);}catch(e){console.error('[iter46-50] update error:',e);}
 
-    /* 死亡判定 */
+    /* 死亡判定 — HP或理智归零均触发 */
     if (!this.creativeMode && (p.sanity <= 0 || p.hp <= 0) && this.state === 'playing') {
-      p.sanity = 0;
-      this._startDeathSequence(this._deathKiller || { type: 'sanity', def: { name: '理智崩溃' } });
+      if (p.hp <= 0) {
+        p.hp = 0;
+        this._startDeathSequence(this._deathKiller || { type: 'hp', def: { name: '生命耗尽' } });
+      } else {
+        p.sanity = 0;
+        this._startDeathSequence(this._deathKiller || { type: 'sanity', def: { name: '理智崩溃' } });
+      }
     }
   }
 
@@ -39406,9 +39439,9 @@ function spawnWaveEnemies(){
         var spec={type:etype,x:ex,y:ey,z:0};
         var newEnt=new Entity(spec,world,99999+i+waveSystem.waveNumber*100);
         newEnt.speedMul=1+waveSystem.waveNumber*0.05;
-        newEnt.onDeath=function(ent){if(typeof G!=='undefined')G.levelKills++;};
+        newEnt.onDeath=function(ent){if(typeof G!=='undefined'){G.levelKills++;if(G.unlockAchievement)G.unlockAchievement('first_kill');if(G.player)G.player.sanity=Math.max(0,G.player.sanity-15);if(G.showEntityDeathEffect)G.showEntityDeathEffect(ent);}};
         newEnt._gameRef=G;
-        G.entities.push(newEnt);
+        if(G.entities)G.entities.push(newEnt);
       }
     }
   }
@@ -39460,9 +39493,9 @@ var RANDOM_EVENTS=[
             var et=types[Math.floor(Math.random()*types.length)];
             var spec={type:et,x:ex,y:ey,z:0};
             var ne=new Entity(spec,world,88888+i);
-            ne.onDeath=function(ent){if(typeof G!=='undefined')G.levelKills++;};
+            ne.onDeath=function(ent){if(typeof G!=='undefined'){G.levelKills++;if(G.unlockAchievement)G.unlockAchievement('first_kill');if(G.player)G.player.sanity=Math.max(0,G.player.sanity-15);if(G.showEntityDeathEffect)G.showEntityDeathEffect(ent);}};
             ne._gameRef=G;
-            G.entities.push(ne);
+            if(G.entities)G.entities.push(ne);
           }
         }
       }
