@@ -2922,7 +2922,7 @@ input[type="range"]::-moz-range-thumb {
           <div class="title-sub">FORM 0-A · SITE BRIEFING</div>
           <h1 class="title">THE BACKROOMS</h1>
           <div class="title-cn">逃离后室</div>
-          <div style="font-size:10px;color:#555;margin-top:2px;">v29.3</div>
+          <div style="font-size:10px;color:#555;margin-top:2px;">v30.0</div>
           <div id="menu-level-cards" class="menu-level-cards"></div>
         </div>
 
@@ -16009,7 +16009,8 @@ class Player {
   addItem(type) {
     if (this.inventory.length >= this.invMaxSlots) return false;
     // 物品不可堆叠，每种物品最多持有一个
-    if (this.inventory.find(function(i) { return i.type === type; })) return false;
+    var consumable = ['biscuit','water','bandage','pill','battery','flare'];
+    if (consumable.indexOf(type) < 0 && this.inventory.find(function(i) { return i.type === type; })) return false;
     const uid = type + '_' + Date.now() + '_' + Math.floor(Math.random()*1000);
     this.inventory.push({ type: type, uid: uid });
     /* 迭代60：发现新道具时记录图鉴并通知 */
@@ -16443,7 +16444,7 @@ class Player {
 
   /* 从水壶喝水（迭代25：恢复thirst，迭代49：调整为55，迭代26：恢复sanity +10） */
   drinkFromCanteen(audio) {
-    if (!this.hasWater || this.thirst >= 95) return false;
+    if (!this.hasWater || this.thirst >= 99) return false;
     this.thirst = Math.min(100, this.thirst + 55);
     this.sanity = Math.min(this.maxSanity, this.sanity + 10);
     if (audio) audio.drink();
@@ -29895,6 +29896,9 @@ class Game {
       hp: Math.round(p.hp), maxHp: Math.round(p.maxHp),
       thirst: Math.round(p.thirst),
       biscuits: p.biscuits | 0, waters: p.waters | 0, battery: Math.round(p.battery),
+      invData: p.inventory ? p.inventory.map(function(it){return {type:it.type,uid:it.uid};}) : [],
+      mainHandUid: p.mainHand ? p.mainHand.uid : null,
+      hasFlashlight: p.hasFlashlight | 0,
       collected: p.collected | 0,
       hasNavigator: p.hasNavigator | 0,
       hasWater: p.hasWater | 0,
@@ -30240,7 +30244,7 @@ class Game {
     this._tutSteps = [
       { icon: '🎮', title: '移动', text: '使用 WASD 键移动，鼠标控制视角方向。', keys: ['W', 'A', 'S', 'D'] },
       { icon: '⚔️', title: '攻击', text: '面对实体时按 V 键或鼠标左键攻击。近战武器需要靠近才能造成伤害。', keys: ['V', '鼠标左键'] },
-      { icon: '🎒', title: '背包与物品', text: '按 Tab 打开背包。数字键 1/2/Q/R 快速切换手持物品，再按一次使用。', keys: ['Tab', '1', '2', 'Q', 'R'] },
+      { icon: '🎒', title: '背包与物品', text: '按 Tab 打开背包。在背包中点击物品装备到主手，再按左键使用。按 B 打开图鉴。', keys: ['Tab', '1', '2', 'Q', 'R'] },
       { icon: '🔦', title: '手持系统', text: '一次只能手持一件物品。手电(Q)照明，导航仪(R)显示地图。', keys: ['Q', 'R'] },
       { icon: '⚒️', title: '合成', text: '在背包中拖拽材料到合成区域可制作新物品。尝试用基础材料制作强力道具！', keys: ['合成区'] }
     ];
@@ -30354,7 +30358,7 @@ class Game {
     this.dailySeed = challenge.seed;
     this.dailyRules = challenge.rules;
     this.levelIndex = challenge.startLevel;
-    if (challenge.rules.no_items) { this.inventory = { cookie: 0, water: 0 }; this.heldItem = null; }
+    if (challenge.rules.no_items) { if(this.player){this.player.inventory=[];this.player.mainHand=null;this.player.offHand=null;} this.heldItem = null; }
     if (challenge.rules.low_sanity) { this.sanity = 50; }
     showScreen(null);
     this.fadeIn(0.4);
@@ -31063,8 +31067,8 @@ class Game {
         else if (e.code === 'Digit3') this.handleEnchantChoice(3);
         else if (e.code === 'Digit4') this.handleEnchantChoice(4);
       }
-      /* 迭代60：图鉴快捷键 C */
-      if (e.code === 'KeyC' && this.state === 'playing') {
+      /* 迭代60：图鉴快捷键 B（原C键与蹲下冲突） */
+      if (e.code === 'KeyB' && this.state === 'playing') {
         if (this.openCodex) this.openCodex();
       }
       if (e.code === 'Escape' && this.state === 'codex') {
@@ -31427,8 +31431,8 @@ class Game {
     this.world = world;
     window.world = world; /* FIX v29: 暴露world到全局，使迭代46-50系统可用 */
     this.player = new Player(world);
-    this.player.biscuits = 2;
-    this.player.waters = 0;
+    this.player.biscuits = level.biscuits || 2;
+    this.player.waters = level.waters || 0;
     /* 迭代11-13：初始化隐藏通道和秘密区域 */
     this._visitedCells = new Set();
     this._pathShiftCooldown = 0;
@@ -31448,7 +31452,9 @@ class Game {
     this.player.inventory = [];
     this.player.mainHand = null;
     this.player.offHand = null;
-    for (let i = 0; i < 2; i++) this.player.addItem('biscuit');
+    for (let i = 0; i < (level.biscuits || 2); i++) this.player.addItem('biscuit');
+    for (let i = 0; i < (level.waters || 0); i++) this.player.addItem('water');
+    for (let i = 0; i < (level.batteries || 3); i++) this.player.addItem('battery');
     if (this.player.hasFlashlight) this.player.addItem('flashlight');
     if (this.player.hasNavigator) this.player.addItem('navigator');
     /* 默认把手电筒装备到主手 */
@@ -31543,6 +31549,9 @@ class Game {
       p.offHand = null;
       for (let i = 0; i < (run.biscuits | 0); i++) p.addItem('biscuit');
       for (let i = 0; i < (run.waters | 0); i++) p.addItem('water');
+      if (run.invData && Array.isArray(run.invData)) { p.inventory = []; for (let id of run.invData) { p.inventory.push({type:id.type, uid:id.uid||Math.random().toString(36)}); } }
+      if (run.mainHandUid && p.inventory) { p.mainHand = p.inventory.find(function(it){return it.uid===run.mainHandUid;})||null; }
+      if (run.hasFlashlight) p.hasFlashlight = true;
       if (p.hasFlashlight) p.addItem('flashlight');
       if (p.hasNavigator) p.addItem('navigator');
       if (p.hasWater) p.addItem('canteen');
@@ -32716,7 +32725,7 @@ class Game {
       const el = document.getElementById('victory-stats');
       if (el) el.innerHTML = statsHtml;
       /* 终章通关：显示终末诗 */
-      if (this.level.id === 10 && isLast) {
+      if (this.level.id === 10) {
         const poemEl = document.getElementById('victory-stats');
         if (poemEl) {
           poemEl.innerHTML = statsHtml + `
@@ -33654,7 +33663,7 @@ class Game {
     try{if(typeof updateSystems46_50==='function')updateSystems46_50(dt);}catch(e){console.error('[iter46-50] update error:',e);}
 
     /* 死亡判定 */
-    if (!this.creativeMode && p.sanity <= 0 && this.state === 'playing') {
+    if (!this.creativeMode && (p.sanity <= 0 || p.hp <= 0) && this.state === 'playing') {
       p.sanity = 0;
       this._startDeathSequence(this._deathKiller || { type: 'sanity', def: { name: '理智崩溃' } });
     }
